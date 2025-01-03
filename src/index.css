@@ -4,7 +4,12 @@
   font-weight: 400;
 
   --font-color: rgba(255, 255, 255, 0.87);
-  --bg-color: #0d0912;
+  --bg-color: #09090d;
+  --danger-color: #f45c5c;
+  --success-color: #7cff7c;
+
+  --active-color: #83fdff;
+  --opaque-gray-color: rgba(132, 131, 131, 0.517);
 
   color-scheme: light dark;
   color: var(--font-color);
@@ -119,10 +124,63 @@ button:focus-visible {
 .input {
   background-color: transparent;
   border: none;
-  border-bottom: 1px solid var(--font-color);
+  border-bottom: 1px solid rgba(132, 131, 131, 0.517);
   color: var(--font-color);
 }
 
 .input:focus {
   outline: none;
+}
+.bg-transparent {
+  background-color: transparent;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.rounded {
+  border-radius: 5px;
+}
+
+.bg-danger {
+  background-color: var(--danger-color) !important;
+}
+
+.success-on-hover:hover,
+.success-on-hover:active,
+.success-on-hover:focus {
+  background-color: var(--success-color) !important;
+  color: var(--bg-color) !important;
+  box-shadow: 0 0 10px var(--success-color) !important;
+}
+
+.active-on-hover:hover,
+.active-on-hover:active,
+.active-on-hover:focus {
+  background-color: var(--active-color) !important;
+  color: var(--bg-color) !important;
+  box-shadow: 0 0 10px var(--active-color) !important;
+
+  & svg.with-stroke {
+    & path {
+      stroke: var(--bg-color) !important;
+    }
+  }
+  & svg.with-fill {
+    & path {
+      fill: var(--bg-color) !important;
+    }
+  }
+  & svg.with-svg-fill {
+    fill: var(--bg-color) !important;
+  }
+}
+
+.border-gray {
+  border: 1px solid var(--opaque-gray-color) !important;
+}
+
+.bg-success {
+  background-color: var(--success-color) !important;
 }

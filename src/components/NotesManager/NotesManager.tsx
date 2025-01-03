@@ -5,11 +5,15 @@ import { TNote } from "../../types";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
-import { Link } from "react-router";
+import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
+import { saveLastPage } from "../../utils/lib";
 
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const addNote = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -44,21 +48,26 @@ export const NotesManager = () => {
 
   return (
     <div className="padding-10 flex-column gap-10">
-      <h3 className="padding-10 flex-row gap-10 justify-between">
-        <Link to="/index.html">
-          <Button svg={SVGS.back} />
-        </Link>
-        <span>Notes Manager</span>
+      <h3 className=" flex-row gap-10 justify-between">
+        <Button
+          svg={SVGS.back}
+          className="padding-5 active-on-hover"
+          onClick={() => {
+            saveLastPage("/index.html");
+            navigate("/index.html");
+          }}
+        />
+        <span>{t("notes")}</span>
       </h3>
 
       {showForm ? (
         <NoteForm addNote={addNote} />
       ) : (
         <Button
-          text="Add Note"
+          text={t("addNote")}
           svg={SVGS.plus}
           onClick={() => setShowForm(true)}
-          className="w-100 justify-center padding-5"
+          className="w-100 justify-center padding-5 active-on-hover border-gray"
         />
       )}
 
@@ -82,22 +91,30 @@ const NoteForm = ({
 }: {
   addNote: (e: React.FormEvent<HTMLFormElement>) => void;
 }) => {
+  const { t } = useTranslation();
   return (
-    <form className="flex-column gap-10 padding-10" onSubmit={addNote}>
+    <form
+      className="flex-column gap-10 padding-10 border-gray rounded"
+      onSubmit={addNote}
+    >
       <input
         className="input padding-5 w-100"
         name="title"
         type="text"
-        placeholder="Note title"
+        placeholder={t("title")}
         required
       />
       <input
         className="input padding-5 w-100"
         name="content"
         type="text"
-        placeholder="Note content"
+        placeholder={t("content")}
       />
-      <Button text="Add Note" className="w-100 justify-center padding-5" />
+      <Button
+        svg={SVGS.check}
+        text={t("add")}
+        className="w-100 justify-center padding-5 active-on-hover"
+      />
     </form>
   );
 };

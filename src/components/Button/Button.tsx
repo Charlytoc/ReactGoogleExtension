@@ -4,6 +4,7 @@ import "./Button.css";
 type TConfirmation = {
   text: string;
   svg?: React.ReactNode;
+  className?: string;
 };
 
 type ButtonProps = {
@@ -34,7 +35,11 @@ export const Button = ({
   return (
     <button
       tabIndex={0}
-      className={`button ${className}`}
+      className={`button ${className} ${
+        confirmations.length === 0 || timesClicked === 0
+          ? ""
+          : confirmations[timesClicked - 1]?.className
+      }`}
       onClick={handleClick}
     >
       {svg && (
@@ -44,12 +49,11 @@ export const Button = ({
             : confirmations[timesClicked - 1]?.svg}
         </span>
       )}
-      {text && (
-        <span>
-          {timesClicked === 0 || confirmations.length === 0
-            ? text
-            : confirmations[timesClicked - 1]?.text}
-        </span>
+
+      {timesClicked === 0 || confirmations.length === 0 ? (
+        <span>{text}</span>
+      ) : (
+        <span>{confirmations[timesClicked - 1]?.text}</span>
       )}
     </button>
   );

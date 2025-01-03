@@ -1,5 +1,19 @@
 .note {
-  border: 1px solid var(--font-color);
-  padding: 10px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: content-box;
+  /* background-color: red !important; */
+}
+
+/* The before should appear on the left side of the note, diagonally */
+.note::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% - 10px);
+  right: calc(100% - 10px);
+  width: 20px;
+  height: 20px;
+  background-color: var(--danger-color);
+  transform: rotate(-45deg);
   border-radius: 5px;
 }

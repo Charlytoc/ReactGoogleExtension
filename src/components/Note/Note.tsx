@@ -1,37 +1,39 @@
 import { SVGS } from "../../assets/svgs";
 import { TNote } from "../../types";
 import { Button } from "../Button/Button";
-
 import "./Note.css";
-import { useNavigate } from "react-router";
 
+import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
+import { saveLastPage } from "../../utils/lib";
 type TNoteProps = TNote & {
   deleteNote?: () => void;
 };
 
 export const Note = ({ title, deleteNote, id }: TNoteProps) => {
   const navigate = useNavigate();
-  
-
+  const { t } = useTranslation();
   return (
-    <div className="note">
+    <div className="border-gray padding-10 rounded note">
       <h4>{title}</h4>
-      <Button
-        className="w-100 justify-center padding-5"
-        svg={SVGS.trash}
-        text="de"
-        onClick={deleteNote}
-        confirmations={[{ text: "sure?", svg: SVGS.close }]}
-      />
-      <Button
-        className="w-100 justify-center padding-5"
-        svg={SVGS.edit}
-        text="expand"
-        onClick={() => {
-          console.log(id);
-          navigate(`/notes/${id}`);
-        }}
-      />
+      <div className="flex-row gap-10 justify-center ">
+        <Button
+          className="w-100 justify-center padding-5"
+          svg={SVGS.trash}
+          text={""}
+          onClick={deleteNote}
+          confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
+        />
+        <Button
+          className="w-100 justify-center padding-5 active-on-hover"
+          svg={SVGS.expand}
+          // text={t("expand")}
+          onClick={() => {
+            saveLastPage(`/notes/${id}`);
+            navigate(`/notes/${id}`);
+          }}
+        />
+      </div>
     </div>
   );
 };

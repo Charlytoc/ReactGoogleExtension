@@ -6,9 +6,7 @@ export const ChromeStorageManager = {
     onSuccess?: () => void,
     onError?: (error: string) => void
   ): Promise<void> => {
-    console.log("Adding value to storage", key, value);
     return new Promise((resolve, reject) => {
-
       chrome.storage.local.set({ [key]: value }, () => {
         if (chrome.runtime.lastError) {
           onError?.(

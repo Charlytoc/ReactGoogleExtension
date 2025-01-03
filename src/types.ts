@@ -3,3 +3,8 @@ export type TNote = {
   title?: string;
   content?: string;
 };
+
+export type TMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};

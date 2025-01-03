@@ -1,0 +1,17 @@
+{
+    "expand": "Expand",
+    "delete": "Delete",
+    "settings": "Settings",
+    "language": "Language",
+    "sure?": "Are you sure?",
+    "english": "English",
+    "spanish": "Spanish",
+    "tasks": "Tasks",
+    "notes": "Notes",
+    "addNote": "Add Note",
+    "title": "Title",
+    "content": "Content",
+    "add": "Add",
+    "edit": "Edit",
+    "openaiApiKey": "OpenAI API Key"
+}
