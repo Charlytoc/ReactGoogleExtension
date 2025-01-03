@@ -1,0 +1,5 @@
+.note {
+  border: 1px solid var(--font-color);
+  padding: 10px;
+  border-radius: 5px;
+}
