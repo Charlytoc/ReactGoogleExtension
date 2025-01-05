@@ -20,7 +20,13 @@ export const NotesManager = () => {
     const formData = new FormData(e.currentTarget);
     const title = formData.get("title") as string;
     const content = formData.get("content") as string;
-    const newNote: TNote = { title, content };
+    const color = formData.get("color") as string;
+    const createdAt = new Date().toISOString();
+
+    const newNote: TNote = { title, content, color, createdAt };
+
+    console.log(newNote);
+
     e.currentTarget.reset();
 
     setNotes([...notes, newNote]);
@@ -61,7 +67,16 @@ export const NotesManager = () => {
       </h3>
 
       {showForm ? (
-        <NoteForm addNote={addNote} />
+        <NoteForm
+          addNote={addNote}
+          usedColors={[
+            ...new Set(
+              notes
+                .map((note) => note.color)
+                .filter((color) => color !== undefined)
+            ),
+          ]}
+        />
       ) : (
         <Button
           text={t("addNote")}
@@ -71,14 +86,13 @@ export const NotesManager = () => {
         />
       )}
 
-      <div className="flex-column gap-10">
+      <div className="notes-container">
         {notes.map((note, index) => (
           <Note
+            {...note}
+            id={index.toString()}
             deleteNote={() => deleteNote(index)}
             key={`${index}-${note.title}`}
-            title={note.title}
-            content={note.content}
-            id={index.toString()}
           />
         ))}
       </div>
@@ -88,10 +102,14 @@ export const NotesManager = () => {
 
 const NoteForm = ({
   addNote,
+  usedColors,
 }: {
   addNote: (e: React.FormEvent<HTMLFormElement>) => void;
+  usedColors: string[];
 }) => {
   const { t } = useTranslation();
+
+  const [color, setColor] = useState("#09090d");
   return (
     <form
       className="flex-column gap-10 padding-10 border-gray rounded"
@@ -100,6 +118,7 @@ const NoteForm = ({
       <input
         className="input padding-5 w-100"
         name="title"
+        maxLength={40}
         type="text"
         placeholder={t("title")}
         required
@@ -110,6 +129,27 @@ const NoteForm = ({
         type="text"
         placeholder={t("content")}
       />
+      <div className="flex-row gap-10 padding-5">
+        <span>{t("colorOfNote")}</span>
+        <input
+          type="color"
+          name="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+        />
+      </div>
+      {usedColors.length > 0 && (
+        <div className="flex-row gap-10">
+          {usedColors.map((color) => (
+            <div
+              key={color}
+              className="color-preview pointer"
+              style={{ backgroundColor: color }}
+              onClick={() => setColor(color)}
+            ></div>
+          ))}
+        </div>
+      )}
       <Button
         svg={SVGS.check}
         text={t("add")}

@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "My Simple Google Extension",
-  "version": "0.0.1",
+  "name": "Be Better",
+  "version": "0.0.2",
   "action": {
     "default_popup": "index.html"
+  },
+  "description": "A simple Google Extension to help you manage your tasks",
+  "background": {
+    "service_worker": "background.js"
   },
   "icons": {
     "16": "icons/icon-16.png",
@@ -11,6 +15,8 @@
     "128": "icons/icon-128.png"
   },
   "permissions": [
-    "storage"
+    "storage",
+    "notifications",
+    "alarms"
   ]
 }

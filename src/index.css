@@ -184,3 +184,103 @@ button:focus-visible {
 .bg-success {
   background-color: var(--success-color) !important;
 }
+
+.markdown-container {
+  & p:not(:first-child) {
+    margin-block: 10px;
+  }
+
+  & h1,
+  & h2,
+  & h3,
+  & h4,
+  & h5,
+  & h6 {
+    margin-block: 10px;
+  }
+
+  & li {
+    list-style-position: inside;
+    &::marker {
+      color: var(--active-color);
+    }
+  }
+}
+
+.font-big {
+  font-size: 1.5rem;
+}
+
+.textarea {
+  padding: 5px;
+  background-color: transparent;
+}
+
+.box-20 {
+  width: 20px;
+  height: 20px;
+}
+
+.color-preview {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+}
+.pointer {
+  cursor: pointer;
+}
+
+.labeled-input {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--opaque-gray-color);
+  padding: 10px;
+  border-radius: 5px;
+  position: relative;
+
+  & label {
+    font-size: 0.8rem;
+    color: rgba(131, 131, 131, 0.476);
+    position: absolute;
+    top: -10px;
+    left: 5px;
+    background-color: var(--bg-color);
+    padding: 0 5px;
+    border-radius: 5px;
+  }
+
+  & input {
+    padding: 5px;
+    background-color: transparent;
+    border: none;
+    color: var(--font-color);
+    outline: none;
+  }
+}
+
+.labeled-input:focus-within {
+  border-color: var(--active-color);
+  & label {
+    color: var(--active-color);
+  }
+}
+
+.w-10 {
+  width: 10px;
+}
+.gap-5 {
+  gap: 5px;
+}
+
+.w-30 {
+  width: 30px;
+}
+
+.align-center {
+  align-items: center;
+}
+
+.w-50 {
+  width: 50px;
+}

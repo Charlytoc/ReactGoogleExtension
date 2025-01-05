@@ -6,7 +6,7 @@ import { Button } from "../Button/Button";
 import { TMessage } from "../../types";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
-import { RenderMarkdown } from "../RenderMarkdown/RenderMarkdown";
+import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
 
 const defaultMessages: TMessage[] = [
   {
@@ -66,7 +66,7 @@ export const Chat = () => {
       {error && <div className="bg-danger">{error}</div>}
       {messages.map((message, index) => (
         <div key={index} className={`message ${message.role}`}>
-          <RenderMarkdown markdown={message.content} />
+          <StyledMarkdown markdown={message.content} />
         </div>
       ))}
       <Textarea

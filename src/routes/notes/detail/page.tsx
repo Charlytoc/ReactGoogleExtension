@@ -4,10 +4,10 @@ import { ChromeStorageManager } from "../../../managers/Storage";
 import { TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
-import { RenderMarkdown } from "../../../components/RenderMarkdown/RenderMarkdown";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { useTranslation } from "react-i18next";
 import { saveLastPage } from "../../../utils/lib";
+import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 
 export default function NoteDetail() {
   const { id } = useParams();
@@ -40,19 +40,15 @@ export default function NoteDetail() {
 
   return (
     <div className=" padding-10">
-      <h3 className="flex-row gap-10 justify-between padding-10">
-        <Button
-          svg={SVGS.back}
-          className="padding-5 active-on-hover"
-          onClick={() => {
-            saveLastPage("/notes");
-            navigate("/notes");
-          }}
-        />{" "}
-        {note?.title}
-      </h3>
       {isEditing ? (
         <>
+          <input
+            type="text"
+            className="input font-big"
+            maxLength={40}
+            value={note?.title || ""}
+            onChange={(e) => setNote({ ...note, title: e.target.value })}
+          />
           <Textarea
             defaultValue={note?.content || ""}
             onChange={(value) => setNote({ ...note, content: value })}
@@ -68,7 +64,18 @@ export default function NoteDetail() {
         </>
       ) : (
         <>
-          <RenderMarkdown markdown={note?.content || ""} />
+          <Button
+            svg={SVGS.back}
+            className="padding-5 active-on-hover"
+            onClick={() => {
+              saveLastPage("/notes");
+              navigate("/notes");
+            }}
+          />{" "}
+          <h1 className="flex-row gap-10 justify-between padding-10">
+            {note?.title}
+          </h1>
+          <StyledMarkdown markdown={note?.content || ""} />
           <Button
             svg={SVGS.edit}
             text={t("edit")}

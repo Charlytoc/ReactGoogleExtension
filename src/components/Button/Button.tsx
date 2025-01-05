@@ -27,6 +27,7 @@ export const Button = ({
   const handleClick = () => {
     if (timesClicked === confirmations.length) {
       onClick();
+      setTimesClicked(0);
     } else {
       setTimesClicked(timesClicked + 1);
     }

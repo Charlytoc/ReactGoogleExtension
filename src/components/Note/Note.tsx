@@ -10,11 +10,19 @@ type TNoteProps = TNote & {
   deleteNote?: () => void;
 };
 
-export const Note = ({ title, deleteNote, id }: TNoteProps) => {
+export const Note = ({
+  title,
+  deleteNote,
+  id,
+  color = "var(--bg-color)",
+}: TNoteProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   return (
-    <div className="border-gray padding-10 rounded note">
+    <div
+      style={{ backgroundColor: color }}
+      className="border-gray padding-10 rounded note"
+    >
       <h4>{title}</h4>
       <div className="flex-row gap-10 justify-center ">
         <Button

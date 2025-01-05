@@ -1,12 +1,18 @@
 import { useEffect, useRef } from "react";
 
-export const Textarea = ({
-  defaultValue,
-  onChange,
-}: {
-  defaultValue: string;
+type TTextareaProps = {
+  defaultValue?: string;
+  name?: string;
   onChange: (value: string) => void;
-}) => {
+  className?: string;
+};
+
+export const Textarea = ({
+  defaultValue = "",
+  name = "textarea",
+  onChange,
+  className,
+}: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   //   adjust the height of the textarea to the content when the user is typing
 
@@ -18,6 +24,7 @@ export const Textarea = ({
   }, [defaultValue]);
   return (
     <textarea
+      name={name}
       ref={textareaRef}
       style={{
         overflow: "hidden",
@@ -30,7 +37,7 @@ export const Textarea = ({
           textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
         }
       }}
-      className="input w-100"
+      className={`w-100 textarea ${className}`}
       defaultValue={defaultValue}
       onChange={(e) => onChange(e.target.value)}
     />
