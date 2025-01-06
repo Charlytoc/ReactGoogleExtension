@@ -236,7 +236,7 @@ const TaskCard = ({
   // };
 
   return (
-    <div className="task-card">
+    <div className={`task-card ${task.priority}`}>
       <h3>{task.title}</h3>
       <p>{task.description}</p>
 

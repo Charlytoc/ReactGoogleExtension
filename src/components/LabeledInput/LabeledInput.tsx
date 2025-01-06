@@ -2,6 +2,7 @@ export const LabeledInput = ({
   label,
   type,
   name,
+  value,
   placeholder = "",
   className = "",
   required = false,
@@ -10,6 +11,7 @@ export const LabeledInput = ({
   label: string;
   type: string;
   name: string;
+  value?: string;
   placeholder?: string;
   className?: string;
   required?: boolean;
@@ -22,6 +24,7 @@ export const LabeledInput = ({
         type={type}
         name={name}
         placeholder={placeholder}
+        value={value}
         onChange={(e) => onChange?.(e.target.value)}
         required={required}
       />

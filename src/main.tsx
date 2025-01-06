@@ -8,6 +8,8 @@ import { TaskManager } from "./components/TaskManager/TaskManager.tsx";
 import NoteDetail from "./routes/notes/detail/page.tsx";
 import "./internationalization.ts";
 import Config from "./routes/config/page.tsx";
+import Chat from "./routes/chat/page.tsx";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
@@ -16,6 +18,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/notes" element={<NotesManager />} />
         <Route path="/notes/:id" element={<NoteDetail />} />
         <Route path="/tasks" element={<TaskManager />} />
+        <Route path="/chat" element={<Chat />} />
         <Route path="/config" element={<Config />} />
       </Routes>
     </BrowserRouter>

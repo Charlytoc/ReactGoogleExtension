@@ -11,10 +11,19 @@ export const Content = () => {
   return (
     <div>
       <div className="content-container">
-        <div className="flex-row gap-10 justify-center padding-10 ">
+        <div className="flex-row gap-10 justify-center padding-10 botonera">
+          <Button
+            text={t("chat")}
+            className="padding-20 active-on-hover border-gray rounded"
+            svg={SVGS.chat}
+            onClick={() => {
+              saveLastPage("/chat");
+              navigate("/chat");
+            }}
+          />
           <Button
             text={t("notes")}
-            className="padding-20 active-on-hover"
+            className="padding-20 active-on-hover  border-gray rounded"
             svg={SVGS.note}
             onClick={() => {
               saveLastPage("/notes");
@@ -23,17 +32,18 @@ export const Content = () => {
           />
           <Button
             text={t("tasks")}
-            className="padding-20 active-on-hover"
+            className="padding-20 active-on-hover border-gray rounded"
             svg={SVGS.task}
             onClick={() => {
               saveLastPage("/tasks");
               navigate("/tasks");
             }}
           />
-          
+
           <Button
-            className="padding-20 active-on-hover"
-            svg={SVGS.config}
+            text={t("config")}
+            className="padding-20 active-on-hover border-gray rounded"
+            svg={SVGS.gear}
             onClick={() => {
               saveLastPage("/config");
               navigate("/config");

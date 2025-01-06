@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Chat } from "../../components/Chat/Chat";
 
 function App() {
   const { i18n } = useTranslation();
@@ -24,7 +23,21 @@ function App() {
 
   const redirectToLastPage = async () => {
     const lastPage = await ChromeStorageManager.get("lastPage");
-    console.log(lastPage, "REDIRECT");
+    const colorPreferences = await ChromeStorageManager.get("colorPreferences");
+    if (colorPreferences) {
+      document.documentElement.style.setProperty(
+        "--active-color",
+        colorPreferences.activeColor
+      );
+      document.documentElement.style.setProperty(
+        "--font-color",
+        colorPreferences.fontColor
+      );
+      document.documentElement.style.setProperty(
+        "--bg-color",
+        colorPreferences.backgroundColor
+      );
+    }
     if (lastPage) {
       navigate(lastPage);
     }
@@ -34,7 +47,6 @@ function App() {
     <>
       <Navbar />
       <Content />
-      <Chat />
     </>
   );
 }

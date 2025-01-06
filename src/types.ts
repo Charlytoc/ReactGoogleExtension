@@ -27,3 +27,9 @@ export type TTask = {
   reminderText?: string;
   priority: TTaskPriority;
 };
+
+export type TConversation = {
+  title: string;
+  date: string;
+  messages: TMessage[];
+};

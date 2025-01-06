@@ -5,6 +5,10 @@
   padding: 10px;
   width: fit-content;
   flex-direction: column;
+  word-break: break-word;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-height: fit-content;
 }
 
 .message.system {
@@ -20,4 +24,32 @@
 .message.assistant {
   background-color: rgba(33, 33, 33, 0.402);
   text-align: left;
+}
+
+.chat-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+
+  top: 0;
+}
+
+.chat-header {
+  background-color: var(--gray-color);
+  padding: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
 }

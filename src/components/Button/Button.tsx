@@ -13,6 +13,7 @@ type ButtonProps = {
   className?: string;
   text?: string;
   confirmations?: TConfirmation[];
+  title?: string;
 };
 
 export const Button = ({
@@ -21,6 +22,7 @@ export const Button = ({
   className = "",
   text = "",
   confirmations = [],
+  title = "",
 }: ButtonProps) => {
   const [timesClicked, setTimesClicked] = useState(0);
 
@@ -35,6 +37,7 @@ export const Button = ({
 
   return (
     <button
+      title={title}
       tabIndex={0}
       className={`button ${className} ${
         confirmations.length === 0 || timesClicked === 0
@@ -51,10 +54,12 @@ export const Button = ({
         </span>
       )}
 
-      {timesClicked === 0 || confirmations.length === 0 ? (
+      {(timesClicked === 0 || confirmations.length === 0) && text ? (
         <span>{text}</span>
       ) : (
-        <span>{confirmations[timesClicked - 1]?.text}</span>
+        confirmations[timesClicked - 1]?.text && (
+          <span>{confirmations[timesClicked - 1]?.text}</span>
+        )
       )}
     </button>
   );

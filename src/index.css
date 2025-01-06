@@ -7,8 +7,9 @@
   --bg-color: #09090d;
   --danger-color: #f45c5c;
   --success-color: #7cff7c;
+  --warning-color: #ffc107;
 
-  --active-color: #83fdff;
+  --active-color: #be90ff;
   --opaque-gray-color: rgba(132, 131, 131, 0.517);
 
   color-scheme: light dark;
@@ -28,11 +29,11 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--active-color);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--active-color);
 }
 
 body {
@@ -50,7 +51,7 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 } */
 
-@media (prefers-color-scheme: light) {
+/* @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
@@ -61,7 +62,7 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
-}
+} */
 
 .absolute-container {
   position: absolute;
@@ -166,6 +167,9 @@ button:focus-visible {
     & path {
       stroke: var(--bg-color) !important;
     }
+    & circle {
+      stroke: var(--bg-color) !important;
+    }
   }
   & svg.with-fill {
     & path {
@@ -241,13 +245,16 @@ button:focus-visible {
 
   & label {
     font-size: 0.8rem;
-    color: rgba(131, 131, 131, 0.476);
+    color: var(--font-color);
     position: absolute;
+    opacity: 0.6;
+    /* display: none; */
     top: -10px;
     left: 5px;
     background-color: var(--bg-color);
     padding: 0 5px;
     border-radius: 5px;
+    transition: opacity 0.3s ease-in-out;
   }
 
   & input {
@@ -263,6 +270,9 @@ button:focus-visible {
   border-color: var(--active-color);
   & label {
     color: var(--active-color);
+    opacity: 1;
+
+    /* display: block; */
   }
 }
 
@@ -283,4 +293,23 @@ button:focus-visible {
 
 .w-50 {
   width: 50px;
+}
+
+.botonera {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  & button {
+    width: 100%;
+  }
+}
+
+.hover-effect-one:hover {
+  background-color: var(--active-color);
+  color: var(--bg-color);
+}
+
+.bg-active {
+  background-color: var(--active-color) !important;
+  color: var(--bg-color) !important;
 }
