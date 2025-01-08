@@ -7,7 +7,7 @@ import { TMessage } from "../../types";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
-import { saveLastPage } from "../../utils/lib";
+import { cacheLocation } from "../../utils/lib";
 import { useNavigate } from "react-router";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation } from "../../types";
@@ -156,34 +156,36 @@ export const Chat = () => {
     <div className="flex-column w-100 gap-10 padding-10 chat-container">
       <section className="chat-header flex-row gap-10">
         <h2>AI</h2>
-        <Button
-          className="padding-5 "
-          title={t("saveConversation")}
-          onClick={saveConversation}
-          svg={SVGS.save}
-        />
-        <Button
-          className={`padding-5 ${showConversations ? "bg-active" : ""}`}
-          onClick={() => setShowConversations(!showConversations)}
-          svg={SVGS.chat}
-          title={t("showConversations")}
-        />
-        <Button
-          className={`padding-5 ${showConfig ? "bg-active" : ""}`}
-          onClick={() => setShowConfig(!showConfig)}
-          svg={SVGS.gear}
-          title={t("showConfig")}
-        />
-        <Button
-          className="padding-5"
-          onClick={() => {
-            navigate("/index.html");
-            saveLastPage("/index.html");
-          }}
-          svg={SVGS.back}
-          title={t("goBack")}
-          // text="Close"
-        />
+        <div className="flex-row gap-10">
+          <Button
+            className="padding-5 "
+            title={t("saveConversation")}
+            onClick={saveConversation}
+            svg={SVGS.save}
+          />
+          <Button
+            className={`padding-5 ${showConversations ? "bg-active" : ""}`}
+            onClick={() => setShowConversations(!showConversations)}
+            svg={SVGS.chat}
+            title={t("showConversations")}
+          />
+          <Button
+            className={`padding-5 ${showConfig ? "bg-active" : ""}`}
+            onClick={() => setShowConfig(!showConfig)}
+            svg={SVGS.gear}
+            title={t("showConfig")}
+          />
+          <Button
+            className="padding-5"
+            onClick={() => {
+              navigate("/index.html");
+              cacheLocation("/index.html");
+            }}
+            svg={SVGS.back}
+            title={t("goBack")}
+            // text="Close"
+          />
+        </div>
       </section>
       {error && <div className="bg-danger">{error}</div>}
 

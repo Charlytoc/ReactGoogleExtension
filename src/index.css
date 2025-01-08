@@ -313,3 +313,21 @@ button:focus-visible {
   background-color: var(--active-color) !important;
   color: var(--bg-color) !important;
 }
+
+.bg-gray {
+  background-color: var(--opaque-gray-color) !important;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+.section-content {
+  overflow-y: auto;
+  height: 88%;
+  scrollbar-width: none;
+  padding: 10px;
+}

@@ -47,7 +47,7 @@ export const Button = ({
       onClick={handleClick}
     >
       {svg && (
-        <span>
+        <span className="svg-container">
           {confirmations.length === 0 || timesClicked === 0
             ? svg
             : confirmations[timesClicked - 1]?.svg}

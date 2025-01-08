@@ -9,9 +9,12 @@ import NoteDetail from "./routes/notes/detail/page.tsx";
 import "./internationalization.ts";
 import Config from "./routes/config/page.tsx";
 import Chat from "./routes/chat/page.tsx";
+import Snapties from "./routes/snapties/page.tsx";
+import { Toaster } from "react-hot-toast";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <Toaster />
     <BrowserRouter>
       <Routes>
         <Route path="/index.html" element={<App />} />
@@ -20,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/tasks" element={<TaskManager />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/config" element={<Config />} />
+        <Route path="/snapties" element={<Snapties />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

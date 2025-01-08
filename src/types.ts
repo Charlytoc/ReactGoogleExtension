@@ -25,6 +25,7 @@ export type TTask = {
   dueDatetime: string;
   reminderEvery?: number;
   reminderText?: string;
+  estimatedTime?: number;
   priority: TTaskPriority;
 };
 
@@ -32,4 +33,12 @@ export type TConversation = {
   title: string;
   date: string;
   messages: TMessage[];
+};
+
+export type TSnaptie = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  isUrl: boolean;
 };

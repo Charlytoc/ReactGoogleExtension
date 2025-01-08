@@ -64,5 +64,10 @@
     "systemPrompt": "System prompt",
     "aiConfigUpdated": "AI configuration updated",
     "aiConfig": "AI Config",
-    "showConfig": "Show configuration"
+    "showConfig": "Show configuration",
+    "snapties": "Snapties",
+    "settingsSaved": "Settings saved",
+    "snaptie": {
+        "copied": "Snaptie copied to clipboard"
+    }
 }

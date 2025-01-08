@@ -7,7 +7,8 @@ import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { saveLastPage } from "../../utils/lib";
+import { generateRandomId, cacheLocation } from "../../utils/lib";
+import { Section } from "../Section/Section";
 
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
@@ -25,7 +26,7 @@ export const NotesManager = () => {
 
     const newNote: TNote = { title, content, color, createdAt };
 
-    console.log(newNote);
+    newNote.id = generateRandomId("note");
 
     e.currentTarget.reset();
 
@@ -53,19 +54,22 @@ export const NotesManager = () => {
   };
 
   return (
-    <div className="padding-10 flex-column gap-10">
-      <h3 className=" flex-row gap-10 justify-between">
-        <Button
-          svg={SVGS.back}
-          className="padding-5 active-on-hover"
-          onClick={() => {
-            saveLastPage("/index.html");
-            navigate("/index.html");
-          }}
-        />
-        <span>{t("notes")}</span>
-      </h3>
-
+    <Section
+      title={t("notes")}
+      close={() => {
+        cacheLocation("/index.html");
+        navigate("/index.html");
+      }}
+      extraButtons={
+        <>
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            className="justify-center padding-5 "
+            svg={showForm ? SVGS.close : SVGS.plus}
+          />
+        </>
+      }
+    >
       {showForm ? (
         <NoteForm
           addNote={addNote}
@@ -78,25 +82,20 @@ export const NotesManager = () => {
           ]}
         />
       ) : (
-        <Button
-          text={t("addNote")}
-          svg={SVGS.plus}
-          onClick={() => setShowForm(true)}
-          className="w-100 justify-center padding-5 active-on-hover border-gray"
-        />
+        <></>
       )}
 
       <div className="notes-container">
         {notes.map((note, index) => (
           <Note
             {...note}
-            id={index.toString()}
+            id={note.id}
             deleteNote={() => deleteNote(index)}
-            key={`${index}-${note.title}`}
+            key={note.id}
           />
         ))}
       </div>
-    </div>
+    </Section>
   );
 };
 

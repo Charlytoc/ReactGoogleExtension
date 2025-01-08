@@ -6,7 +6,7 @@ import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { useTranslation } from "react-i18next";
-import { saveLastPage } from "../../../utils/lib";
+import { cacheLocation } from "../../../utils/lib";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 
 export default function NoteDetail() {
@@ -22,10 +22,15 @@ export default function NoteDetail() {
   }, [id]);
 
   const getNote = async () => {
-    const notes = await ChromeStorageManager.get("notes");
+    const notes: TNote[] = await ChromeStorageManager.get("notes");
     // Use the index to get the note
-    const note = notes[id];
-    setNote(note);
+    const note = notes.find((note) => note.id === id);
+    if (!note) {
+      cacheLocation("/notes");
+      navigate("/notes");
+    } else {
+      setNote(note);
+    }
   };
 
   const saveNote = async () => {
@@ -44,7 +49,7 @@ export default function NoteDetail() {
         <>
           <input
             type="text"
-            className="input font-big"
+            className="input w-100 padding-5"
             maxLength={40}
             value={note?.title || ""}
             onChange={(e) => setNote({ ...note, title: e.target.value })}
@@ -68,13 +73,13 @@ export default function NoteDetail() {
             svg={SVGS.back}
             className="padding-5 active-on-hover"
             onClick={() => {
-              saveLastPage("/notes");
+              cacheLocation("/notes");
               navigate("/notes");
             }}
           />{" "}
-          <h1 className="flex-row gap-10 justify-between padding-10">
+          <h4 className="flex-row gap-10 justify-between padding-10 bg-gray text-center rounded">
             {note?.title}
-          </h1>
+          </h4>
           <StyledMarkdown markdown={note?.content || ""} />
           <Button
             svg={SVGS.edit}

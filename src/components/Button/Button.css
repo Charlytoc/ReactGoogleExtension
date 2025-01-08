@@ -10,13 +10,43 @@
   color: var(--font-color);
 }
 
-.button:hover {
-  background-color: var(--opaque-gray-color);
+/* .button:hover {
+  .svg-container {
+    background-color: var(--opaque-gray-color);
+  }
 }
+.button:active {
+  .svg-container {
+    background-color: var(--active-color);
+    transition: background-color 0.1s ease-in-out;
+
+    & svg.with-stroke {
+      & path {
+        stroke: var(--bg-color);
+        transition: stroke 0.1s ease-in-out;
+      }
+      & circle {
+        stroke: var(--bg-color);
+        transition: stroke 0.3s ease-in-out;
+      }
+    }
+  }
+} */
 
 .button svg {
   width: 24px;
   height: 24px;
+}
+
+.svg-container {
+  width: 40px;
+  height: 40px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .button span {

@@ -5,18 +5,23 @@ type SectionProps = {
   close: () => void;
   children: React.ReactNode;
   title: string;
+  extraButtons?: React.ReactNode;
 };
 
-export const Section = ({ close, children, title }: SectionProps) => {
+export const Section = ({
+  close,
+  children,
+  title,
+  extraButtons,
+}: SectionProps) => {
   return (
-    <div className="section absolute-container bg-default">
-      <section className="section-header flex-row gap-10 align-center justify-between padding-10">
-        <Button
-          className="section-closer padding-5 active-on-hover"
-          svg={SVGS.close}
-          onClick={close}
-        />
+    <div className="absolute-container bg-default ">
+      <section className="flex-row gap-10 align-center justify-between padding-10">
         <h3>{title}</h3>
+        <div className="flex-row gap-5">
+          {extraButtons}
+          <Button className="padding-5" svg={SVGS.back} onClick={close} />
+        </div>
       </section>
       <div className="section-content">{children}</div>
     </div>

@@ -2,7 +2,7 @@ import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
 import "./TaskManager.css";
 import { useNavigate } from "react-router";
-import { saveLastPage } from "../../utils/lib";
+import { cacheLocation } from "../../utils/lib";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { TTask, TTaskPriority } from "../../types";
@@ -14,6 +14,7 @@ import {
   createAlarm,
   notify,
 } from "../../utils/chromeFunctions";
+import { Section } from "../Section/Section";
 
 const hashText = (text: string) => {
   return text.replace(/\s+/g, "-");
@@ -49,36 +50,38 @@ export const TaskManager = () => {
   };
 
   return (
-    <div className="padding-10 flex-column gap-10">
-      <h3 className=" flex-row gap-10 justify-between">
-        <Button
-          svg={SVGS.back}
-          className="padding-5 active-on-hover"
-          onClick={() => {
-            saveLastPage("/index.html");
-            navigate("/index.html");
-          }}
-        />
-        <span>{t("taskManager")}</span>
-      </h3>
-      {showForm ? (
-        <TaskForm closeForm={() => setShowForm(false)} />
-      ) : (
+    <Section
+      title={t("taskManager")}
+      close={() => {
+        cacheLocation("/index.html");
+        navigate("/index.html");
+      }}
+      extraButtons={
         <>
           <Button
-            onClick={() => setShowForm(true)}
-            text={t("addTask")}
-            className="w-100 justify-center padding-5 active-on-hover border-gray"
+            onClick={() => setShowForm(!showForm)}
+            className="justify-center padding-5 "
+            svg={showForm ? SVGS.close : SVGS.plus}
           />
           <Button
             onClick={() => {
               clearAllAlarms();
               notify(t("allAlarmsCleared"), "");
             }}
-            text={t("clearAllAlarms")}
-            className="w-100 justify-center padding-5 border-gray"
-            confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
+            className="justify-center padding-5 "
+            title={t("clearAllAlarms")}
+            svg={SVGS.alarmOff}
+            confirmations={[
+              { className: "bg-danger", svg: SVGS.trash, text: "" },
+            ]}
           />
+        </>
+      }
+    >
+      {showForm ? (
+        <TaskForm closeForm={() => setShowForm(false)} />
+      ) : (
+        <>
           <div className="flex-column gap-10">
             {tasks.map((task, index) => (
               <TaskCard task={task} deleteTask={() => deleteTask(index)} />
@@ -86,7 +89,8 @@ export const TaskManager = () => {
           </div>
         </>
       )}
-    </div>
+    </Section>
+    // </div>
   );
 };
 
@@ -162,6 +166,12 @@ const TaskForm = ({ closeForm }: { closeForm: () => void }) => {
         required
         name="startDatetime"
         // placeholder={t("startDatetime")}
+      />
+      <LabeledInput
+        label={t("estimatedTime")}
+        type="number"
+        name="estimatedTime"
+        // placeholder={t("estimatedTime")}
       />
       <LabeledInput
         required

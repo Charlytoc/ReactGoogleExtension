@@ -1,11 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Be Better",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "action": {
     "default_popup": "index.html"
   },
   "description": "A simple Google Extension to help you manage your tasks",
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -17,6 +20,8 @@
   "permissions": [
     "storage",
     "notifications",
-    "alarms"
+    "alarms",
+    "contextMenus",
+    "scripting"
   ]
 }

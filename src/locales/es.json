@@ -64,5 +64,10 @@
     "systemPrompt": "Prompt del sistema",
     "aiConfigUpdated": "Configuración de AI actualizada",
     "aiConfig": "Configuración de AI",
-    "showConfig": "Mostrar configuración"
+    "showConfig": "Mostrar configuración",
+    "snapties": "Snapties",
+    "settingsSaved": "Configuración guardada",
+    "snaptie": {
+        "copied": "Snaptie copiado al portapapeles"
+    }
 }

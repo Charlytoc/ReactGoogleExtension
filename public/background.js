@@ -5,6 +5,15 @@ const createRandomId = () => {
     );
 };
 
+const notify = (title, message) => {
+    chrome.notifications.create(createRandomId(), {
+        title: title,
+        message: message,
+        iconUrl: "icons/icon.png",
+        type: "basic",
+    });
+};
+
 const retrieveFromLs = (key, callback) => {
     chrome.storage.local.get(key, (result) => {
         callback(result[key]);
@@ -51,3 +60,37 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     retrieveFromLs("tasks", notifyMessage);
 });
 
+
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({
+        id: "mi-opcion",
+        title: "Haz algo interesante",
+        contexts: ["all"], // Contextos: "page", "selection", "link", etc.
+    });
+});
+
+
+function pegarHelloWorld() {
+    console.log("Ejecutando pegarHelloWorld");
+    const activeElement = document.activeElement;
+    console.log(activeElement, "activeElement");
+    if (activeElement && (activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(activeElement.tagName))) {
+        activeElement.value
+            ? (activeElement.value += "Hello World") // Para inputs y textareas
+            : (activeElement.innerHTML += "Hello World"); // Para contenteditables
+    }
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "mi-opcion") {
+        console.log(info);
+        console.log(tab);
+        console.log("Se agregara tu mensaje al elemento seleccionado");
+
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: pegarHelloWorld
+        });
+
+    }
+});
