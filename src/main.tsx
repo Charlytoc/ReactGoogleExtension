@@ -10,6 +10,7 @@ import "./internationalization.ts";
 import Config from "./routes/config/page.tsx";
 import Chat from "./routes/chat/page.tsx";
 import Snapties from "./routes/snapties/page.tsx";
+import SnaptieDetail from "./routes/snapties/detail/page.tsx";
 import { Toaster } from "react-hot-toast";
 
 createRoot(document.getElementById("root")!).render(
@@ -24,6 +25,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/chat" element={<Chat />} />
         <Route path="/config" element={<Config />} />
         <Route path="/snapties" element={<Snapties />} />
+        <Route path="/snapties/:id" element={<SnaptieDetail />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation } from "../../types";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 
 const getRandomHash = () => {
   return Math.random().toString(36).substring(2, 15);
@@ -135,7 +136,9 @@ export const Chat = () => {
     }
     setConversations(newConversations);
     ChromeStorageManager.add("conversations", newConversations);
-    notify(t("conversationSaved"), "✅");
+    toast.success(t("conversationSaved"), {
+      icon: "✅",
+    });
   };
 
   const deleteConversation = (conversation: TConversation) => {
@@ -144,7 +147,9 @@ export const Chat = () => {
     );
     setConversations(newConversations);
     ChromeStorageManager.add("conversations", newConversations);
-    notify(t("conversationDeleted").replace("%s", conversation.title), "❌");
+    toast.success(t("conversationDeleted").replace("%s", conversation.title), {
+      icon: "❌",
+    });
   };
 
   const loadConversation = (conversation: TConversation) => {
@@ -153,7 +158,7 @@ export const Chat = () => {
   };
 
   return (
-    <div className="flex-column w-100 gap-10 padding-10 chat-container">
+    <div className="flex-column w-100 gap-10  chat-container">
       <section className="chat-header flex-row gap-10">
         <h2>AI</h2>
         <div className="flex-row gap-10">
@@ -210,7 +215,9 @@ export const Chat = () => {
                   );
                   setConversations(newConversations);
                   ChromeStorageManager.add("conversations", newConversations);
-                  notify(t("conversationSaved"), "✅");
+                  toast.success(t("conversationSaved"), {
+                    icon: "✅",
+                  });
                 }}
               >
                 {conversation.title}
@@ -255,15 +262,15 @@ export const Chat = () => {
           updateAiConfig={updateAiConfig}
         />
       )}
-      <section className="flex-row gap-10">
+      <section className="flex-row gap-10 w-100  padding-5 ">
         <Textarea
-          className="rounded "
+          className="w-100"
           key={messages.length}
           defaultValue=""
           onChange={(value) => setInput(value)}
         />
         <Button
-          className=" border-gray padding-10 align-center justify-center active-on-hover"
+          className=" padding-5 align-center justify-center active-on-hover"
           svg={SVGS.send}
           onClick={handleSendMessage}
         />
@@ -297,36 +304,36 @@ const AIConfig = ({
   };
 
   return (
-    <div className="flex-column gap-10 border-gray padding-10 rounded">
+    <div className="flex-column gap-10  padding-10 rounded">
       <h2>{t("aiConfig")}</h2>
-      <div className="flex-column gap-10">
-        <h3>{t("systemPrompt")}</h3>
-        <Textarea
-          className="w-100 border-gray padding-5 rounded"
-          defaultValue={systemPrompt}
-          onChange={(value) => {
-            setSystemPrompt(value);
-          }}
-        />
-        <h3>{t("model")}</h3>
-        <select
-          className="w-100 border-gray padding-5 rounded"
-          value={model}
-          onChange={(e) => {
-            setModel(e.target.value);
-          }}
-        >
-          {models.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Textarea
+        label={t("systemPrompt")}
+        // placeholder={t("systemPrompt")}
+        className="w-100  padding-5 rounded"
+        defaultValue={systemPrompt}
+        onChange={(value) => {
+          setSystemPrompt(value);
+        }}
+      />
+      <h3>{t("model")}</h3>
+      <select
+        className="w-100 border-gray padding-5 rounded"
+        value={model}
+        onChange={(e) => {
+          setModel(e.target.value);
+        }}
+      >
+        {models.map((model) => (
+          <option key={model} value={model}>
+            {model}
+          </option>
+        ))}
+      </select>
       <Button
-        className="w-100 border-gray padding-5"
+        className="w-100 padding-5 justify-center"
         text={t("finishConfig")}
         title={t("finishConfig")}
+        svg={SVGS.save}
         onClick={finishConfig}
       />
     </div>

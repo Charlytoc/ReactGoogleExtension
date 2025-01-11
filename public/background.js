@@ -70,27 +70,47 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 
+// function pegarHelloWorld() {
+//     console.log("Ejecutando pegarHelloWorld");
+//     const activeElement = document.activeElement;
+//     console.log(activeElement, "activeElement");
+//     if (activeElement && (activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(activeElement.tagName))) {
+//         console.log(activeElement.value, "activeElement.value");
+//         activeElement.value
+//             ? (activeElement.value += "Hello World") // Para inputs y textareas
+//             : (activeElement.innerHTML += "Hello World"); // Para contenteditables
+//     }
+// }
+
+// Define la función que se ejecutará dentro de la pestaña
 function pegarHelloWorld() {
-    console.log("Ejecutando pegarHelloWorld");
-    const activeElement = document.activeElement;
-    console.log(activeElement, "activeElement");
-    if (activeElement && (activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(activeElement.tagName))) {
-        activeElement.value
-            ? (activeElement.value += "Hello World") // Para inputs y textareas
-            : (activeElement.innerHTML += "Hello World"); // Para contenteditables
+    // Selecciona el elemento deseado (ajusta el selector según tu necesidad)
+    const elemento = document.activeElement; // Ejemplo: elemento actualmente seleccionado
+    console.log(elemento, "ELEMENTO ACTIVO");
+    if (elemento) {
+        console.log(elemento.textContent, "ELEMENTO TEXTO");
+        // IF THE ELEMENT IS A TEXT AREA OR INPUT, WE ADD THE TEXT TO THE VALUE
+        if (elemento.isContentEditable || /^(INPUT|TEXTAREA)$/.test(elemento.tagName)) {
+            elemento.value += "Hello, World!";
+        } else {
+            notify("The target element is not a text area or input", "The target element is not a text area or input");
+        }
+    } else {
+        console.error("No se encontró un elemento activo para modificar.");
     }
+    return "Hello, World!";
 }
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId === "mi-opcion") {
-        console.log(info);
-        console.log(tab);
-        console.log("Se agregara tu mensaje al elemento seleccionado");
 
-        chrome.scripting.executeScript({
+        const result = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            func: pegarHelloWorld
+            func: pegarHelloWorld,
+            injectImmediately: true
         });
 
+        console.log(result, "RESULT");
     }
 });
+

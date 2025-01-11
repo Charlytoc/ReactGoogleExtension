@@ -1,4 +1,3 @@
-import toast from "react-hot-toast";
 
 const createRandomId = () => {
   return (
@@ -21,13 +20,6 @@ export const createAlarm = (
   dateInMilliseconds: number,
   periodInMinutes = 5
 ) => {
-  console.table({
-    hash,
-    dateInMilliseconds,
-    periodInMinutes,
-    "Creating alarm": "true",
-  });
-
   chrome.alarms.create(hash, {
     when: dateInMilliseconds,
     periodInMinutes: periodInMinutes,

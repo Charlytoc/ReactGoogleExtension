@@ -6,7 +6,6 @@ import { ChromeStorageManager } from "../../managers/Storage.ts";
 import { cacheLocation } from "../../utils/lib.ts";
 import { useEffect, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
-import { notify } from "../../utils/chromeFunctions.ts";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
 

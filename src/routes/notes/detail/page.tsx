@@ -8,6 +8,8 @@ import { Textarea } from "../../../components/Textarea/Textarea";
 import { useTranslation } from "react-i18next";
 import { cacheLocation } from "../../../utils/lib";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
+import { toast } from "react-hot-toast";
+import { Section } from "../../../components/Section/Section";
 
 export default function NoteDetail() {
   const { id } = useParams();
@@ -34,13 +36,21 @@ export default function NoteDetail() {
   };
 
   const saveNote = async () => {
-    const notes = await ChromeStorageManager.get("notes");
-    notes[id] = {
-      ...note,
-      content: note?.content || "",
-    };
+    let notes = await ChromeStorageManager.get("notes");
+    if (!notes) {
+      notes = [note];
+    } else {
+      notes = notes.map((n: TNote) => {
+        if (n.id === id) {
+          return { ...n, ...note };
+        }
+        return n;
+      });
+    }
+
     await ChromeStorageManager.add("notes", notes);
     setIsEditing(false);
+    toast.success(t("note-saved"));
   };
 
   return (
@@ -58,6 +68,11 @@ export default function NoteDetail() {
             defaultValue={note?.content || ""}
             onChange={(value) => setNote({ ...note, content: value })}
           />
+          <input
+            type="color"
+            value={note?.color || "#09090d"}
+            onChange={(e) => setNote({ ...note, color: e.target.value })}
+          />
           <Button
             svg={SVGS.check}
             text={""}
@@ -68,18 +83,13 @@ export default function NoteDetail() {
           />
         </>
       ) : (
-        <>
-          <Button
-            svg={SVGS.back}
-            className="padding-5 active-on-hover"
-            onClick={() => {
-              cacheLocation("/notes");
-              navigate("/notes");
-            }}
-          />{" "}
-          <h4 className="flex-row gap-10 justify-between padding-10 bg-gray text-center rounded">
-            {note?.title}
-          </h4>
+        <Section
+          close={() => {
+            cacheLocation("/notes");
+            navigate("/notes");
+          }}
+          title={note?.title || ""}
+        >
           <StyledMarkdown markdown={note?.content || ""} />
           <Button
             svg={SVGS.edit}
@@ -87,7 +97,7 @@ export default function NoteDetail() {
             className="w-100 justify-center padding-5 active-on-hover"
             onClick={() => setIsEditing(true)}
           />
-        </>
+        </Section>
       )}
     </div>
   );

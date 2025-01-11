@@ -67,7 +67,15 @@
     "showConfig": "Mostrar configuración",
     "snapties": "Snapties",
     "settingsSaved": "Configuración guardada",
+    "estimatedTime": "Tiempo Estimado",
     "snaptie": {
         "copied": "Snaptie copiado al portapapeles"
-    }
+    },
+    "category": "Categoría",
+    "unknown-category": "Categoría desconocida",
+    "snaptie-saved": "Snaptie guardado",
+    "my-snaptie": "Mi Snaptie",
+    "something-I-want-to-remember-or-copy-easily": "Algo que quiero recordar o copiar fácilmente",
+    "passwords-links-etc": "Contraseñas, enlaces, etc.",
+    "note-saved": "Nota guardada"
 }

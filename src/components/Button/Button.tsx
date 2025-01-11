@@ -14,6 +14,7 @@ type ButtonProps = {
   text?: string;
   confirmations?: TConfirmation[];
   title?: string;
+  type?: "button" | "submit" | "reset";
 };
 
 export const Button = ({
@@ -23,6 +24,7 @@ export const Button = ({
   text = "",
   confirmations = [],
   title = "",
+  type = "button",
 }: ButtonProps) => {
   const [timesClicked, setTimesClicked] = useState(0);
 
@@ -37,6 +39,7 @@ export const Button = ({
 
   return (
     <button
+      type={type}
       title={title}
       tabIndex={0}
       className={`button ${className} ${

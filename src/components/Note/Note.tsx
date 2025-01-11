@@ -40,7 +40,7 @@ export const Note = ({
   return (
     <div
       style={{ backgroundColor: color }}
-      className="border-gray padding-10 rounded note"
+      className="border-gray padding-10 rounded fit-content"
     >
       <h4>{title}</h4>
       <div className="flex-row gap-10 justify-center ">

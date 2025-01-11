@@ -67,7 +67,15 @@
     "showConfig": "Show configuration",
     "snapties": "Snapties",
     "settingsSaved": "Settings saved",
+    "estimatedTime": "Estimated Time",
     "snaptie": {
         "copied": "Snaptie copied to clipboard"
-    }
-}
+    },
+    "category": "Category",
+    "unknown-category": "Unknown category",
+    "snaptie-saved": "Snaptie saved",
+    "my-snaptie": "My Snaptie",
+    "something-I-want-to-remember-or-copy-easily": "Something I want to remember or copy easily",
+    "passwords-links-etc": "Passwords, links, etc.",
+    "note-saved": "Note saved"
+}   

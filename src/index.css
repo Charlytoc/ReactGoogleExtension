@@ -202,6 +202,14 @@ button:focus-visible {
   & h6 {
     margin-block: 10px;
   }
+  & pre {
+    background-color: var(--bg-color);
+    padding: 5px;
+    border-radius: 5px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--active-color) var(--bg-color);
+  }
 
   & li {
     list-style-position: inside;
@@ -215,9 +223,46 @@ button:focus-visible {
   font-size: 1.5rem;
 }
 
-.textarea {
+.labeled-textarea {
+  position: relative;
+  border: 1px solid var(--opaque-gray-color);
+  border-radius: 5px;
   padding: 5px;
-  background-color: transparent;
+
+  &:focus-within {
+    border-color: var(--active-color);
+    outline: none;
+
+    & label {
+      color: var(--active-color);
+      opacity: 1;
+    }
+  }
+
+  & textarea {
+    border: none;
+    padding: 10px;
+    width: 100%;
+    background-color: transparent;
+    height: 100%;
+    overflow-y: auto;
+    &:focus {
+      outline: none;
+    }
+  }
+
+  & label {
+    font-size: 0.8rem;
+    color: var(--font-color);
+    position: absolute;
+    opacity: 0.6;
+    top: -10px;
+    left: 5px;
+    background-color: var(--bg-color);
+    padding: 0 5px;
+    border-radius: 5px;
+    transition: opacity 0.3s ease-in-out;
+  }
 }
 
 .box-20 {
@@ -330,4 +375,12 @@ button:focus-visible {
   height: 88%;
   scrollbar-width: none;
   padding: 10px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.fit-content {
+  width: fit-content;
 }

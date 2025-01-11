@@ -8,6 +8,8 @@ import { Section } from "../Section/Section";
 import { useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { LabeledInput } from "../LabeledInput/LabeledInput";
+import { Textarea } from "../Textarea/Textarea";
 
 export const Snapties = () => {
   const [snapties, setSnapties] = useState<TSnaptie[]>([]);
@@ -71,19 +73,23 @@ export const Snapties = () => {
 };
 
 const SnaptieForm = ({ close }: { close: () => void }) => {
+  const { t } = useTranslation();
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const title = formData.get("title") as string;
     const content = formData.get("content") as string;
+    const category = formData.get("category") as string;
 
     const newSnaptie = {
       id: generateRandomId("snaptie"),
       title,
       content,
+      category,
       createdAt: new Date().toISOString(),
       isUrl: isUrl(content),
     };
+    toast.success(t("snaptie-saved"));
     const previousSnapties = await ChromeStorageManager.get("snapties");
     if (previousSnapties) {
       ChromeStorageManager.add("snapties", [...previousSnapties, newSnaptie]);
@@ -94,20 +100,30 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
   };
 
   return (
-    <form onSubmit={saveSnaptie}>
-      <input
-        className="input w-100 padding-10"
-        type="text"
-        placeholder="Title"
+    <form onSubmit={saveSnaptie} className="flex-column gap-10">
+      <LabeledInput
+        label={t("title")}
         name="title"
-      />
-      <input
-        className="input w-100 padding-10"
         type="text"
-        placeholder="Content"
+        placeholder={t("my-snaptie")}
+      />
+      <Textarea
+        placeholder={t("something-I-want-to-remember-or-copy-easily")}
+        label={t("content")}
         name="content"
       />
-      <Button className="w-100" svg={SVGS.save} />
+      <LabeledInput
+        label={t("category")}
+        name="category"
+        type="text"
+        placeholder={t("passwords-links-etc")}
+      />
+      <Button
+        type="submit"
+        className="w-100 padding-5 justify-center"
+        text={t("save")}
+        svg={SVGS.save}
+      />
     </form>
   );
 };
@@ -119,6 +135,7 @@ const SnaptieCard = ({
   snaptie: TSnaptie;
   deleteSnaptie: (id: string) => void;
 }) => {
+  const navigate = useNavigate();
   const { t } = useTranslation();
 
   const copySnaptie = () => {
@@ -127,28 +144,36 @@ const SnaptieCard = ({
   };
 
   return (
-    <div className="padding-5 border-gray rounded">
-      <h3>{snaptie.title}</h3>
-      <div className="flex-row gap-5">
+    <div className="padding-10 border-gray rounded flex-column gap-5">
+      <h3 className="text-center">{snaptie.title}</h3>
+      <div className="flex-row gap-5 justify-center">
         <Button
-          className="padding-5 justify-center w-100 align-center"
+          className=" justify-center  align-center"
           svg={SVGS.copy}
           onClick={copySnaptie}
         />
         {snaptie.isUrl && (
           <Button
-            className="padding-5 justify-center w-100 align-center"
+            className=" justify-center align-center"
             svg={SVGS.go}
             onClick={() => window.open(snaptie.content, "_blank")}
           />
         )}
         <Button
-          className="padding-5 justify-center w-100 align-center"
+          className="justify-center  align-center"
           svg={SVGS.trash}
           confirmations={[
-            { text: t("sure?"), className: "bg-danger", svg: SVGS.trash },
+            { text: "", className: "bg-danger", svg: SVGS.trash },
           ]}
           onClick={() => deleteSnaptie(snaptie.id)}
+        />
+        <Button
+          className=" justify-center  align-center"
+          svg={SVGS.edit}
+          onClick={() => {
+            navigate(`/snapties/${snaptie.id}`);
+            cacheLocation(`/snapties/${snaptie.id}`);
+          }}
         />
       </div>
     </div>

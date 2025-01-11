@@ -112,7 +112,7 @@ const TaskForm = ({ closeForm }: { closeForm: () => void }) => {
     createAlarm(
       task.id,
       dateToMilliseconds(task.startDatetime),
-      task.reminderEvery ? task.reminderEvery : 5
+      task.reminderEvery ? task.reminderEvery : 1000
     );
     notify(t("alarmSet").replace("%s", task.title), task.reminderText || "");
   };
