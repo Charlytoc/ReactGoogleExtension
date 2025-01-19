@@ -82,19 +82,17 @@ export const NotesManager = () => {
           ]}
         />
       ) : (
-        <></>
+        <div className="notes-container">
+          {notes.map((note, index) => (
+            <Note
+              {...note}
+              id={note.id}
+              deleteNote={() => deleteNote(index)}
+              key={note.id}
+            />
+          ))}
+        </div>
       )}
-
-      <div className="notes-container">
-        {notes.map((note, index) => (
-          <Note
-            {...note}
-            id={note.id}
-            deleteNote={() => deleteNote(index)}
-            key={note.id}
-          />
-        ))}
-      </div>
     </Section>
   );
 };
@@ -150,6 +148,7 @@ const NoteForm = ({
         </div>
       )}
       <Button
+        type="submit"
         svg={SVGS.check}
         text={t("add")}
         className="w-100 justify-center padding-5 active-on-hover"

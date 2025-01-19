@@ -1,7 +1,0 @@
-/* This is the main container of the extension */
-#root {
-  width: 400px;
-  height: 600px;
-  scrollbar-width: none;
-  overflow-y: auto;
-}

@@ -8,12 +8,12 @@ import { Textarea } from "../../../components/Textarea/Textarea";
 import { useTranslation } from "react-i18next";
 import { cacheLocation } from "../../../utils/lib";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
-import { toast } from "react-hot-toast";
 import { Section } from "../../../components/Section/Section";
 
 export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
+  const [notes, setNotes] = useState<TNote[]>([]);
   if (!id) return <div>No id</div>;
   const [note, setNote] = useState<TNote | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -22,6 +22,12 @@ export default function NoteDetail() {
   useEffect(() => {
     getNote();
   }, [id]);
+
+  useEffect(() => {
+    if (note) {
+      saveNote();
+    }
+  }, [note]);
 
   const getNote = async () => {
     const notes: TNote[] = await ChromeStorageManager.get("notes");
@@ -32,15 +38,19 @@ export default function NoteDetail() {
       navigate("/notes");
     } else {
       setNote(note);
+      setNotes(notes);
     }
   };
 
   const saveNote = async () => {
-    let notes = await ChromeStorageManager.get("notes");
-    if (!notes) {
-      notes = [note];
+    // let notes = await ChromeStorageManager.get("notes");
+    let newNotes = [...notes];
+    if (!note) return;
+
+    if (!newNotes) {
+      newNotes = [note];
     } else {
-      notes = notes.map((n: TNote) => {
+      newNotes = newNotes.map((n: TNote) => {
         if (n.id === id) {
           return { ...n, ...note };
         }
@@ -48,40 +58,42 @@ export default function NoteDetail() {
       });
     }
 
-    await ChromeStorageManager.add("notes", notes);
-    setIsEditing(false);
-    toast.success(t("note-saved"));
+    await ChromeStorageManager.add("notes", newNotes);
   };
 
   return (
     <div className=" padding-10">
       {isEditing ? (
-        <>
+        <div className="flex-column gap-5">
           <input
             type="text"
-            className="input w-100 padding-5"
+            className="w-100  font-size-20 bg-transparent border-none"
             maxLength={40}
             value={note?.title || ""}
             onChange={(e) => setNote({ ...note, title: e.target.value })}
           />
           <Textarea
+            maxHeight="75vh"
             defaultValue={note?.content || ""}
             onChange={(value) => setNote({ ...note, content: value })}
           />
-          <input
-            type="color"
-            value={note?.color || "#09090d"}
-            onChange={(e) => setNote({ ...note, color: e.target.value })}
-          />
+          <div className="flex-row gap-5">
+            <h3>{t("color")}</h3>
+            <input
+              type="color"
+              value={note?.color || "#09090d"}
+              onChange={(e) => setNote({ ...note, color: e.target.value })}
+            />
+          </div>
           <Button
             svg={SVGS.check}
             text={""}
-            className="w-100 justify-center padding-5 active-on-hover"
+            className="w-100 justify-center padding-5 active-on-hover border-gray"
             onClick={() => {
-              saveNote();
+              setIsEditing(false);
             }}
           />
-        </>
+        </div>
       ) : (
         <Section
           close={() => {
@@ -89,14 +101,16 @@ export default function NoteDetail() {
             navigate("/notes");
           }}
           title={note?.title || ""}
+          extraButtons={
+            <Button
+              svg={SVGS.edit}
+              title={t("edit")}
+              className="w-100 justify-center padding-5 "
+              onClick={() => setIsEditing(true)}
+            />
+          }
         >
           <StyledMarkdown markdown={note?.content || ""} />
-          <Button
-            svg={SVGS.edit}
-            text={t("edit")}
-            className="w-100 justify-center padding-5 active-on-hover"
-            onClick={() => setIsEditing(true)}
-          />
         </Section>
       )}
     </div>

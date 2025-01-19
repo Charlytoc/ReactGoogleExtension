@@ -12,6 +12,9 @@
   --active-color: #be90ff;
   --opaque-gray-color: rgba(132, 131, 131, 0.517);
 
+  --extension-width: 500px;
+  --extension-height: 600px;
+
   color-scheme: light dark;
   color: var(--font-color);
   background-color: var(--bg-color);
@@ -39,6 +42,14 @@ a:hover {
 body {
   width: fit-content;
   height: fit-content;
+}
+
+/* React entry point */
+#root {
+  width: var(--extension-width);
+  height: var(--extension-height);
+  scrollbar-width: none;
+  overflow-y: auto;
 }
 
 h1 {
@@ -202,8 +213,26 @@ button:focus-visible {
   & h6 {
     margin-block: 10px;
   }
+
+  & hr {
+    margin-block: 10px;
+    border-radius: 5px;
+    opacity: 0.3;
+  }
+
   & pre {
-    background-color: var(--bg-color);
+    background-color: rgba(161, 161, 161, 0.167);
+    width: min(fit-content, 100%);
+    padding: 5px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin-block: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--active-color) var(--bg-color);
+  }
+
+  & blockquote {
+    background-color: var(--opaque-gray-color);
     padding: 5px;
     border-radius: 5px;
     overflow-x: auto;
@@ -383,4 +412,16 @@ button:focus-visible {
 
 .fit-content {
   width: fit-content;
+}
+
+.font-size-20 {
+  font-size: 20px;
+}
+
+.border-none {
+  border: none;
+}
+
+.snaptie-card:focus-within {
+  border-color: var(--active-color) !important;
 }

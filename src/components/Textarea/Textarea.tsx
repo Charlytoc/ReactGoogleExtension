@@ -7,6 +7,7 @@ type TTextareaProps = {
   className?: string;
   label?: string;
   placeholder?: string;
+  maxHeight?: string;
 };
 
 export const Textarea = ({
@@ -16,6 +17,7 @@ export const Textarea = ({
   className,
   label,
   placeholder,
+  maxHeight = "200px",
 }: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   //   adjust the height of the textarea to the content when the user is typing
@@ -34,10 +36,10 @@ export const Textarea = ({
         name={name}
         ref={textareaRef}
         style={{
-          overflow: "hidden",
+          overflowY: "auto",
           resize: "none",
           scrollbarWidth: "none",
-          maxHeight: "200px",
+          maxHeight: maxHeight,
         }}
         onInput={() => {
           if (textareaRef.current) {

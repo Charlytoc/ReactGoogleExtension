@@ -38,6 +38,15 @@ export const Snapties = () => {
     setSnapties(newSnapties);
   };
 
+  // make a map of categories and the snapties in each category
+  const categories = snapties.reduce((acc, snaptie) => {
+    if (!acc[snaptie.category]) {
+      acc[snaptie.category] = [];
+    }
+    acc[snaptie.category].push(snaptie);
+    return acc;
+  }, {} as Record<string, TSnaptie[]>);
+
   return (
     <Section
       close={() => {
@@ -57,13 +66,20 @@ export const Snapties = () => {
         <SnaptieForm close={closeAndRefresh} />
       ) : (
         <>
-          <div className="flex-row gap-10 wrap justify-center">
-            {snapties.map((snaptie) => (
-              <SnaptieCard
-                key={snaptie.id}
-                snaptie={snaptie}
-                deleteSnaptie={deleteSnaptie}
-              />
+          <div className="flex-column gap-10">
+            {Object.entries(categories).map(([category, snapties]) => (
+              <div key={category}>
+                <h2 className="">{category}</h2>
+                <div className="flex-row gap-10 wrap">
+                  {snapties.map((snaptie) => (
+                    <SnaptieCard
+                      key={snaptie.id}
+                      snaptie={snaptie}
+                      deleteSnaptie={deleteSnaptie}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </>
@@ -144,7 +160,7 @@ const SnaptieCard = ({
   };
 
   return (
-    <div className="padding-10 border-gray rounded flex-column gap-5">
+    <div className="padding-10 border-gray rounded flex-column gap-5 snaptie-card">
       <h3 className="text-center">{snaptie.title}</h3>
       <div className="flex-row gap-5 justify-center">
         <Button
