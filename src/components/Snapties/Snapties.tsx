@@ -90,12 +90,14 @@ export const Snapties = () => {
 
 const SnaptieForm = ({ close }: { close: () => void }) => {
   const { t } = useTranslation();
+  const [color, setColor] = useState<string>("#09090d");
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const title = formData.get("title") as string;
     const content = formData.get("content") as string;
     const category = formData.get("category") as string;
+    const color = formData.get("color") as string;
 
     const newSnaptie = {
       id: generateRandomId("snaptie"),
@@ -104,6 +106,7 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
       category,
       createdAt: new Date().toISOString(),
       isUrl: isUrl(content),
+      color,
     };
     toast.success(t("snaptie-saved"));
     const previousSnapties = await ChromeStorageManager.get("snapties");
@@ -116,7 +119,11 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
   };
 
   return (
-    <form onSubmit={saveSnaptie} className="flex-column gap-10">
+    <form
+      style={{ backgroundColor: color }}
+      onSubmit={saveSnaptie}
+      className="flex-column gap-10"
+    >
       <LabeledInput
         label={t("title")}
         name="title"
@@ -134,6 +141,16 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
         type="text"
         placeholder={t("passwords-links-etc")}
       />
+      <div className="flex-row gap-10">
+        <span>{t("color")}</span>
+        <input
+          type="color"
+          name="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+        />
+      </div>
+
       <Button
         type="submit"
         className="w-100 padding-5 justify-center"
@@ -160,7 +177,10 @@ const SnaptieCard = ({
   };
 
   return (
-    <div className="padding-10 border-gray rounded flex-column gap-5 snaptie-card">
+    <div
+      style={{ backgroundColor: snaptie.color }}
+      className="padding-10 border-gray rounded flex-column gap-5 snaptie-card"
+    >
       <h3 className="text-center">{snaptie.title}</h3>
       <div className="flex-row gap-5 justify-center">
         <Button

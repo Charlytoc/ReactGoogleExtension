@@ -13,6 +13,8 @@ import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 
 export default function SnaptieDetail() {
   const [snaptie, setSnaptie] = useState<TSnaptie | null>(null);
+  const [usedColors, setUsedColors] = useState<string[]>([]);
+
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams();
@@ -25,6 +27,14 @@ export default function SnaptieDetail() {
     const snapties = await ChromeStorageManager.get("snapties");
     const snaptie = snapties.find((snaptie: TSnaptie) => snaptie.id === id);
     setSnaptie(snaptie);
+
+    setUsedColors([
+      ...new Set(
+        snapties
+          .filter((color: string) => color !== undefined)
+          .map((snaptie: TSnaptie) => snaptie.color)
+      ),
+    ] as string[]);
   };
 
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -48,7 +58,11 @@ export default function SnaptieDetail() {
       }}
       title={t("edit")}
     >
-      <form onSubmit={saveSnaptie} className="flex-column gap-10">
+      <form
+        style={{ backgroundColor: snaptie?.color }}
+        onSubmit={saveSnaptie}
+        className="flex-column gap-10"
+      >
         <LabeledInput
           name="title"
           label={t("title")}
@@ -79,6 +93,33 @@ export default function SnaptieDetail() {
             setSnaptie({ ...snaptie, category: e });
           }}
         />
+        <div className="flex-row gap-10">
+          <span>{t("color")}</span>
+          <input
+            type="color"
+            name="color"
+            value={snaptie?.color || "#09090d"}
+            onChange={(e) => {
+              if (!snaptie) return;
+              setSnaptie({ ...snaptie, color: e.target.value });
+            }}
+          />
+        </div>
+        {usedColors.length > 0 && (
+          <div className="flex-row gap-10">
+            {usedColors.map((color) => (
+              <div
+                key={color}
+                className="color-preview pointer"
+                style={{ backgroundColor: color }}
+                onClick={() => {
+                  if (!snaptie) return;
+                  setSnaptie({ ...snaptie, color: color });
+                }}
+              ></div>
+            ))}
+          </div>
+        )}
         <Button
           type="submit"
           text={t("save")}

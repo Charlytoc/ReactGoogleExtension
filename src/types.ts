@@ -42,4 +42,5 @@ export type TSnaptie = {
   createdAt: string;
   category: string;
   isUrl: boolean;
+  color: string;
 };
