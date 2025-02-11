@@ -78,5 +78,8 @@
     "something-I-want-to-remember-or-copy-easily": "Algo que quiero recordar o copiar fácilmente",
     "passwords-links-etc": "Contraseñas, enlaces, etc.",
     "note-saved": "Nota guardada",
-    "color": "Color"
+    "color": "Color",
+    "noteDeleted": "Nota eliminada",
+    "showArchived": "Mostrar Archivados",
+    "contains": "Contiene"
 }

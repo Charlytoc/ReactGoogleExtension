@@ -9,11 +9,27 @@ import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { generateRandomId, cacheLocation } from "../../utils/lib";
 import { Section } from "../Section/Section";
+import toast from "react-hot-toast";
+import { LabeledInput } from "../LabeledInput/LabeledInput";
+
+const splitInTags = (tags: string, separator: string) => {
+  return tags.split(separator);
+};
 
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [filters, setFilters] = useState<{
+    archived: boolean;
+    tags: string[];
+    contains: string;
+  }>({
+    archived: false,
+    tags: [],
+    contains: "",
+  });
+
   const { t } = useTranslation();
+  const [showForm, setShowForm] = useState(false);
   const navigate = useNavigate();
 
   const addNote = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -23,10 +39,20 @@ export const NotesManager = () => {
     const content = formData.get("content") as string;
     const color = formData.get("color") as string;
     const createdAt = new Date().toISOString();
+    const tags = formData.get("tags") as string;
+    const archived = formData.get("archived") as string;
 
-    const newNote: TNote = { title, content, color, createdAt };
+    const isArchived = archived === "true";
 
-    newNote.id = generateRandomId("note");
+    const newNote: TNote = {
+      id: generateRandomId("note"),
+      title,
+      content,
+      color,
+      createdAt,
+      tags: splitInTags(tags, ","),
+      archived: isArchived,
+    };
 
     e.currentTarget.reset();
 
@@ -36,21 +62,46 @@ export const NotesManager = () => {
     setShowForm(false);
   };
 
-  const deleteNote = async (index: number) => {
-    const newNotes = notes.filter((_, i) => i !== index);
+  const deleteNote = async (id: string) => {
+    const newNotes = notes.filter((note) => note.id !== id);
     setNotes(newNotes);
     await ChromeStorageManager.add("notes", newNotes);
+    toast.success(t("noteDeleted"));
   };
 
   useEffect(() => {
     getNotes();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [filters, notes]);
+
   const getNotes = async () => {
     const notes = await ChromeStorageManager.get("notes");
     if (notes) {
       setNotes(notes);
     }
+  };
+
+  const applyFilters = async () => {
+    let notes = await ChromeStorageManager.get("notes");
+    let notesToShow = notes;
+    if (!filters.archived) {
+      notesToShow = notesToShow.filter((note: TNote) => !note.archived);
+    }
+    if (filters.contains) {
+      notesToShow = notesToShow.filter(
+        (note: TNote) =>
+          note.title
+            ?.toLocaleLowerCase()
+            .includes(filters.contains.toLocaleLowerCase()) ||
+          note.content
+            ?.toLocaleLowerCase()
+            .includes(filters.contains.toLocaleLowerCase())
+      );
+    }
+    setNotes(notesToShow);
   };
 
   return (
@@ -83,11 +134,30 @@ export const NotesManager = () => {
         />
       ) : (
         <div className="notes-container">
-          {notes.map((note, index) => (
+          <div className="flex-row gap-10 align-center">
+            <LabeledInput
+              label={t("contains")}
+              type="text"
+              name="contains"
+              value={filters.contains}
+              onChange={(value) => setFilters({ ...filters, contains: value })}
+            />
+            <div className="flex-row gap-10 align-center">
+              <span>{t("showArchived")}</span>
+              <input
+                type="checkbox"
+                name="archived"
+                onChange={(e) =>
+                  setFilters({ ...filters, archived: e.target.checked })
+                }
+              />
+            </div>
+          </div>
+          {notes.map((note) => (
             <Note
               {...note}
               id={note.id}
-              deleteNote={() => deleteNote(index)}
+              deleteNote={() => deleteNote(note.id)}
               key={note.id}
             />
           ))}
@@ -147,6 +217,19 @@ const NoteForm = ({
           ))}
         </div>
       )}
+      <div className="flex-row gap-10">
+        <span>{t("tags")}</span>
+        <input
+          type="text"
+          name="tags"
+          placeholder={t("tags")}
+          className="input padding-5 w-100"
+        />
+      </div>
+      <div className="flex-row gap-10">
+        <span>{t("archived")}</span>
+        <input type="checkbox" name="archived" />
+      </div>
       <Button
         type="submit"
         svg={SVGS.check}

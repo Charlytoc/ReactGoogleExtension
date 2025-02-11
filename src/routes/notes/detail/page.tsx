@@ -85,6 +85,25 @@ export default function NoteDetail() {
               onChange={(e) => setNote({ ...note, color: e.target.value })}
             />
           </div>
+          <div className="flex-row gap-5">
+            <h3>{t("tags")}</h3>
+            <input
+              type="text"
+              value={note?.tags?.join(",") || ""}
+              onChange={(e) =>
+                setNote({ ...note, tags: e.target.value.split(",") })
+              }
+            />
+          </div>
+          <div className="flex-row gap-5">
+            <h3>{t("archived")}</h3>
+            <input
+              type="checkbox"
+              checked={note?.archived}
+              onChange={(e) => setNote({ ...note, archived: e.target.checked })}
+            />
+          </div>
+
           <Button
             svg={SVGS.check}
             text={""}
@@ -110,8 +129,17 @@ export default function NoteDetail() {
             />
           }
         >
+          <div className="flex-row gap-5 text-mini align-center justify-center">
+            {note?.tags?.map((tag) => (
+              <span key={tag} className="bg-gray padding-5 rounded">
+                #{tag}
+              </span>
+            ))}
+          </div>
+          <hr className="separator" />
           <StyledMarkdown markdown={note?.content || ""} />
         </Section>
+
       )}
     </div>
   );

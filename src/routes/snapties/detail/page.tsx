@@ -58,75 +58,76 @@ export default function SnaptieDetail() {
       }}
       title={t("edit")}
     >
-      <form
+      <div
         style={{ backgroundColor: snaptie?.color }}
-        onSubmit={saveSnaptie}
-        className="flex-column gap-10"
+        className="padding-10 rounded-10"
       >
-        <LabeledInput
-          name="title"
-          label={t("title")}
-          type="text"
-          value={snaptie?.title || ""}
-          onChange={(e) => {
-            if (!snaptie) return;
-            setSnaptie({ ...snaptie, title: e });
-          }}
-        />
-        <Textarea
-          label={t("content")}
-          name="content"
-          defaultValue={snaptie?.content || ""}
-          onChange={(e) => {
-            if (!snaptie) return;
-            setSnaptie({ ...snaptie, content: e });
-          }}
-        />
-
-        <LabeledInput
-          name="category"
-          label={t("category")}
-          type="text"
-          value={snaptie?.category || ""}
-          onChange={(e) => {
-            if (!snaptie) return;
-            setSnaptie({ ...snaptie, category: e });
-          }}
-        />
-        <div className="flex-row gap-10">
-          <span>{t("color")}</span>
-          <input
-            type="color"
-            name="color"
-            value={snaptie?.color || "#09090d"}
+        <form onSubmit={saveSnaptie} className="flex-column gap-10">
+          <LabeledInput
+            name="title"
+            label={t("title")}
+            type="text"
+            value={snaptie?.title || ""}
             onChange={(e) => {
               if (!snaptie) return;
-              setSnaptie({ ...snaptie, color: e.target.value });
+              setSnaptie({ ...snaptie, title: e });
             }}
           />
-        </div>
-        {usedColors.length > 0 && (
+          <Textarea
+            label={t("content")}
+            name="content"
+            defaultValue={snaptie?.content || ""}
+            onChange={(e) => {
+              if (!snaptie) return;
+              setSnaptie({ ...snaptie, content: e });
+            }}
+          />
+
+          <LabeledInput
+            name="category"
+            label={t("category")}
+            type="text"
+            value={snaptie?.category || ""}
+            onChange={(e) => {
+              if (!snaptie) return;
+              setSnaptie({ ...snaptie, category: e });
+            }}
+          />
           <div className="flex-row gap-10">
-            {usedColors.map((color) => (
-              <div
-                key={color}
-                className="color-preview pointer"
-                style={{ backgroundColor: color }}
-                onClick={() => {
-                  if (!snaptie) return;
-                  setSnaptie({ ...snaptie, color: color });
-                }}
-              ></div>
-            ))}
+            <span>{t("color")}</span>
+            <input
+              type="color"
+              name="color"
+              value={snaptie?.color || "#09090d"}
+              onChange={(e) => {
+                if (!snaptie) return;
+                setSnaptie({ ...snaptie, color: e.target.value });
+              }}
+            />
           </div>
-        )}
-        <Button
-          type="submit"
-          text={t("save")}
-          className="w-100 padding-5 justify-center"
-          svg={SVGS.save}
-        />
-      </form>
+          {usedColors.length > 0 && (
+            <div className="flex-row gap-10">
+              {usedColors.map((color) => (
+                <div
+                  key={color}
+                  className="color-preview pointer"
+                  style={{ backgroundColor: color }}
+                  onClick={() => {
+                    if (!snaptie) return;
+                    setSnaptie({ ...snaptie, color: color });
+                  }}
+                ></div>
+              ))}
+            </div>
+          )}
+          <Button
+            type="submit"
+            text={t("save")}
+            className="w-100 padding-5 justify-center"
+            svg={SVGS.save}
+          />
+        </form>
+      </div>
     </Section>
   );
 }

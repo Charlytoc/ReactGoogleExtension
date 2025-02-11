@@ -1,8 +1,10 @@
 export type TNote = {
-  id?: string;
+  id: string;
   title?: string;
   content?: string;
   color?: string;
+  tags?: string[];
+  archived?: boolean;
   createdAt?: string;
 };
 
