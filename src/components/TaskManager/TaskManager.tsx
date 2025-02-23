@@ -155,23 +155,32 @@ const calculateMinutesAgo = (startDatetime: string): number => {
   return diffMinutes;
 };
 
-const calculateMinutesRemaining = (dueDatetime: string): number => {
-  const dueDate = new Date(dueDatetime);
-  const now = new Date();
+// const calculateMinutesRemaining = (dueDatetime: string): number => {
+//   const dueDate = new Date(dueDatetime);
+//   const now = new Date();
 
-  const diffMinutes = Math.floor(
-    (dueDate.getTime() - now.getTime()) / (1000 * 60)
-  );
+//   const diffMinutes = Math.floor(
+//     (dueDate.getTime() - now.getTime()) / (1000 * 60)
+//   );
 
-  return diffMinutes;
-};
+//   return diffMinutes;
+// };
 
 const calculatePercentageDone = (
   totalMinutes: number,
   workedMinutes: number
 ) => {
   // Keep only the first 3 digits after the decimal point
-  return Math.round((workedMinutes / totalMinutes) * 100);
+  const percentage = (workedMinutes / totalMinutes) * 100;
+  if (percentage > 100) {
+    return 100;
+  }
+
+  if (percentage < 0) {
+    return 0;
+  }
+
+  return Math.round(percentage * 100) / 100;
 };
 
 const TaskStadistics = ({ task }: { task: TTask }) => {
@@ -220,24 +229,22 @@ const TaskCard = ({
 
   return (
     <div className={`task-card ${task.priority}`}>
-      <h3>
-        {task.title} {task.createdAt}
-      </h3>
-      <p>{task.description}</p>
+      <h3 className="text-center">{task.title}</h3>
+      <p className="text-mini">{task.description}</p>
 
       <TaskStadistics task={task} />
 
-      <p className="flex-row gap-5">
-        <strong>{t("reminderEvery")}</strong>
-        <span>{task.reminderEvery}</span>
-        <span>{t("minutes")}</span>
-      </p>
-      <p>
-        <strong>{"☁️"}</strong> {task.motivationText}
-      </p>
-      <p>
-        <strong>{t("priority")}</strong> {t(task.priority)}
-      </p>
+      <div className="flex-column gap-10">
+        <div className="flex-row gap-5">
+          <span>{t("reminderEvery")}</span>
+          <span>{task.reminderEvery}</span>
+          <span>{t("minutes")}</span>
+        </div>
+        <blockquote>
+          <strong>{"☁️"}</strong> {task.motivationText}
+        </blockquote>
+      </div>
+
       <div className="flex-row gap-5">
         <Button
           className="w-100 justify-center padding-5 "
@@ -249,7 +256,6 @@ const TaskCard = ({
           className="w-100 justify-center padding-5 "
           text={t("reset")}
           onClick={resetTask}
-          // confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
         />
         <Button
           className="w-100 justify-center padding-5 active-on-hover  "

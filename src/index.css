@@ -31,6 +31,11 @@
   box-sizing: border-box;
 }
 
+@font-face {
+  font-family: "ShareTechMono";
+  src: url("./assets/fonts/ShareTechMono-Regular.ttf");
+}
+
 a {
   font-weight: 500;
   color: var(--active-color);
@@ -103,6 +108,10 @@ button:focus-visible {
     var(--bg-color) 0%,
     var(--bg-color-secondary) 100%
   );
+}
+
+.font-mono {
+  font-family: "ShareTechMono";
 }
 
 .flex-column {

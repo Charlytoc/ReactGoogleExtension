@@ -17,7 +17,7 @@ export const Section = ({
   return (
     <div className="absolute-container bg-gradient">
       <section className="flex-row gap-10 align-center justify-between padding-10">
-        <h3>{title}</h3>
+        <h3 className="font-mono">{title}</h3>
         <div className="flex-row gap-5">
           {extraButtons}
           {close && (

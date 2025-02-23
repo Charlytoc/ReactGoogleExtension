@@ -53,7 +53,7 @@ function App() {
   };
 
   return (
-    <Section title="Automata.ai">
+    <Section title="automata.ai">
       <Content />
     </Section>
   );
