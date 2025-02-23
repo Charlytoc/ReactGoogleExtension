@@ -1,4 +1,3 @@
-
 const createRandomId = () => {
   return (
     Math.random().toString(36).substring(2, 15) +
@@ -20,6 +19,7 @@ export const createAlarm = (
   dateInMilliseconds: number,
   periodInMinutes = 5
 ) => {
+  clearAlarm(hash);
   chrome.alarms.create(hash, {
     when: dateInMilliseconds,
     periodInMinutes: periodInMinutes,
@@ -35,3 +35,4 @@ export const clearAlarm = (hash: string) => {
 export const clearAllAlarms = () => {
   chrome.alarms.clearAll();
 };
+

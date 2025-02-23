@@ -1,23 +1,24 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Inter, Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   --font-color: rgba(255, 255, 255, 0.87);
+  --font-color-secondary: rgba(255, 255, 255, 0.5);
   --bg-color: #09090d;
   --danger-color: #f45c5c;
   --success-color: #7cff7c;
+  --bg-color-secondary: #1b1b33;
   --warning-color: #ffc107;
 
   --active-color: #be90ff;
-  --opaque-gray-color: rgba(132, 131, 131, 0.517);
+  --opaque-gray-color: rgba(145, 145, 145, 0.88);
 
   --extension-width: 500px;
   --extension-height: 600px;
 
   color-scheme: light dark;
   color: var(--font-color);
-  background-color: var(--bg-color);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -94,6 +95,14 @@ button:focus-visible {
 
 .bg-default {
   background-color: var(--bg-color);
+}
+
+.bg-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--bg-color) 0%,
+    var(--bg-color-secondary) 100%
+  );
 }
 
 .flex-column {
@@ -174,16 +183,18 @@ button:focus-visible {
 .active-on-hover:hover,
 .active-on-hover:active,
 .active-on-hover:focus {
+  transition: all 0.15s ease-in-out;
   background-color: var(--active-color) !important;
-  color: var(--bg-color) !important;
-  box-shadow: 0 0 10px var(--active-color) !important;
+  color: var(--font-color) !important;
+  box-shadow: 0 0 10px var(--bg-color) !important;
+  scale: 1.015;
 
   & svg.with-stroke {
     & path {
-      stroke: var(--bg-color) !important;
+      stroke: var(--font-color) !important;
     }
     & circle {
-      stroke: var(--bg-color) !important;
+      stroke: var(--font-color) !important;
     }
   }
   & svg.with-fill {
@@ -202,6 +213,10 @@ button:focus-visible {
 
 .bg-success {
   background-color: var(--success-color) !important;
+}
+
+.bg-warning {
+  background-color: var(--warning-color) !important;
 }
 
 .markdown-container {
@@ -323,9 +338,9 @@ button:focus-visible {
 
   & label {
     font-size: 0.8rem;
-    color: var(--font-color);
+    color: var(--font-color-secondary);
     position: absolute;
-    opacity: 0.6;
+    /* opacity: 0.6; */
     /* display: none; */
     top: -10px;
     left: 5px;
@@ -338,6 +353,16 @@ button:focus-visible {
   & input {
     padding: 5px;
     background-color: transparent;
+    border: none;
+    color: var(--font-color);
+    outline: none;
+  }
+
+  & button {
+    position: absolute;
+    right: 5px;
+    top: -10px;
+    background-color: var(--bg-color);
     border: none;
     color: var(--font-color);
     outline: none;
@@ -441,4 +466,41 @@ button:focus-visible {
 .separator {
   border: 1px solid rgba(41, 41, 41, 0.253);
   margin-block: 10px;
+}
+
+.grid {
+  display: grid;
+}
+
+.grid-cols-7 {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.gap-4 {
+  gap: 4px;
+}
+.hidden {
+  display: none;
+}
+
+.ball-small {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.color-gray {
+  color: var(--opaque-gray-color);
+}
+
+.day-cell {
+  height: 70px;
+}
+
+.color-normal {
+  color: var(--font-color);
+}
+
+.font-bold {
+  font-weight: bold;
 }

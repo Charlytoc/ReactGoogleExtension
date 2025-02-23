@@ -5,8 +5,12 @@ export const getLastPage = async () => {
   return lastPage.lastPage;
 };
 
-export const cacheLocation = async (url: string) => {
-  await ChromeStorageManager.add("lastPage", url);
+export const cacheLocation = async (
+  nextPage: string,
+  currentPage: string | undefined = "/index.html"
+) => {
+  await ChromeStorageManager.add("lastPage", nextPage);
+  await ChromeStorageManager.add("prevPage", currentPage);
 };
 
 export const generateRandomId = (
@@ -19,4 +23,22 @@ export const generateRandomId = (
 
 export const isUrl = (url: string) => {
   return url.startsWith("http://") || url.startsWith("https://");
+};
+
+
+
+export const transformToMinutes = (
+  amount: number,
+  unit: string
+) => {
+  if (unit === "minutes") {
+    return amount;
+  }
+  if (unit === "hours") {
+    return amount * 60;
+  }
+  if (unit === "days") {
+    return amount * 1440;
+  }
+  return amount;
 };

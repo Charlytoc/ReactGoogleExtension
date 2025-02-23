@@ -14,7 +14,7 @@ export const Content = () => {
         <div className="flex-row gap-10 justify-center padding-10 botonera">
           <Button
             text={t("chat")}
-            className="padding-20  border-gray rounded"
+            className="padding-20 active-on-hover border-gray rounded font-bold"
             svg={SVGS.chat}
             onClick={() => {
               cacheLocation("/chat");
@@ -23,7 +23,7 @@ export const Content = () => {
           />
           <Button
             text={t("snapties")}
-            className="padding-20  border-gray rounded"
+            className="padding-20 active-on-hover border-gray rounded font-bold"
             svg={SVGS.clip}
             onClick={() => {
               cacheLocation("/snapties");
@@ -32,7 +32,7 @@ export const Content = () => {
           />
           <Button
             text={t("notes")}
-            className="padding-20   border-gray rounded"
+            className="padding-20 active-on-hover border-gray rounded font-bold"
             svg={SVGS.note}
             onClick={() => {
               cacheLocation("/notes");
@@ -41,17 +41,25 @@ export const Content = () => {
           />
           <Button
             text={t("tasks")}
-            className="padding-20  border-gray rounded"
+            className="padding-20 border-gray rounded active-on-hover font-bold"
             svg={SVGS.task}
             onClick={() => {
               cacheLocation("/tasks");
               navigate("/tasks");
             }}
           />
-
+          <Button
+            text={t("calendar")}
+            className="padding-20 active-on-hover border-gray rounded font-bold"
+            svg={SVGS.calendar}
+            onClick={() => {
+              cacheLocation("/calendar");
+              navigate("/calendar");
+            }}
+          />
           <Button
             text={t("config")}
-            className="padding-20  border-gray rounded"
+            className="padding-20 active-on-hover border-gray rounded font-bold"
             svg={SVGS.gear}
             onClick={() => {
               cacheLocation("/config");

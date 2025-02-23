@@ -6,8 +6,7 @@ export const Navbar = () => {
       <section>
         <img src="icons/icon.png" alt="logo" />
         <h3>
-          <strong>Be</strong>
-          <strong>Faster</strong>
+          <strong>AutoMator</strong>
         </h3>
       </section>
     </div>

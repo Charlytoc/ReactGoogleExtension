@@ -4,18 +4,25 @@ import { ChromeStorageManager } from "../../../managers/Storage";
 import { TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
-import { Textarea } from "../../../components/Textarea/Textarea";
 import { useTranslation } from "react-i18next";
 import { cacheLocation } from "../../../utils/lib";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
+import { NoteEditor } from "../../../components/Note/Note";
 
 export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
   if (!id) return <div>No id</div>;
-  const [note, setNote] = useState<TNote | null>(null);
+  const [note, setNote] = useState<TNote>({
+    id: id,
+    title: "",
+    content: "",
+    color: "var(--bg-color)",
+    tags: [],
+    archived: false,
+  });
   const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
 
@@ -64,60 +71,28 @@ export default function NoteDetail() {
   return (
     <div className=" padding-10">
       {isEditing ? (
-        <div className="flex-column gap-5">
-          <input
-            type="text"
-            className="w-100  font-size-20 bg-transparent border-none"
-            maxLength={40}
-            value={note?.title || ""}
-            onChange={(e) => setNote({ ...note, title: e.target.value })}
-          />
-          <Textarea
-            maxHeight="75vh"
-            defaultValue={note?.content || ""}
-            onChange={(value) => setNote({ ...note, content: value })}
-          />
-          <div className="flex-row gap-5">
-            <h3>{t("color")}</h3>
-            <input
-              type="color"
-              value={note?.color || "#09090d"}
-              onChange={(e) => setNote({ ...note, color: e.target.value })}
-            />
-          </div>
-          <div className="flex-row gap-5">
-            <h3>{t("tags")}</h3>
-            <input
-              type="text"
-              value={note?.tags?.join(",") || ""}
-              onChange={(e) =>
-                setNote({ ...note, tags: e.target.value.split(",") })
-              }
-            />
-          </div>
-          <div className="flex-row gap-5">
-            <h3>{t("archived")}</h3>
-            <input
-              type="checkbox"
-              checked={note?.archived}
-              onChange={(e) => setNote({ ...note, archived: e.target.checked })}
-            />
-          </div>
-
-          <Button
-            svg={SVGS.check}
-            text={""}
-            className="w-100 justify-center padding-5 active-on-hover border-gray"
-            onClick={() => {
+        <Section
+          close={async () => {
+            const prevPage = await ChromeStorageManager.get("prevPage");
+            cacheLocation(prevPage, "lastPage");
+            navigate(prevPage);
+          }}
+          title={note?.title || ""}
+        >
+          <NoteEditor
+            note={note}
+            setNote={setNote}
+            close={() => {
               setIsEditing(false);
             }}
           />
-        </div>
+        </Section>
       ) : (
         <Section
-          close={() => {
-            cacheLocation("/notes");
-            navigate("/notes");
+          close={async () => {
+            const prevPage = await ChromeStorageManager.get("prevPage");
+            cacheLocation(prevPage, "lastPage");
+            navigate(prevPage);
           }}
           title={note?.title || ""}
           extraButtons={
@@ -129,17 +104,16 @@ export default function NoteDetail() {
             />
           }
         >
-          <div className="flex-row gap-5 text-mini align-center justify-center">
+          {/* <div className="flex-row gap-5 text-mini align-center justify-center">
             {note?.tags?.map((tag) => (
               <span key={tag} className="bg-gray padding-5 rounded">
                 #{tag}
               </span>
             ))}
-          </div>
+          </div> */}
           <hr className="separator" />
           <StyledMarkdown markdown={note?.content || ""} />
         </Section>
-
       )}
     </div>
   );

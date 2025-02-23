@@ -11,6 +11,8 @@ import Config from "./routes/config/page.tsx";
 import Chat from "./routes/chat/page.tsx";
 import Snapties from "./routes/snapties/page.tsx";
 import SnaptieDetail from "./routes/snapties/detail/page.tsx";
+import TaskDetail from "./routes/tasks/detail/page.tsx";
+import Calendar from "./components/Calendar/Calendar.tsx";
 import { Toaster } from "react-hot-toast";
 
 createRoot(document.getElementById("root")!).render(
@@ -22,10 +24,12 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/notes" element={<NotesManager />} />
         <Route path="/notes/:id" element={<NoteDetail />} />
         <Route path="/tasks" element={<TaskManager />} />
+        <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/config" element={<Config />} />
         <Route path="/snapties" element={<Snapties />} />
         <Route path="/snapties/:id" element={<SnaptieDetail />} />
+        <Route path="/calendar" element={<Calendar />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

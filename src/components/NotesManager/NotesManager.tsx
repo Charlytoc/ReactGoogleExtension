@@ -112,13 +112,11 @@ export const NotesManager = () => {
         navigate("/index.html");
       }}
       extraButtons={
-        <>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="justify-center padding-5 "
-            svg={showForm ? SVGS.close : SVGS.plus}
-          />
-        </>
+        <Button
+          onClick={() => setShowForm(!showForm)}
+          className="justify-center padding-5 "
+          svg={showForm ? SVGS.close : SVGS.plus}
+        />
       }
     >
       {showForm ? (

@@ -13,6 +13,7 @@ import { notify } from "../../utils/chromeFunctions";
 import { TConversation } from "../../types";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { Section } from "../Section/Section";
 
 const getRandomHash = () => {
   return Math.random().toString(36).substring(2, 15);
@@ -29,7 +30,7 @@ export const Chat = () => {
   const [input, setInput] = useState<string>("");
   const [aiConfig, setAiConfig] = useState<TAIConfig>({
     systemPrompt: "You are a helpful assistant.",
-    model: "gpt-4o",
+    model: "chatgpt-4o-latest",
   });
   const [showConfig, setShowConfig] = useState<boolean>(false);
   const [conversations, setConversations] = useState<TConversation[]>([]);
@@ -100,7 +101,7 @@ export const Chat = () => {
     const newMessages = [...messages, message];
     setMessages(newMessages);
 
-    createStreamingResponse(newMessages, apiKey, (chunk) => {
+    createStreamingResponse(newMessages, apiKey, aiConfig.model, (chunk) => {
       setMessages((prevMessages) => {
         const newMessages = [...prevMessages];
         if (
@@ -158,124 +159,123 @@ export const Chat = () => {
   };
 
   return (
-    <div className="flex-column w-100 gap-10  chat-container">
-      <section className="chat-header flex-row gap-10">
-        <h2>AI</h2>
-        <div className="flex-row gap-10">
+    <Section
+      close={() => {
+        navigate("/index.html");
+        cacheLocation("/index.html", "/chat");
+      }}
+      title={t("AI")}
+      extraButtons={
+        <>
           <Button
             className="padding-5 "
             title={t("saveConversation")}
             onClick={saveConversation}
             svg={SVGS.save}
           />
+          
           <Button
             className={`padding-5 ${showConversations ? "bg-active" : ""}`}
             onClick={() => setShowConversations(!showConversations)}
             svg={SVGS.chat}
             title={t("showConversations")}
           />
+          
           <Button
             className={`padding-5 ${showConfig ? "bg-active" : ""}`}
             onClick={() => setShowConfig(!showConfig)}
             svg={SVGS.gear}
             title={t("showConfig")}
           />
-          <Button
-            className="padding-5"
-            onClick={() => {
-              navigate("/index.html");
-              cacheLocation("/index.html");
-            }}
-            svg={SVGS.back}
-            title={t("goBack")}
-            // text="Close"
-          />
-        </div>
-      </section>
-      {error && <div className="bg-danger">{error}</div>}
+        </>
+      }
+    >
+      <div className="flex-column w-100 gap-10 chat-container">
+        {error && <div className="bg-danger">{error}</div>}
 
-      {showConversations && (
-        <section className="flex-column gap-10 chat-messages">
-          {conversations.map((conversation, index) => (
-            <div
-              key={index}
-              className="bg-default padding-10 rounded pointer  flex-column gap-5"
-            >
-              <h3
-                contentEditable={true}
-                suppressContentEditableWarning={true}
-                onBlur={(e) => {
-                  const newTitle = e.target.innerText;
-                  if (!newTitle || newTitle === conversation.title) return;
-
-                  const newConversations = conversations.map((c) =>
-                    c.title === conversation.title
-                      ? { ...c, title: newTitle }
-                      : c
-                  );
-                  setConversations(newConversations);
-                  ChromeStorageManager.add("conversations", newConversations);
-                  toast.success(t("conversationSaved"), {
-                    icon: "✅",
-                  });
-                }}
+        {showConversations && (
+          <section className="flex-column gap-10 chat-messages">
+            {conversations.map((conversation, index) => (
+              <div
+                key={index}
+                className=" padding-10 rounded pointer  flex-column gap-5"
               >
-                {conversation.title}
-              </h3>
-              <div className="flex-row gap-10 justify-between w-100 align-center">
-                <p>{new Date(conversation.date).toLocaleString()}</p>
-                <div className="flex-row gap-10">
-                  <Button
-                    className="padding-5"
-                    onClick={() => deleteConversation(conversation)}
-                    svg={SVGS.trash}
-                    title={t("deleteConversation")}
-                    confirmations={[
-                      { text: t("sure?"), className: "bg-danger" },
-                    ]}
-                  />
-                  <Button
-                    className="padding-5"
-                    onClick={() => loadConversation(conversation)}
-                    svg={SVGS.expand}
-                    title={t("loadConversation")}
-                  />
+                <h3
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => {
+                    const newTitle = e.target.innerText;
+                    if (!newTitle || newTitle === conversation.title) return;
+
+                    const newConversations = conversations.map((c) =>
+                      c.title === conversation.title
+                        ? { ...c, title: newTitle }
+                        : c
+                    );
+                    setConversations(newConversations);
+                    ChromeStorageManager.add("conversations", newConversations);
+                    toast.success(t("conversationSaved"), {
+                      icon: "✅",
+                    });
+                  }}
+                >
+                  {conversation.title}
+                </h3>
+                <div className="flex-row gap-10 justify-between w-100 align-center">
+                  <p>{new Date(conversation.date).toLocaleString()}</p>
+                  <div className="flex-row gap-10">
+                    <Button
+                      className="padding-5"
+                      onClick={() => deleteConversation(conversation)}
+                      svg={SVGS.trash}
+                      title={t("deleteConversation")}
+                      confirmations={[
+                        { text: t("sure?"), className: "bg-danger" },
+                      ]}
+                    />
+                    <Button
+                      className="padding-5"
+                      onClick={() => loadConversation(conversation)}
+                      svg={SVGS.expand}
+                      title={t("loadConversation")}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </section>
+        )}
+        <section className="flex-row gap-10"></section>
+        <section className="flex-column gap-10 chat-messages">
+          {!showConversations &&
+            messages.map((message, index) => (
+              <div key={index} className={`message ${message.role}`}>
+                <StyledMarkdown markdown={message.content} />
+              </div>
+            ))}
         </section>
-      )}
-      <section className="flex-row gap-10"></section>
-      <section className="flex-column gap-10 chat-messages">
-        {!showConversations &&
-          messages.map((message, index) => (
-            <div key={index} className={`message ${message.role}`}>
-              <StyledMarkdown markdown={message.content} />
-            </div>
-          ))}
-      </section>
-      {showConfig && (
-        <AIConfig
-          key={aiConfig.systemPrompt}
-          aiConfig={aiConfig}
-          updateAiConfig={updateAiConfig}
-        />
-      )}
-      <section className="flex-row gap-10 w-100  padding-5 ">
-        <Textarea
-          className="w-100"
-          key={messages.length}
-          defaultValue=""
-          onChange={(value) => setInput(value)}
-        />
-        <Button
-          className=" padding-5 align-center justify-center active-on-hover"
-          svg={SVGS.send}
-          onClick={handleSendMessage}
-        />
-      </section>
-    </div>
+        {showConfig && (
+          <AIConfig
+            key={aiConfig.systemPrompt}
+            aiConfig={aiConfig}
+            updateAiConfig={updateAiConfig}
+          />
+        )}
+        <section className="flex-row gap-10 w-100  padding-5 ">
+          <Textarea
+            className="w-100"
+            key={messages.length}
+            defaultValue=""
+            onChange={(value) => setInput(value)}
+          />
+          <Button
+            className=" padding-5 align-center justify-center active-on-hover"
+            svg={SVGS.send}
+            onClick={handleSendMessage}
+          />
+        </section>
+      </div>
+    </Section>
   );
 };
 
@@ -329,6 +329,11 @@ const AIConfig = ({
           </option>
         ))}
       </select>
+      <h2>{t("notesConfig")}</h2>
+      <div className="flex-row gap-10">
+        <input type="checkbox" name="auto-save-notes" />
+        <span>{t("autoSaveNotes")}</span>
+      </div>
       <Button
         className="w-100 padding-5 justify-center"
         text={t("finishConfig")}

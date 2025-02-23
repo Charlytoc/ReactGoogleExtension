@@ -13,7 +13,7 @@ export type TMessage = {
   content: string;
 };
 
-type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+export type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
 export type TTaskPriority = "low" | "medium" | "high";
 
@@ -23,11 +23,13 @@ export type TTask = {
   description?: string;
   status?: TTaskStatus;
   createdAt?: string;
-  startDatetime: string;
-  dueDatetime: string;
+  startDatetime?: string;
+  dueDatetime?: string;
   reminderEvery?: number;
-  reminderText?: string;
+  motivationText?: string;
   estimatedTime?: number;
+  estimatedTimeUnit?: string;
+  lastReminderAt?: string;
   priority: TTaskPriority;
 };
 
@@ -45,4 +47,12 @@ export type TSnaptie = {
   category: string;
   isUrl: boolean;
   color: string;
+};
+
+export type TNotesConfig = {
+  autoSaveNotes: boolean;
+  useAiSuggestions: boolean; // You start to write and the AI generate N suggestions, based in a fixed parameter or imagination
+  useAiMotivation: boolean; // You start to write and the AI suggests a motivation text
+  reasoningEnabled: boolean; // You start to write and the AI suggests a motivation text
+  useAiSummary: boolean; // You finish to write and the AI suggests a summary
 };

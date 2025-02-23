@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Be Better",
+  "name": "Automator",
   "version": "0.0.3",
   "action": {
     "default_popup": "index.html"
   },
-  "description": "A simple Google Extension to help you manage your tasks",
+  "description": "A AI Agent to help you manage your tasks and make them automatically with AI right in your browser",
   "host_permissions": [
     "<all_urls>"
   ],

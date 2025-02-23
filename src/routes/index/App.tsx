@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { Section } from "../../components/Section/Section";
 
 function App() {
   const { i18n } = useTranslation();
@@ -34,8 +35,16 @@ function App() {
         colorPreferences.fontColor
       );
       document.documentElement.style.setProperty(
+        "--font-color-secondary",
+        colorPreferences.fontColorSecondary
+      );
+      document.documentElement.style.setProperty(
         "--bg-color",
         colorPreferences.backgroundColor
+      );
+      document.documentElement.style.setProperty(
+        "--bg-color-secondary",
+        colorPreferences.backgroundColorSecondary
       );
     }
     if (lastPage) {
@@ -44,10 +53,9 @@ function App() {
   };
 
   return (
-    <>
-      <Navbar />
+    <Section title="Automata.ai">
       <Content />
-    </>
+    </Section>
   );
 }
 

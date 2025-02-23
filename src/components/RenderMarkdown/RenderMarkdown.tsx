@@ -19,6 +19,7 @@ const CustomAnchor = ({
 export const RenderMarkdown = ({ markdown }: { markdown: string }) => {
   return (
     <Markdown
+      skipHtml={true}
       components={{
         a: (props) => {
           return (
