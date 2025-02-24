@@ -9,6 +9,7 @@ import { generateRandomId, cacheLocation } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { notify } from "../../utils/chromeFunctions";
 import { Textarea } from "../Textarea/Textarea";
+import { LabeledInput } from "../LabeledInput/LabeledInput";
 type TNoteProps = TNote & {
   deleteNote?: () => void;
 };
@@ -89,13 +90,12 @@ export const NoteEditor = ({
 
   return (
     <div className="flex-column gap-5">
-
-      <input
+      <LabeledInput
+        label={t("title")}
         type="text"
-        className="w-100  font-size-20 bg-transparent border-none"
-        maxLength={40}
+        name="title"
         value={note?.title || ""}
-        onChange={(e) => setNote({ ...note, title: e.target.value })}
+        onChange={(value) => setNote({ ...note, title: value })}
       />
       <Textarea
         maxHeight="75vh"

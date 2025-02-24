@@ -11,6 +11,7 @@ import { generateRandomId, cacheLocation } from "../../utils/lib";
 import { Section } from "../Section/Section";
 import toast from "react-hot-toast";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
+import { Select } from "../Select/Select";
 
 const splitInTags = (tags: string, separator: string) => {
   return tags.split(separator);
@@ -19,11 +20,11 @@ const splitInTags = (tags: string, separator: string) => {
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
   const [filters, setFilters] = useState<{
-    archived: boolean;
+    archived: "show" | "hide" | "only";
     tags: string[];
     contains: string;
   }>({
-    archived: false,
+    archived: "hide",
     tags: [],
     contains: "",
   });
@@ -87,9 +88,13 @@ export const NotesManager = () => {
   const applyFilters = async () => {
     let notes = await ChromeStorageManager.get("notes");
     let notesToShow = notes;
-    if (!filters.archived) {
+    if (filters.archived === "hide") {
       notesToShow = notesToShow.filter((note: TNote) => !note.archived);
     }
+    if (filters.archived === "only") {
+      notesToShow = notesToShow.filter((note: TNote) => note.archived);
+    }
+
     if (filters.contains) {
       notesToShow = notesToShow.filter(
         (note: TNote) =>
@@ -141,13 +146,20 @@ export const NotesManager = () => {
               onChange={(value) => setFilters({ ...filters, contains: value })}
             />
             <div className="flex-row gap-10 align-center">
-              <span>{t("showArchived")}</span>
-              <input
-                type="checkbox"
-                name="archived"
-                onChange={(e) =>
-                  setFilters({ ...filters, archived: e.target.checked })
+              <Select
+                options={[
+                  { label: t("showArchived"), value: "show" },
+                  { label: t("hideArchived"), value: "hide" },
+                  { label: t("onlyArchived"), value: "only" },
+                ]}
+                defaultValue={filters.archived}
+                onChange={(value) =>
+                  setFilters({
+                    ...filters,
+                    archived: value as "show" | "hide" | "only",
+                  })
                 }
+                name="archived"
               />
             </div>
           </div>

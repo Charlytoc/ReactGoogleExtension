@@ -101,23 +101,30 @@ export const Chat = () => {
     const newMessages = [...messages, message];
     setMessages(newMessages);
 
-    createStreamingResponse(newMessages, apiKey, aiConfig.model, (chunk) => {
-      setMessages((prevMessages) => {
-        const newMessages = [...prevMessages];
-        if (
-          newMessages.length === 0 ||
-          newMessages[newMessages.length - 1].role === "user"
-        ) {
-          newMessages.push({ role: "assistant", content: chunk });
-        }
+    createStreamingResponse(
+      newMessages,
+      apiKey,
+      aiConfig.model,
+      0.5,
+      4000,
+      (chunk) => {
+        setMessages((prevMessages) => {
+          const newMessages = [...prevMessages];
+          if (
+            newMessages.length === 0 ||
+            newMessages[newMessages.length - 1].role === "user"
+          ) {
+            newMessages.push({ role: "assistant", content: chunk });
+          }
 
-        if (newMessages[newMessages.length - 1].role === "assistant") {
-          newMessages[newMessages.length - 1].content += chunk;
-        }
+          if (newMessages[newMessages.length - 1].role === "assistant") {
+            newMessages[newMessages.length - 1].content += chunk;
+          }
 
-        return newMessages;
-      });
-    });
+          return newMessages;
+        });
+      }
+    );
   };
 
   const saveConversation = () => {
@@ -173,14 +180,14 @@ export const Chat = () => {
             onClick={saveConversation}
             svg={SVGS.save}
           />
-          
+
           <Button
             className={`padding-5 ${showConversations ? "bg-active" : ""}`}
             onClick={() => setShowConversations(!showConversations)}
             svg={SVGS.chat}
             title={t("showConversations")}
           />
-          
+
           <Button
             className={`padding-5 ${showConfig ? "bg-active" : ""}`}
             onClick={() => setShowConfig(!showConfig)}

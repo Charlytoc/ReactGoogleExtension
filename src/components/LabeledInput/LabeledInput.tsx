@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { SVGS } from "../../assets/svgs";
 import { Button } from "../Button/Button";
-import toast from "react-hot-toast";
 import { createCompletion } from "../../utils/ai";
 import { ChromeStorageManager } from "../../managers/Storage";
 
