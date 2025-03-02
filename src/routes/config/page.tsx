@@ -9,6 +9,9 @@ import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
 import { createCompletion } from "../../utils/ai.ts";
+import { useShallow } from "zustand/shallow";
+import { useStore } from "../../managers/store.ts";
+import { TTheme } from "../../managers/storeTypes.ts";
 
 const generateRandomTheme = async (
   apiKey: string,
@@ -39,17 +42,22 @@ const generateRandomTheme = async (
   `;
 
   const response = await createCompletion(
-    [
-      {
-        role: "system",
-        content: prompt,
-      },
-    ],
-    "gpt-4o-mini",
+    {
+      messages: [
+        {
+          role: "system",
+          content: prompt,
+        },
+      ],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.8,
+      max_completion_tokens: 100,
+    },
     apiKey,
-    0.5,
-    4000,
-    "json_object"
+    (completion) => {
+      console.log(completion, "completion finished successfully");
+    }
   );
   if (!response) {
     throw new Error("No response from AI");
@@ -91,14 +99,7 @@ export default function Config() {
   const { i18n, t } = useTranslation();
   const [apiKey, setApiKey] = useState<string>("");
 
-  const [colors, setColors] = useState<{
-    fontColor: string;
-    backgroundColor: string;
-    activeColor: string;
-    fontColorSecondary: string;
-    backgroundColorSecondary: string;
-    themePreferences: string;
-  }>({
+  const [colors, setColors] = useState<TTheme>({
     fontColor: "",
     backgroundColor: "",
     activeColor: "",
@@ -106,6 +107,8 @@ export default function Config() {
     backgroundColorSecondary: "",
     themePreferences: "",
   });
+
+  const setConfig = useStore(useShallow((state) => state.setConfig));
   const navigate = useNavigate();
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -126,8 +129,23 @@ export default function Config() {
     }
   };
 
+  const pasteColorsToClipboard = () => {
+    navigator.clipboard.writeText(
+      `--active-color: ${colors.activeColor};
+--font-color: ${colors.fontColor};
+--font-color-secondary: ${colors.fontColorSecondary};
+--bg-color: ${colors.backgroundColor};
+--bg-color-secondary: ${colors.backgroundColorSecondary};
+    `
+    );
+    toast.success(t("colorsPastedToClipboard"));
+  };
+
   useEffect(() => {
     setColorsInDocument(colors);
+    setConfig({
+      theme: colors,
+    });
   }, [colors]);
 
   return (
@@ -151,13 +169,13 @@ export default function Config() {
           </select>
         </div>
         <div className="flex-column">
-          {/* <h3 className="text-left">{t("openaiApiKey")}</h3> */}
-          {/* <h3 className="text-left">{t("secrets")}</h3> */}
           <LabeledInput
             label={t("openaiApiKey")}
             type="text"
             name="openaiApiKey"
+            className="w-100"
             value={apiKey}
+            // TODO: IMPLEMENT IN THE FUTURE
             // validator={() => {
             //   if (apiKey.length < 10) {
             //     return false;
@@ -255,18 +273,29 @@ export default function Config() {
             setColors({ ...colors, themePreferences: value })
           }
         />
-        <Button
-          className="  padding-10 justify-center active-on-hover"
-          svg={SVGS.random}
-          title={t("randomColors")}
-          onClick={() => {
-            generateRandomTheme(apiKey, colors.themePreferences).then(
-              (colors) => {
-                setColors((prev) => ({ ...prev, ...colors }));
-              }
-            );
-          }}
-        />
+        <div className="flex-row gap-10">
+          <Button
+            // usesAI={true}
+            className="  padding-10 justify-center active-on-hover"
+            svg={SVGS.generate}
+            title={t("generateColorDescription")}
+            onClick={() => {
+              generateRandomTheme(apiKey, colors.themePreferences).then(
+                (colors) => {
+                  setColors((prev) => ({ ...prev, ...colors }));
+                }
+              );
+            }}
+          />
+          <Button
+            className="  padding-10 justify-center active-on-hover"
+            svg={SVGS.paste}
+            title={t("pasteColorsToClipboard")}
+            onClick={() => {
+              pasteColorsToClipboard();
+            }}
+          />
+        </div>
       </div>
 
       <Button

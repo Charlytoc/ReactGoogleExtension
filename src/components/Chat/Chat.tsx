@@ -31,6 +31,8 @@ export const Chat = () => {
   const [aiConfig, setAiConfig] = useState<TAIConfig>({
     systemPrompt: "You are a helpful assistant.",
     model: "chatgpt-4o-latest",
+    autoSaveNotes: false,
+    setTitleAtMessage: 0,
   });
   const [showConfig, setShowConfig] = useState<boolean>(false);
   const [conversations, setConversations] = useState<TConversation[]>([]);
@@ -102,11 +104,13 @@ export const Chat = () => {
     setMessages(newMessages);
 
     createStreamingResponse(
-      newMessages,
+      {
+        messages: newMessages,
+        model: aiConfig.model,
+        temperature: 0.5,
+        max_completion_tokens: 4000,
+      },
       apiKey,
-      aiConfig.model,
-      0.5,
-      4000,
       (chunk) => {
         setMessages((prevMessages) => {
           const newMessages = [...prevMessages];
@@ -289,6 +293,8 @@ export const Chat = () => {
 type TAIConfig = {
   systemPrompt: string;
   model: string;
+  autoSaveNotes: boolean;
+  setTitleAtMessage?: number;
 };
 
 const models = ["gpt-4o", "gpt-3.5-turbo", "gpt-4o-mini", "chatgpt-4o-latest"];
@@ -301,13 +307,10 @@ const AIConfig = ({
   updateAiConfig: (newConfig: TAIConfig) => void;
 }) => {
   const { t } = useTranslation();
-  const [systemPrompt, setSystemPrompt] = useState<string>(
-    aiConfig.systemPrompt
-  );
-  const [model, setModel] = useState<string>(aiConfig.model);
+  const [_aiConfig, setAiConfig] = useState<TAIConfig>(aiConfig);
 
   const finishConfig = () => {
-    updateAiConfig({ systemPrompt, model });
+    updateAiConfig({ ..._aiConfig });
   };
 
   return (
@@ -317,17 +320,17 @@ const AIConfig = ({
         label={t("systemPrompt")}
         // placeholder={t("systemPrompt")}
         className="w-100  padding-5 rounded"
-        defaultValue={systemPrompt}
+        defaultValue={_aiConfig.systemPrompt}
         onChange={(value) => {
-          setSystemPrompt(value);
+          setAiConfig({ ..._aiConfig, systemPrompt: value });
         }}
       />
       <h3>{t("model")}</h3>
       <select
         className="w-100 border-gray padding-5 rounded"
-        value={model}
+        value={_aiConfig.model}
         onChange={(e) => {
-          setModel(e.target.value);
+          setAiConfig({ ..._aiConfig, model: e.target.value });
         }}
       >
         {models.map((model) => (
@@ -338,7 +341,14 @@ const AIConfig = ({
       </select>
       <h2>{t("notesConfig")}</h2>
       <div className="flex-row gap-10">
-        <input type="checkbox" name="auto-save-notes" />
+        <input
+          type="checkbox"
+          name="autoSave-notes"
+          checked={_aiConfig.autoSaveNotes}
+          onChange={(e) => {
+            setAiConfig({ ..._aiConfig, autoSaveNotes: e.target.checked });
+          }}
+        />
         <span>{t("autoSaveNotes")}</span>
       </div>
       <Button

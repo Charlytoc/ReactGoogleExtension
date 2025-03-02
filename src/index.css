@@ -233,49 +233,105 @@ button:focus-visible {
     margin-block: 10px;
   }
 
-  & h1,
-  & h2,
-  & h3,
-  & h4,
-  & h5,
-  & h6 {
-    margin-block: 10px;
-  }
-
   & hr {
     margin-block: 10px;
     border-radius: 5px;
     opacity: 0.3;
+    border: 1px solid var(--active-color);
+  }
+
+  & h1 {
+    margin-block: 10px;
+  }
+
+  & h2 {
+    margin-block: 5px;
+  }
+
+  & h3,
+  & h4,
+  & h5,
+  & h6 {
+    margin-block: 3px;
   }
 
   & pre {
     background-color: rgba(161, 161, 161, 0.167);
     width: min(fit-content, 100%);
-    padding: 5px;
+    padding: 10px;
     border-radius: 5px;
     overflow-x: auto;
     margin-block: 10px;
     scrollbar-width: thin;
     scrollbar-color: var(--active-color) var(--bg-color);
+    font-family: monospace;
   }
 
   & blockquote {
     background-color: var(--opaque-gray-color);
-    padding: 5px;
+    padding: 10px;
     border-radius: 5px;
     overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--active-color) var(--bg-color);
+    border-left: 5px solid var(--active-color);
+    font-style: italic;
+  }
+
+  & ul,
+  & ol {
+    margin-left: 20px;
+    padding-left: 20px;
   }
 
   & li {
-    list-style-position: inside;
+    list-style-position: outside;
+
     &::marker {
       color: var(--active-color);
     }
+
+    & ul,
+    & ol {
+      margin-left: 20px;
+      padding-left: 20px;
+    }
+  }
+
+  & table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-block: 10px;
+  }
+
+  & th,
+  & td {
+    border: 1px solid var(--font-color-secondary);
+    padding: 8px;
+    text-align: left;
+  }
+
+  & th {
+    background-color: var(--bg-color-secondary);
+    /* color: var(--active-color); */
+  }
+
+  & code {
+    background-color: rgba(161, 161, 161, 0.167);
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+  & a {
+    color: var(--active-color);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
-
 .font-big {
   font-size: 1.5rem;
 }
@@ -512,4 +568,42 @@ button:focus-visible {
 
 .font-bold {
   font-weight: bold;
+}
+.transparent {
+  background-color: transparent;
+}
+.checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--active-color);
+  border-radius: 5px;
+  background-color: var(--bg-color);
+  border: 1px solid var(--opaque-gray-color);
+}
+
+.contrast-on-hover:hover {
+  mix-blend-mode: hard-light;
+}
+
+.contrast-on-hover:active {
+  background-color: #a0a0a049;
+}
+
+.float-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.prompter-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: fit-content;
+  padding: 10px;
+  z-index: 1000;
+  border: 1px solid var(--active-color);
+  border-radius: 5px;
 }

@@ -15,6 +15,7 @@ type ButtonProps = {
   confirmations?: TConfirmation[];
   title?: string;
   type?: "button" | "submit" | "reset";
+  usesAI?: boolean;
 };
 
 export const Button = ({
@@ -25,6 +26,7 @@ export const Button = ({
   confirmations = [],
   title = "",
   type = "button",
+  // usesAI = false,
 }: ButtonProps) => {
   const [timesClicked, setTimesClicked] = useState(0);
 
@@ -49,6 +51,7 @@ export const Button = ({
       }`}
       onClick={handleClick}
     >
+      {/* {usesAI && <span className="text-mini float-right">AI</span>} */}
       {svg && (
         <span className="svg-container">
           {confirmations.length === 0 || timesClicked === 0

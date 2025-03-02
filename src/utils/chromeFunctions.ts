@@ -6,11 +6,12 @@ const createRandomId = () => {
 };
 
 export const notify = (title: string, message: string) => {
+  const root = chrome.runtime.getURL("icons/icon.png");
   chrome.notifications.create(createRandomId(), {
     type: "basic",
     title: title,
     message: message,
-    iconUrl: "icons/icon.png",
+    iconUrl: root,
   });
 };
 
@@ -35,4 +36,3 @@ export const clearAlarm = (hash: string) => {
 export const clearAllAlarms = () => {
   chrome.alarms.clearAll();
 };
-

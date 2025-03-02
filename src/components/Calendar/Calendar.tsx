@@ -83,7 +83,7 @@ const Calendar = () => {
   const month = today.getMonth();
   const todayDate = today.getDate();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // Obtiene el día de la semana del primer día del mes
+  const firstDayOfMonth = (new Date(year, month, 1).getDay() + 6) % 7;
 
   const { t } = useTranslation();
   const navigate = useNavigate();

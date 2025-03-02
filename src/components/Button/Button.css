@@ -3,6 +3,7 @@
   border: none;
   cursor: pointer;
   border-radius: 5px;
+  position: relative;
   display: flex;
   width: fit-content;
   align-items: center;

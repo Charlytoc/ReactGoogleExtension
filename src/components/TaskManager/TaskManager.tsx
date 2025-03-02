@@ -198,6 +198,16 @@ const TaskStadistics = ({ task }: { task: TTask }) => {
           {t("endsOn")}{" "}
           {task.dueDatetime ? new Date(task.dueDatetime).toLocaleString() : ""}
         </div>
+        <div className="">
+          <div className="flex-row gap-5">
+            <span>{t("reminderEvery")}</span>
+            <span>{task.reminderEvery}</span>
+            <span>{t("minutes")}</span>
+          </div>
+          <blockquote>
+            <strong>{"☁️"}</strong> {task.motivationText}
+          </blockquote>
+        </div>
       </div>
       <CircularProgress
         percentage={calculatePercentageDone(
@@ -233,17 +243,6 @@ const TaskCard = ({
       <p className="text-mini">{task.description}</p>
 
       <TaskStadistics task={task} />
-
-      <div className="flex-column gap-10">
-        <div className="flex-row gap-5">
-          <span>{t("reminderEvery")}</span>
-          <span>{task.reminderEvery}</span>
-          <span>{t("minutes")}</span>
-        </div>
-        <blockquote>
-          <strong>{"☁️"}</strong> {task.motivationText}
-        </blockquote>
-      </div>
 
       <div className="flex-row gap-5">
         <Button

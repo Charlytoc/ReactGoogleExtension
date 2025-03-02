@@ -120,5 +120,15 @@
     "endsIn": "Ends in",
     "timeRemaining": "Time remaining",
     "themePreferences": "Theme preferences",
-    "themePreferencesPlaceholder": "Pastel tone, cyberpunk, etc."
+    "themePreferencesPlaceholder": "Pastel tone, cyberpunk, etc.",
+    "pasteColorsToClipboard": "Paste colors to clipboard",
+    "colorsPastedToClipboard": "Colors pasted to clipboard",
+    "colorsPastedToClipboardSuccess": "Colors pasted to clipboard successfully",
+    "tags": "Tags",
+    "archived": "Archived",
+    "continueWithAI": "Continue with AI",
+    "generateColorWithAI": "Generate color with AI",
+    "generateColorDescription": "Generate a color for the note using AI",
+    "execute": "Execute",
+    "userMessage": "User message"
 }

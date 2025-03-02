@@ -30,6 +30,7 @@ export const LabeledInput = ({
   defaultValue,
   placeholder = "",
   className = "",
+  autoFocus = false,
   required = false,
   onChange = () => {},
   readOnly = false,
@@ -40,6 +41,7 @@ export const LabeledInput = ({
   label: string;
   type: string;
   name: string;
+  autoFocus?: boolean;
   value?: string;
   defaultValue?: string | number;
   defaultChecked?: boolean;
@@ -80,18 +82,26 @@ export const LabeledInput = ({
       allAvailableContext
     );
     const response = await createCompletion(
-      [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: inputRef.current?.value || "",
-        },
-      ],
-      "gpt-4o-mini",
-      apiKey
+      {
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: inputRef.current?.value || "",
+          },
+        ],
+        model: "gpt-4o-mini",
+        response_format: { type: "text" },
+        temperature: 0.5,
+        max_completion_tokens: 100,
+      },
+      apiKey,
+      (completion) => {
+        console.log(completion, "completion");
+      }
     );
 
     if (inputRef.current && response) {
@@ -105,6 +115,7 @@ export const LabeledInput = ({
         {label}
       </label>
       <input
+        autoFocus={autoFocus}
         ref={inputRef}
         type={type}
         name={name}

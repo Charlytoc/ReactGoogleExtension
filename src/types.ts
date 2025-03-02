@@ -9,8 +9,9 @@ export type TNote = {
 };
 
 export type TMessage = {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
+  tool_call_id?: string;
 };
 
 export type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
@@ -55,4 +56,14 @@ export type TNotesConfig = {
   useAiMotivation: boolean; // You start to write and the AI suggests a motivation text
   reasoningEnabled: boolean; // You start to write and the AI suggests a motivation text
   useAiSummary: boolean; // You finish to write and the AI suggests a summary
+};
+
+export type TNoteHistory = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  color: string;
+  tags: string[];
+  archived: boolean;
 };
