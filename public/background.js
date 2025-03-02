@@ -154,9 +154,12 @@ chrome.runtime.onInstalled.addListener(() => {
 function pegarHelloWorld() {
     // Selecciona el elemento deseado (ajusta el selector según tu necesidad)
     const elemento = document.activeElement; // Ejemplo: elemento actualmente seleccionado
+    const innerText = document.body.innerText;
+    console.log(innerText, "INNER TEXT");
     console.log(elemento, "ELEMENTO ACTIVO");
     if (elemento) {
         console.log(elemento.textContent, "ELEMENTO TEXTO");
+        
         // IF THE ELEMENT IS A TEXT AREA OR INPUT, WE ADD THE TEXT TO THE VALUE
         if (elemento.isContentEditable || /^(INPUT|TEXTAREA)$/.test(elemento.tagName)) {
             elemento.value += "Hello, World!";

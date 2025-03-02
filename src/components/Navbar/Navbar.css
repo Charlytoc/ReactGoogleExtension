@@ -3,21 +3,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-
+  padding: 10px;
 
   & img {
-    height: 50px;
-  }
-
-  & section {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  & select {
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    border: 1px solid #cccccc7b;
+    height: 100px;
   }
 }

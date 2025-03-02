@@ -9,6 +9,7 @@ import { Section } from "../../components/Section/Section";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { TTheme } from "../../managers/storeTypes";
+import { Navbar } from "../../components/Navbar/Navbar";
 
 function App() {
   const { i18n } = useTranslation();
@@ -72,9 +73,12 @@ function App() {
   };
 
   return (
-    <Section title="automata.ai">
+    // <Section title="automata.ai">
+    <div className="bg-gradient h-100">
+      <Navbar />
       <Content />
-    </Section>
+    </div>
+    // </Section>
   );
 }
 
