@@ -25,9 +25,11 @@ export const hashText = (text: string) => {
   return text.replace(/\s+/g, "-");
 };
 
-export const dateToMilliseconds = (date: string) => {
-  return new Date(date).getTime();
+const dateToMilliseconds = (dateString: string) => {
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) ? 0 : date.getTime();
 };
+
 
 export const upsertTask = async (task: TTask, alarm = true) => {
   const tasks = await ChromeStorageManager.get("tasks");
@@ -43,10 +45,26 @@ export const upsertTask = async (task: TTask, alarm = true) => {
     await ChromeStorageManager.add("tasks", [task]);
   }
 
+  const nowInMilliseconds = new Date().getTime();
+  const taskMilliseconds = task.startDatetime
+    ? dateToMilliseconds(task.startDatetime)
+    : nowInMilliseconds;
+
+  console.log("Current Time (ms):", nowInMilliseconds);
+  console.log("Task Start Time:", task.startDatetime);
+  console.log("Task Start Time (ms):", taskMilliseconds);
+  console.log("Time Difference (ms):", taskMilliseconds - nowInMilliseconds);
+  console.log(
+    "Time Difference (minutes):",
+    (taskMilliseconds - nowInMilliseconds) / 60000
+  );
+
   if (alarm) {
     createAlarm(
       task.id,
-      task.startDatetime ? dateToMilliseconds(task.startDatetime) : 0,
+      task.startDatetime
+        ? dateToMilliseconds(task.startDatetime)
+        : nowInMilliseconds,
       task.reminderEvery ? task.reminderEvery : 1000
     );
   }

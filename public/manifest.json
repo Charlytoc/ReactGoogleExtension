@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Automator",
-  "version": "0.0.3",
+  "version": "0.0.52",
   "action": {
     "default_popup": "index.html"
   },
@@ -9,6 +9,26 @@
   "host_permissions": [
     "<all_urls>"
   ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "auto-complete": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+V",
+        "mac": "Command+Shift+V"
+      },
+      "description": "Trigger AutoComplete"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -22,6 +42,8 @@
     "notifications",
     "alarms",
     "contextMenus",
-    "scripting"
+    "scripting",
+    "commands",
+    "tts"
   ]
 }

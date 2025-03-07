@@ -2,19 +2,23 @@ import OpenAI from "openai";
 
 import {
   ChatCompletion,
+  ChatCompletionChunk,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
-import { TMessage } from "../types";
-import toast from "react-hot-toast";
+
+import { TMessage, TModel } from "../types";
+
 type TCompletionRequest = {
   messages: ChatCompletionMessageParam[];
   model: string;
   temperature: number;
+  apiKey: string;
   max_completion_tokens: number;
   response_format: { type: "json_object" | "text" };
   tools?: ChatCompletionTool[];
   tool_choice?: "auto" | "none" | "required";
+  functionMap?: Record<string, (args: Record<string, any>) => Promise<string>>;
 };
 
 export type TTool = {
@@ -69,10 +73,12 @@ export const toolify = <T extends (args: any) => any>(
 
 export const createCompletion = async (
   request: TCompletionRequest,
-  apiKey: string,
   callback: (completion: ChatCompletion) => void
 ) => {
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+  const openai = new OpenAI({
+    apiKey: request.apiKey,
+    dangerouslyAllowBrowser: true,
+  });
 
   const completion = await openai.chat.completions.create({
     model: request.model,
@@ -91,7 +97,7 @@ export const createCompletion = async (
 
 type TStreamingResponseRequest = {
   messages: TMessage[];
-  model: string;
+  model: TModel;
   temperature: number;
   max_completion_tokens: number;
 };
@@ -104,11 +110,11 @@ export const createStreamingResponse = async (
   const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
   const stream = await openai.chat.completions.create({
-    model: request.model,
+    model: request.model.slug,
     // @ts-ignore
     messages: request.messages,
     stream: true,
-    temperature: request.temperature,
+    temperature: request.model.hasReasoning ? undefined : request.temperature,
     max_completion_tokens: request.max_completion_tokens,
   });
   for await (const chunk of stream) {
@@ -183,11 +189,13 @@ export const createSpeech = async (request: TSpeechRequest, apiKey: string) => {
 
 export const createCompletionWithFunctions = async (
   request: TCompletionRequest,
-  apiKey: string,
   callback: (completion: ChatCompletion) => void,
   functionMap: Record<string, (args: Record<string, any>) => Promise<string>>
 ) => {
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+  const openai = new OpenAI({
+    apiKey: request.apiKey,
+    dangerouslyAllowBrowser: true,
+  });
 
   let messages = [...request.messages];
 
@@ -204,8 +212,6 @@ export const createCompletionWithFunctions = async (
   const toolCalls = completion.choices[0].message.tool_calls;
   messages.push(completion.choices[0].message);
 
-  console.log("toolCalls", toolCalls);
-
   if (toolCalls && toolCalls.length > 0) {
     for (const toolCall of toolCalls) {
       const functionName = toolCall.function.name;
@@ -220,7 +226,7 @@ export const createCompletionWithFunctions = async (
             content: completion.choices[0].message.content,
           });
         }
-        toast.success(toolCall.id);
+
         messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
@@ -252,4 +258,98 @@ export const createCompletionWithFunctions = async (
   }
 
   return completion.choices[0].message.content;
+};
+
+export const createStreamingResponseWithFunctions = async (
+  request: TCompletionRequest,
+  callback: (completion: ChatCompletionChunk) => void
+) => {
+  const openai = new OpenAI({
+    apiKey: request.apiKey,
+    dangerouslyAllowBrowser: true,
+  });
+
+  let messages = [...request.messages];
+
+  while (true) {
+    let generatedMessage: ChatCompletionMessageParam = {
+      role: "assistant",
+      content: "",
+      tool_calls: [],
+    };
+
+    const stream = await openai.chat.completions.create({
+      model: request.model,
+      stream: true,
+      messages: messages as ChatCompletionMessageParam[],
+      tools: request.tools,
+    });
+
+    let toolCalls: Record<number, any> = {};
+
+    for await (const chunk of stream) {
+      const choice = chunk.choices[0].delta;
+
+      if (choice.content) {
+        callback(chunk);
+        generatedMessage.content += choice.content;
+      }
+
+      if (choice.tool_calls) {
+        for (const toolCall of choice.tool_calls) {
+          const index = toolCall.index;
+
+          if (!toolCalls[index]) {
+            toolCalls[index] = toolCall;
+          } else if (toolCall.function) {
+            toolCalls[index].function.arguments += toolCall.function.arguments;
+          }
+        }
+      }
+    }
+
+    if (Object.keys(toolCalls).length === 0) {
+      break; // No more function calls, exit loop
+    }
+
+    generatedMessage.tool_calls = Object.values(toolCalls);
+    messages.push(generatedMessage);
+
+    for (const toolCall of Object.values(toolCalls)) {
+      const name = toolCall.function.name;
+      const args = JSON.parse(toolCall.function.arguments);
+
+      if (request.functionMap && request.functionMap[name]) {
+        const result = await request.functionMap[name](args);
+        messages.push({
+          role: "tool",
+          content: result,
+          tool_call_id: toolCall.id,
+        });
+      }
+    }
+  }
+};
+
+export const convertToMessage = (m: TMessage): ChatCompletionMessageParam => {
+  return {
+    role: m.role as "user" | "assistant" | "system",
+    content: m.content,
+  };
+};
+
+export const createToolsMap = (functions: TTool[]) => {
+  let toolNames = functions.map((tool) => tool.schema.function.name);
+  let toolFunctions = functions.map((tool) => tool.function);
+
+  let functionMap: Record<
+    string,
+    (args: Record<string, any>) => Promise<string>
+  > = {};
+
+  for (let i = 0; i < toolNames.length; i++) {
+    functionMap[toolNames[i]] = toolFunctions[i];
+  }
+
+  return functionMap;
 };

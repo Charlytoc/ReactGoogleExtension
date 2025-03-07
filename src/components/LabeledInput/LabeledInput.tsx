@@ -73,6 +73,8 @@ export const LabeledInput = ({
 
     required: ${required}
     readOnly: ${readOnly}
+
+    You should return only the new value for the input following the instructions very carefully.
     `;
 
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
@@ -81,7 +83,7 @@ export const LabeledInput = ({
       inputRef.current?.value || "",
       allAvailableContext
     );
-    const response = await createCompletion(
+    await createCompletion(
       {
         messages: [
           {
@@ -97,16 +99,20 @@ export const LabeledInput = ({
         response_format: { type: "text" },
         temperature: 0.5,
         max_completion_tokens: 100,
+        apiKey,
       },
-      apiKey,
       (completion) => {
-        console.log(completion, "completion");
+        console.log(completion);
+        if (inputRef.current) {
+          inputRef.current.value = completion.choices[0].message.content || "";
+          onChange?.(inputRef.current?.value || "");
+        }
       }
     );
 
-    if (inputRef.current && response) {
-      inputRef.current.value = response;
-    }
+    // if (inputRef.current && response) {
+    //   inputRef.current.value = response;
+    // }
   };
 
   return (
@@ -130,7 +136,7 @@ export const LabeledInput = ({
         <Button
           className="active-on-hover"
           title="AI"
-          svg={SVGS.random}
+          svg={SVGS.ai}
           onClick={handleAIButton}
         />
       )}

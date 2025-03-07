@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
-import { TNote } from "../../../types";
+import { TMessage, TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
@@ -10,27 +10,32 @@ import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdow
 import { Section } from "../../../components/Section/Section";
 import { NoteEditor } from "../../../components/Note/Note";
 import {
-  createCompletionWithFunctions,
+  convertToMessage,
+  createStreamingResponseWithFunctions,
+  createToolsMap,
   toolify,
   TTool,
 } from "../../../utils/ai";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 import { useStore } from "../../../managers/store";
 import { useShallow } from "zustand/shallow";
-import toast from "react-hot-toast";
+import { Message } from "../../../components/Chat/Chat";
 
 const Prompter = ({
   systemPrompt,
   functions,
-  onComplete,
-}: {
+}: // onComplete,
+{
   systemPrompt: string;
   // apiKey: string;
   functions: TTool[];
-  onComplete: (response: string) => void;
+  // onComplete: (response: string) => void;
 }) => {
   const { t } = useTranslation();
   const auth = useStore(useShallow((state) => state.config.auth));
+  const [messages, setMessages] = useState<TMessage[]>([
+    { role: "system", content: systemPrompt },
+  ]);
   const [state, setState] = useState<{
     isGenerating: boolean;
     isOpen: boolean;
@@ -43,66 +48,73 @@ const Prompter = ({
     userMessage: "",
   });
 
+  useEffect(() => {
+    setMessages((prev) => {
+      let newMessages = [...prev];
+      const systemMessage = newMessages.find((m) => m.role === "system");
+      if (systemMessage) {
+        systemMessage.content = systemPrompt;
+      } else {
+        newMessages.unshift({ role: "system", content: systemPrompt });
+      }
+      return newMessages;
+    });
+  }, [systemPrompt]);
+
   const handleGenerate = async () => {
     setState({ ...state, isGenerating: true });
 
-    let toolNames = functions.map((tool) => tool.schema.function.name);
-    let toolFunctions = functions.map((tool) => tool.function);
+    const userMessage: TMessage = { role: "user", content: state.userMessage };
+    const assistantMessage: TMessage = { role: "assistant", content: "" };
+    const newMessages = [...messages, userMessage, assistantMessage];
 
-    let functionMap: Record<
-      string,
-      (args: Record<string, any>) => Promise<string>
-    > = {};
-    for (let i = 0; i < toolNames.length; i++) {
-      functionMap[toolNames[i]] = toolFunctions[i];
-    }
+    setState((prev) => ({ ...prev, userMessage: "" }));
+    setMessages(newMessages);
 
-    await createCompletionWithFunctions(
+    await createStreamingResponseWithFunctions(
       {
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: state.userMessage },
-        ],
+        messages: newMessages.map(convertToMessage),
         model: "gpt-4o-mini",
-        temperature: 0.8,
+        temperature: 0.4,
+        apiKey: auth.openaiApiKey,
         max_completion_tokens: 16000,
         response_format: { type: "text" },
         tools: functions.map((tool) => tool.schema),
+        functionMap: createToolsMap(functions),
       },
-      auth.openaiApiKey,
-      (completion) => {
-        const response = completion.choices[0].message.content;
-        if (!response) return;
-        if (typeof onComplete === "function") {
-          onComplete(response);
+      (chunk) => {
+        const text = chunk.choices[0].delta.content;
+        if (text) {
+          setMessages((prev) => {
+            let newMessages = [...prev];
+            const lastAssistantMessage = newMessages.pop();
+
+            if (!lastAssistantMessage) return newMessages;
+            lastAssistantMessage.content += text;
+            return [...newMessages, lastAssistantMessage];
+          });
         }
-        setState({ ...state, response: response });
-      },
-      functionMap
+      }
     );
-    setState({ ...state, isGenerating: false });
+    setState((prev) => ({ ...prev, isGenerating: false }));
   };
   return (
     <>
       <Button
         title={t("continueWithAI")}
-        className="w-100 justify-center padding-5 "
+        className={`w-100 justify-center padding-5 ${
+          state.isGenerating ? "bg-active" : ""
+        }`}
         onClick={() => setState({ ...state, isOpen: true })}
         svg={SVGS.ai}
       />
       {state.isOpen && (
-        <div className="prompter-container bg-gradient flex-column gap-10">
-          <div className="prompter-response">
-            {state.response}
-            <div className="prompter-response-actions">
-              <Button
-                title={t("close")}
-                className="w-100 justify-center padding-5 "
-                onClick={() => setState({ ...state, isOpen: false })}
-                svg={SVGS.close}
-              />
-            </div>
-          </div>
+        <div className="prompter-container bg-gradient flex-column gap-10 ">
+          {messages.map((message, index) => {
+            if (message.role === "system") return null;
+            return <Message key={index} message={message} />;
+          })}
+
           <LabeledInput
             autoFocus
             label={t("userMessage")}
@@ -117,13 +129,22 @@ const Prompter = ({
             }
           />
 
-          <Button
-            title={t("generate")}
-            onClick={handleGenerate}
-            svg={SVGS.ai}
-            text={t("execute")}
-            className="w-100 justify-center padding-5 "
-          />
+          <div className="flex-row gap-5">
+            <Button
+              title={t("generate")}
+              onClick={handleGenerate}
+              svg={SVGS.ai}
+              text={state.isGenerating ? t("generating") : t("execute")}
+              className="w-100 justify-center padding-5 "
+            />
+            <Button
+              title={t("close")}
+              text={t("close")}
+              className="w-100 justify-center padding-5 "
+              onClick={() => setState({ ...state, isOpen: false })}
+              svg={SVGS.close}
+            />
+          </div>
         </div>
       )}
     </>
@@ -189,52 +210,45 @@ export default function NoteDetail() {
     await ChromeStorageManager.add("notes", newNotes);
   };
 
-  const updateNote = toolify(
-    ({
-      searchString,
-      replacement,
-    }: {
-      searchString: string;
-      replacement: string;
-    }) => {
-      console.log("AI wants to update the note", replacement);
-      const newContent = note.content?.replace(searchString, replacement) || "";
-      if (!newContent) return "No replacement provided";
-      setNote({ ...note, content: newContent });
-      return "Note updated successfully";
-    },
-    "updateNote",
-    "Update the note content",
-    {
-      searchString: {
-        type: "string",
-        description: "The string to search for in the note",
-      },
-      replacement: {
-        type: "string",
-        description: "The new content to update the note",
-      },
-    }
-  );
+  // const replaceInNote = toolify(
+  //   ({
+  //     searchString,
+  //     replacement,
+  //   }: {
+  //     searchString: string;
+  //     replacement: string;
+  //   }) => {
+  //     const newContent = note.content?.replace(searchString, replacement) || "";
+  //     if (!newContent) return "No replacement provided";
+  //     setNote({ ...note, content: newContent });
+  //     return "Note updated successfully";
+  //   },
+  //   "replaceInNote",
+  //   "Replace a particular part of the note content. Use this tool when you need to update a specific part of the note.",
+  //   {
+  //     searchString: {
+  //       type: "string",
+  //       description: "The string to search for in the note",
+  //     },
+  //     replacement: {
+  //       type: "string",
+  //       description: "The new content to update the note",
+  //     },
+  //   }
+  // );
 
-  const appendToEnd = toolify(
+  const updateEntireNote = toolify(
     (newContent: { newContent: string }) => {
-      console.log("AI wants to add this content to the note", newContent);
-      toast.success("being called");
-      let newContentString = note.content
-        ? note.content + newContent.newContent
-        : newContent.newContent;
-
-      console.log("NEW CONTENT STRING", newContentString);
-      setNote({ ...note, content: newContentString });
+      console.log("AI wants to update the entire note", newContent);
+      setNote({ ...note, content: newContent.newContent });
       return "Note updated successfully";
     },
-    "appendToEnd",
-    "Append to the end of the note",
+    "updateEntireNote",
+    "Update the entire note content. Use this tool when you need to make big changes to the note.",
     {
       newContent: {
         type: "string",
-        description: "The new content to append to the end of the note",
+        description: "The new content to update the note",
       },
     }
   );
@@ -243,12 +257,20 @@ export default function NoteDetail() {
     <div className=" padding-10">
       {isEditing ? (
         <Section
-          close={async () => {
-            const prevPage = await ChromeStorageManager.get("prevPage");
-            cacheLocation(prevPage, "lastPage");
-            navigate(prevPage);
-          }}
           title={note?.title || ""}
+          extraButtons={
+            <>
+              <Button
+                svg={SVGS.save}
+                title={t("save")}
+                className="w-100 justify-center padding-5 "
+                onClick={() => {
+                  setIsEditing(false);
+                  saveNote();
+                }}
+              />
+            </>
+          }
         >
           <NoteEditor
             note={note}
@@ -277,29 +299,26 @@ export default function NoteDetail() {
               />
 
               <Prompter
-                // onResult={continueWithAI}
                 systemPrompt={`
-                You are a powerful note taking assistant.
-                You will be given a note and you will need to update the note based on the context you have. It may be necessary to update the node in an specific way, based on the context.
+## SYSTEM
 
-                <NOTE>
-                Title: "${note.title}"
-                Content: """${note.content}"""
+You are a powerful note taking assistant.
+You will be given a note and you will need to update the note based on the context and instructions you have. 
 
+The title of the note is: "${note.title}"
 
-                </NOTE>
-
-                Use all the tools available to you to update the note.
-                Provide useful insights about the note and the changes you are making. In the text response, include the changes you are making to the note.
-
-                <RESPONSE>
-                  The response should be a text response to the user with the changes you are making to the note. Only text and function calls.
-                </RESPONSE>
+The content of the note is: 
+"""
+${note.content}
+"""
+                
+## RULES
+- Use the right tool depending on the task in hand.
+- Provide useful insights about the note and the changes you are making.
+- Ask for clarification if needed.
+  
                     `}
-                functions={[updateNote, appendToEnd]}
-                onComplete={(response) => {
-                  console.log("RESPONSE ON COMPLETE", response);
-                }}
+                functions={[updateEntireNote]}
               />
             </>
           }

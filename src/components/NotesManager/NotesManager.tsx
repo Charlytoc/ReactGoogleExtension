@@ -29,6 +29,10 @@ export const NotesManager = () => {
     contains: "",
   });
 
+  const [showFilters, setShowFilters] = useState(false);
+
+  const [tags, setTags] = useState<string[]>([]);
+
   const { t } = useTranslation();
   const [showForm, setShowForm] = useState(false);
   const navigate = useNavigate();
@@ -76,17 +80,30 @@ export const NotesManager = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [filters, notes]);
+  }, [filters]);
 
   const getNotes = async () => {
-    const notes = await ChromeStorageManager.get("notes");
+    const notes: TNote[] = await ChromeStorageManager.get("notes");
     if (notes) {
       setNotes(notes);
+      let _tags: string[] = Array.from(
+        new Set(
+          notes
+            .flatMap((note) => note.tags ?? [])
+            .filter((tag): tag is string => tag !== undefined)
+            .filter((tag) => tag.trim() !== "")
+        )
+      );
+
+      _tags = [...new Set(_tags)];
+      setTags(_tags);
     }
   };
 
   const applyFilters = async () => {
     let notes = await ChromeStorageManager.get("notes");
+    console.log(notes, "notes");
+
     let notesToShow = notes;
     if (filters.archived === "hide") {
       notesToShow = notesToShow.filter((note: TNote) => !note.archived);
@@ -106,6 +123,13 @@ export const NotesManager = () => {
             .includes(filters.contains.toLocaleLowerCase())
       );
     }
+
+    if (filters.tags.length > 0) {
+      notesToShow = notesToShow.filter((note: TNote) =>
+        filters.tags.some((tag) => note.tags?.includes(tag))
+      );
+    }
+
     setNotes(notesToShow);
   };
 
@@ -117,11 +141,18 @@ export const NotesManager = () => {
         navigate("/index.html");
       }}
       extraButtons={
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="justify-center padding-5 "
-          svg={showForm ? SVGS.close : SVGS.plus}
-        />
+        <>
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            className="justify-center padding-5 "
+            svg={showForm ? SVGS.close : SVGS.plus}
+          />
+          <Button
+            onClick={() => setShowFilters(!showFilters)}
+            className="justify-center padding-5 "
+            svg={showFilters ? SVGS.close : SVGS.config}
+          />
+        </>
       }
     >
       {showForm ? (
@@ -137,40 +168,23 @@ export const NotesManager = () => {
         />
       ) : (
         <div className="notes-container">
-          <div className="flex-row gap-10 align-center">
-            <LabeledInput
-              label={t("contains")}
-              type="text"
-              name="contains"
-              value={filters.contains}
-              onChange={(value) => setFilters({ ...filters, contains: value })}
+          {showFilters && (
+            <NoteFilters
+              filters={filters}
+              setFilters={setFilters}
+              tags={tags}
             />
-            <div className="flex-row gap-10 align-center">
-              <Select
-                options={[
-                  { label: t("showArchived"), value: "show" },
-                  { label: t("hideArchived"), value: "hide" },
-                  { label: t("onlyArchived"), value: "only" },
-                ]}
-                defaultValue={filters.archived}
-                onChange={(value) =>
-                  setFilters({
-                    ...filters,
-                    archived: value as "show" | "hide" | "only",
-                  })
-                }
-                name="archived"
+          )}
+          <div className="grid grid-cols-2 gap-10">
+            {notes.map((note) => (
+              <Note
+                {...note}
+                id={note.id}
+                deleteNote={() => deleteNote(note.id)}
+                key={note.id}
               />
-            </div>
+            ))}
           </div>
-          {notes.map((note) => (
-            <Note
-              {...note}
-              id={note.id}
-              deleteNote={() => deleteNote(note.id)}
-              key={note.id}
-            />
-          ))}
         </div>
       )}
     </Section>
@@ -195,7 +209,7 @@ const NoteForm = ({
       <input
         className="input padding-5 w-100"
         name="title"
-        maxLength={40}
+        maxLength={100}
         type="text"
         placeholder={t("title")}
         required
@@ -247,5 +261,78 @@ const NoteForm = ({
         className="w-100 justify-center padding-5 active-on-hover"
       />
     </form>
+  );
+};
+
+const NoteFilters = ({
+  filters,
+  setFilters,
+  tags,
+}: {
+  filters: {
+    archived: "show" | "hide" | "only";
+    tags: string[];
+    contains: string;
+  };
+  setFilters: (filters: {
+    archived: "show" | "hide" | "only";
+    tags: string[];
+    contains: string;
+  }) => void;
+  tags: string[];
+}) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex-column gap-5 ">
+      <section className="flex-row gap-10 align-center">
+        <LabeledInput
+          label={t("contains")}
+          type="text"
+          name="contains"
+          value={filters.contains}
+          onChange={(value) => setFilters({ ...filters, contains: value })}
+        />
+
+        <div className="flex-row gap-10 align-center">
+          <Select
+            options={[
+              { label: t("showArchived"), value: "show" },
+              { label: t("hideArchived"), value: "hide" },
+              { label: t("onlyArchived"), value: "only" },
+            ]}
+            defaultValue={filters.archived}
+            onChange={(value) =>
+              setFilters({
+                ...filters,
+                archived: value as "show" | "hide" | "only",
+              })
+            }
+            name="archived"
+          />
+        </div>
+      </section>
+      {tags.length > 0 && (
+        <section className="flex-row gap-10 align-center wrap justify-center">
+          {tags.map((tag) => (
+            <div
+              onClick={() =>
+                setFilters({
+                  ...filters,
+                  tags: filters.tags.includes(tag || "")
+                    ? filters.tags.filter((t) => t !== tag)
+                    : [...filters.tags, tag || ""],
+                })
+              }
+              key={tag}
+              className={`tag ${
+                filters.tags.includes(tag || "") ? "active" : ""
+              }`}
+            >
+              {tag}
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
   );
 };

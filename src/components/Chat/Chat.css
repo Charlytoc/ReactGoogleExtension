@@ -17,13 +17,11 @@
 
 .message.user {
   background-color: rgba(96, 126, 157, 0.402);
-  text-align: right;
   margin-left: auto;
 }
 
 .message.assistant {
   background-color: rgba(33, 33, 33, 0.402);
-  text-align: left;
 }
 
 .chat-container {

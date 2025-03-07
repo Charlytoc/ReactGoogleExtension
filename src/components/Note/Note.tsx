@@ -50,9 +50,9 @@ export const Note = ({
   return (
     <div
       style={{ backgroundColor: color }}
-      className="border-gray padding-10 rounded fit-content"
+      className="padding-10 rounded w-100"
     >
-      <h4>{title}</h4>
+      <h4>{title?.slice(0, 20) || t("untitled")}</h4>
       <div className="flex-row gap-10 justify-center ">
         <Button
           className="w-100 justify-center padding-5"
@@ -104,8 +104,8 @@ const containsCommand = (text: string) => {
 export const NoteEditor = ({
   note,
   setNote,
-  close,
 }: // close,
+// close,
 {
   note: TNote;
   setNote: (note: TNote) => void;
@@ -151,7 +151,7 @@ export const NoteEditor = ({
 
     THEME: 
     """
-    ${JSON.stringify(config.theme)}
+    ${JSON.stringify(config.theme.themePreferences)}
     """
     </CONTEXT>
     `;
@@ -159,11 +159,11 @@ export const NoteEditor = ({
       {
         messages: [{ role: "system", content: systemPrompt }],
         model: "gpt-4o-mini",
-        temperature: 0.8,
+        temperature: 0.9,
         max_completion_tokens: 100,
         response_format: { type: "text" },
+        apiKey: apiKeyref.current,
       },
-      apiKeyref.current,
       (completion) => {
         const response = completion.choices[0].message.content;
         if (!response) return;
@@ -207,6 +207,15 @@ export const NoteEditor = ({
         label={t("title")}
         type="text"
         name="title"
+        getAIContext={() => `Generate a title for a note.
+        The title should be related to the note.
+        This is the content of the note:
+        ${note?.content || ""}
+
+        This are the current tags of the note:
+        ${note?.tags?.join(",") || ""}
+        `}
+        aiButton={true}
         value={note?.title || ""}
         onChange={(value) => setNote({ ...note, title: value })}
       />
@@ -256,8 +265,6 @@ export const NoteEditor = ({
             ${note?.tags?.join(",") || ""}
 
             You should generate a single tag, this will be added to the tag list of the note.
-
-            
           `}
           aiButton={true}
           value={note?.tags?.join(",") || ""}
@@ -273,13 +280,6 @@ export const NoteEditor = ({
           onChange={(e) => setNote({ ...note, archived: e.target.checked })}
         />
       </div>
-
-      <Button
-        svg={SVGS.check}
-        text={""}
-        className="w-100 justify-center padding-5 active-on-hover border-gray"
-        onClick={close}
-      />
     </div>
   );
 };

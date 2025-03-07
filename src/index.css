@@ -1,3 +1,8 @@
+@font-face {
+  font-family: "ShareTechMono";
+  src: url("../fonts/ShareTechMono-Regular.ttf");
+}
+
 :root {
   font-family: Inter, Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -12,7 +17,7 @@
   --warning-color: #ffc107;
 
   --active-color: #be90ff;
-  --opaque-gray-color: rgba(145, 145, 145, 0.88);
+  --opaque-gray-color: rgba(145, 145, 145, 0.303);
 
   --extension-width: 500px;
   --extension-height: 600px;
@@ -29,11 +34,6 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-}
-
-@font-face {
-  font-family: "ShareTechMono";
-  src: url("./assets/fonts/ShareTechMono-Regular.ttf");
 }
 
 a {
@@ -274,7 +274,7 @@ button:focus-visible {
     overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--active-color) var(--bg-color);
-    border-left: 5px solid var(--active-color);
+    border-left: 1px solid var(--active-color);
     font-style: italic;
   }
 
@@ -516,10 +516,6 @@ button:focus-visible {
   border: none;
 }
 
-.snaptie-card:focus-within {
-  border-color: var(--active-color) !important;
-}
-
 .text-mini {
   font-size: 12px;
 }
@@ -600,15 +596,71 @@ button:focus-visible {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 100%;
-  height: fit-content;
+  width: 98%;
+  height: 80vh;
+  overflow-y: auto;
   padding: 10px;
   z-index: 1000;
-  border: 1px solid var(--active-color);
+  border: 1px solid var(--bg-color-secondary);
   border-radius: 5px;
 }
 
-
 .h-100 {
   height: 100%;
+}
+
+.above {
+  z-index: 1000;
+}
+.share-tech-mono {
+  font-family: "ShareTechMono";
+}
+
+.grid {
+  display: grid;
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.tag {
+  background-color: var(--bg-color-secondary);
+  padding: 5px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  &.active {
+    background-color: var(--active-color);
+  }
+}
+
+.scale-on-hover {
+  transition: transform 0.2s ease-in-out;
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.snaptie-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pos-relative {
+  position: relative;
+}
+
+.border-active {
+  border: 1px solid var(--active-color);
 }

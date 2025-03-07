@@ -12,6 +12,7 @@ export type TMessage = {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
   tool_call_id?: string;
+  hidden?: boolean;
 };
 
 export type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
@@ -35,6 +36,7 @@ export type TTask = {
 };
 
 export type TConversation = {
+  id: string;
   title: string;
   date: string;
   messages: TMessage[];
@@ -66,4 +68,10 @@ export type TNoteHistory = {
   color: string;
   tags: string[];
   archived: boolean;
+};
+
+export type TModel = {
+  name: string;
+  slug: string;
+  hasReasoning: boolean;
 };

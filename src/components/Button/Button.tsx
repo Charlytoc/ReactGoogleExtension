@@ -16,6 +16,7 @@ type ButtonProps = {
   title?: string;
   type?: "button" | "submit" | "reset";
   usesAI?: boolean;
+  tabIndex?: number;
 };
 
 export const Button = ({
@@ -26,8 +27,9 @@ export const Button = ({
   confirmations = [],
   title = "",
   type = "button",
-  // usesAI = false,
-}: ButtonProps) => {
+  tabIndex = 0,
+}: // usesAI = false,
+ButtonProps) => {
   const [timesClicked, setTimesClicked] = useState(0);
 
   const handleClick = () => {
@@ -43,7 +45,7 @@ export const Button = ({
     <button
       type={type}
       title={title}
-      tabIndex={0}
+      tabIndex={tabIndex}
       className={`button ${className} ${
         confirmations.length === 0 || timesClicked === 0
           ? ""
@@ -52,11 +54,13 @@ export const Button = ({
       onClick={handleClick}
     >
       {/* {usesAI && <span className="text-mini float-right">AI</span>} */}
-      {svg && (
+      {(confirmations.length > 0 && timesClicked > 0
+        ? confirmations[timesClicked - 1]?.svg
+        : svg) && (
         <span className="svg-container">
-          {confirmations.length === 0 || timesClicked === 0
-            ? svg
-            : confirmations[timesClicked - 1]?.svg}
+          {confirmations.length > 0 && timesClicked > 0
+            ? confirmations[timesClicked - 1]?.svg
+            : svg}
         </span>
       )}
 

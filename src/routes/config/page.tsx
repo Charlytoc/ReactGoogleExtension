@@ -53,8 +53,8 @@ const generateRandomTheme = async (
       response_format: { type: "json_object" },
       temperature: 0.8,
       max_completion_tokens: 100,
+      apiKey,
     },
-    apiKey,
     (completion) => {
       console.log(completion, "completion finished successfully");
     }

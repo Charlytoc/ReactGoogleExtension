@@ -130,5 +130,14 @@
     "generateColorWithAI": "Generate color with AI",
     "generateColorDescription": "Generate a color for the note using AI",
     "execute": "Execute",
-    "userMessage": "User message"
+    "userMessage": "User message",
+    "history": "History",
+    "conversationsConfig": "Conversations configuration",
+    "autoSaveConversations": "Auto save conversations",
+    "chatConfig": "Chat configuration",
+    "untitledConversation": "Untitled conversation",
+    "generating": "Generating...",
+    "close": "Close",
+    "filter-by-name": "Filter by name",
+    "search": "Search"
 }

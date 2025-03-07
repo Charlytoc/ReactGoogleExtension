@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Section } from "../../components/Section/Section";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { TTheme } from "../../managers/storeTypes";

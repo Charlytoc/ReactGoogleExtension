@@ -14,11 +14,37 @@ import { Textarea } from "../Textarea/Textarea";
 export const Snapties = () => {
   const [snapties, setSnapties] = useState<TSnaptie[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [nameFilter, setNameFilter] = useState("");
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     getSnapties();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [nameFilter]);
+
+  const applyFilters = async () => {
+    let snapties: TSnaptie[] = await ChromeStorageManager.get("snapties");
+    if (nameFilter) {
+      snapties = snapties.filter((snaptie) => {
+        const titleIncludes = snaptie.title
+          .toLocaleLowerCase()
+          .includes(nameFilter.toLocaleLowerCase());
+        const contentIncludes = snaptie.content
+          .toLocaleLowerCase()
+          .includes(nameFilter.toLocaleLowerCase());
+
+        const categoryIncludes = snaptie.category
+          .toLocaleLowerCase()
+          .includes(nameFilter.toLocaleLowerCase());
+        return titleIncludes || contentIncludes || categoryIncludes;
+      });
+    }
+    setSnapties(snapties);
+  };
 
   const getSnapties = async () => {
     const snapties = await ChromeStorageManager.get("snapties");
@@ -38,7 +64,6 @@ export const Snapties = () => {
     setSnapties(newSnapties);
   };
 
-  // make a map of categories and the snapties in each category
   const categories = snapties.reduce((acc, snaptie) => {
     if (!acc[snaptie.category]) {
       acc[snaptie.category] = [];
@@ -65,24 +90,34 @@ export const Snapties = () => {
       {showForm ? (
         <SnaptieForm close={closeAndRefresh} />
       ) : (
-        <>
-          <div className="flex-column gap-10">
-            {Object.entries(categories).map(([category, snapties]) => (
-              <div key={category}>
-                <h2 className="">{category}</h2>
-                <div className="flex-row gap-10 wrap">
-                  {snapties.map((snaptie) => (
-                    <SnaptieCard
-                      key={snaptie.id}
-                      snaptie={snaptie}
-                      deleteSnaptie={deleteSnaptie}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
+        <div className="flex-column gap-10 ">
+          <div className="flex-row gap-10">
+            <LabeledInput
+              autoFocus
+              className="w-100"
+              label={t("filter-by-name")}
+              name="name-filter"
+              type="text"
+              placeholder={t("search")}
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e)}
+            />
           </div>
-        </>
+          {Object.entries(categories).map(([category, snapties]) => (
+            <div key={category}>
+              <h4>{category}</h4>
+              <div className="grid grid-cols-4 gap-5">
+                {snapties.map((snaptie) => (
+                  <SnaptieCard
+                    key={snaptie.id}
+                    snaptie={snaptie}
+                    deleteSnaptie={deleteSnaptie}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </Section>
   );
@@ -120,9 +155,9 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
 
   return (
     <form
-      style={{ backgroundColor: color }}
+      style={{ border: `1px solid ${color}` }}
       onSubmit={saveSnaptie}
-      className="flex-column gap-10"
+      className="flex-column gap-10 rounded"
     >
       <LabeledInput
         label={t("title")}
@@ -171,7 +206,7 @@ const SnaptieCard = ({
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const copySnaptie = () => {
+  const pasteSnaptie = () => {
     navigator.clipboard.writeText(snaptie.content);
     toast.success(t("snaptie.copied"));
   };
@@ -179,32 +214,37 @@ const SnaptieCard = ({
   return (
     <div
       style={{ backgroundColor: snaptie.color }}
-      className="padding-10 border-gray rounded flex-column gap-5 snaptie-card"
+      className="padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover pos-relative"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          pasteSnaptie();
+        }
+      }}
+      tabIndex={0}
     >
-      <h3 className="text-center">{snaptie.title}</h3>
+      <div className="snaptie-bg" onClick={pasteSnaptie}></div>
+      <h4 className="text-center">{snaptie.title.slice(0, 20)}</h4>
       <div className="flex-row gap-5 justify-center">
-        <Button
-          className=" justify-center  align-center"
-          svg={SVGS.copy}
-          onClick={copySnaptie}
-        />
         {snaptie.isUrl && (
           <Button
             className=" justify-center align-center"
+            tabIndex={0}
             svg={SVGS.go}
             onClick={() => window.open(snaptie.content, "_blank")}
           />
         )}
         <Button
-          className="justify-center  align-center"
+          className="  "
+          tabIndex={-1}
           svg={SVGS.trash}
           confirmations={[
-            { text: "", className: "bg-danger", svg: SVGS.trash },
+            { text: t("sure?"), className: "bg-danger", svg: undefined },
           ]}
           onClick={() => deleteSnaptie(snaptie.id)}
         />
         <Button
-          className=" justify-center  align-center"
+          tabIndex={-1}
+          className=" justify-center  align-center above text-center "
           svg={SVGS.edit}
           onClick={() => {
             navigate(`/snapties/${snaptie.id}`);
