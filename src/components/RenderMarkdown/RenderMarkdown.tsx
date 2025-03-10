@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -16,6 +16,51 @@ const CustomAnchor = ({
   );
 };
 
+const Tasky = ({ children, node }: { children: ReactNode; node: any }) => {
+  const inputNode = node.children.find(
+    (child: any) => child.type === "element" && child.tagName === "input"
+  );
+
+  const textNodes = node.children.filter((child: any) => child.type === "text");
+  const pNodes = node.children.filter(
+    (child: any) => child.type === "element" && child.tagName === "p"
+  );
+
+  const [isChecked, setIsChecked] = useState(false);
+
+  useEffect(() => {
+    setIsChecked(inputNode?.properties?.checked ?? false);
+  }, [inputNode]);
+
+  return (
+    <li>
+      <div className="flex-row align-center gap-5">
+        <input
+          className="checkbox"
+          type="checkbox"
+          defaultChecked={isChecked}
+          onChange={(e) => {
+            setIsChecked(e.target.checked);
+          }}
+        />
+        <span
+          style={{
+            textDecorationColor: "var(--active-color)",
+            textDecorationStyle: "wavy",
+            textDecorationLine: isChecked ? "line-through" : "none",
+          }}
+        >
+          {pNodes.length > 0
+            ? pNodes.map((pNode: any) =>
+                pNode.children.map((child: any) => child.value).join(" ")
+              )
+            : textNodes.map((textNode: any) => textNode.value).join(" ")}
+        </span>
+      </div>
+    </li>
+  );
+};
+
 export const RenderMarkdown = ({ markdown }: { markdown: string }) => {
   return (
     <Markdown
@@ -27,6 +72,12 @@ export const RenderMarkdown = ({ markdown }: { markdown: string }) => {
               {props.children}
             </CustomAnchor>
           );
+        },
+        li: (props) => {
+          if (props.className === "task-list-item") {
+            return <Tasky node={props.node}>{props.children}</Tasky>;
+          }
+          return <li>{props.children}</li>;
         },
       }}
       remarkPlugins={[remarkGfm]}

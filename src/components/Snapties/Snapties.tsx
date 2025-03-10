@@ -154,11 +154,7 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
   };
 
   return (
-    <form
-      style={{ border: `1px solid ${color}` }}
-      onSubmit={saveSnaptie}
-      className="flex-column gap-10 rounded"
-    >
+    <form onSubmit={saveSnaptie} className="flex-column gap-10 rounded">
       <LabeledInput
         label={t("title")}
         name="title"

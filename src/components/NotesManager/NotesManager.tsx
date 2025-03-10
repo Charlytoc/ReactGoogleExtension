@@ -17,6 +17,29 @@ const splitInTags = (tags: string, separator: string) => {
   return tags.split(separator);
 };
 
+function hexToRgba(hex: string, alpha: number) {
+  // Ensure HEX is in the correct format
+  hex = hex.replace(/^#/, "");
+
+  // Expand shorthand HEX (e.g., "03F" -> "0033FF")
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  // Convert HEX to RGB
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
+
+  // Ensure alpha is within range
+  alpha = Math.min(1, Math.max(0, alpha));
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
   const [filters, setFilters] = useState<{
@@ -43,6 +66,7 @@ export const NotesManager = () => {
     const title = formData.get("title") as string;
     const content = formData.get("content") as string;
     const color = formData.get("color") as string;
+    const alpha = formData.get("alpha") as string;
     const createdAt = new Date().toISOString();
     const tags = formData.get("tags") as string;
     const archived = formData.get("archived") as string;
@@ -53,7 +77,7 @@ export const NotesManager = () => {
       id: generateRandomId("note"),
       title,
       content,
-      color,
+      color: hexToRgba(color, Number(alpha)),
       createdAt,
       tags: splitInTags(tags, ","),
       archived: isArchived,
@@ -201,6 +225,19 @@ const NoteForm = ({
   const { t } = useTranslation();
 
   const [color, setColor] = useState("#09090d");
+  const [alpha, setAlpha] = useState(1);
+
+  useEffect(() => {
+    getBackground();
+  }, []);
+
+  const getBackground = async () => {
+    const colorPreferences = await ChromeStorageManager.get("colorPreferences");
+    if (colorPreferences) {
+      setColor(colorPreferences.backgroundColor);
+    }
+  };
+
   return (
     <form
       className="flex-column gap-10 padding-10 border-gray rounded"
@@ -227,6 +264,15 @@ const NoteForm = ({
           name="color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
+        />
+        <input
+          type="range"
+          name="alpha"
+          min={0}
+          max={1}
+          step={0.01}
+          value={alpha}
+          onChange={(e) => setAlpha(Number(e.target.value))}
         />
       </div>
       {usedColors.length > 0 && (

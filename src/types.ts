@@ -15,7 +15,7 @@ export type TMessage = {
   hidden?: boolean;
 };
 
-export type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+export type TTaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "";
 
 export type TTaskPriority = "low" | "medium" | "high";
 

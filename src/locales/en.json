@@ -139,5 +139,8 @@
     "generating": "Generating...",
     "close": "Close",
     "filter-by-name": "Filter by name",
-    "search": "Search"
+    "search": "Search",
+    "reasoning": "Reasoning",
+    "month": "Month",
+    "year": "Year"
 }

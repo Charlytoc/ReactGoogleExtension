@@ -30,7 +30,6 @@ const dateToMilliseconds = (dateString: string) => {
   return isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-
 export const upsertTask = async (task: TTask, alarm = true) => {
   const tasks = await ChromeStorageManager.get("tasks");
   if (tasks) {
@@ -67,6 +66,14 @@ export const upsertTask = async (task: TTask, alarm = true) => {
         : nowInMilliseconds,
       task.reminderEvery ? task.reminderEvery : 1000
     );
+
+    createAlarm(
+      task.id + "-endOfTask",
+      task.dueDatetime
+        ? dateToMilliseconds(task.dueDatetime)
+        : nowInMilliseconds,
+      1000
+    );
   }
 };
 
@@ -92,8 +99,6 @@ const createRandomTask = async () => {
 export const TaskManager = () => {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<TTask[]>([]);
-  // const [showForm, setShowForm] = useState(false);
-
   const navigate = useNavigate();
 
   const getTasks = async () => {
@@ -173,17 +178,6 @@ const calculateMinutesAgo = (startDatetime: string): number => {
   return diffMinutes;
 };
 
-// const calculateMinutesRemaining = (dueDatetime: string): number => {
-//   const dueDate = new Date(dueDatetime);
-//   const now = new Date();
-
-//   const diffMinutes = Math.floor(
-//     (dueDate.getTime() - now.getTime()) / (1000 * 60)
-//   );
-
-//   return diffMinutes;
-// };
-
 const calculatePercentageDone = (
   totalMinutes: number,
   workedMinutes: number
@@ -222,7 +216,7 @@ const TaskStadistics = ({ task }: { task: TTask }) => {
             <span>{task.reminderEvery}</span>
             <span>{t("minutes")}</span>
           </div>
-          <blockquote>
+          <blockquote className="blockquote">
             <strong>{"☁️"}</strong> {task.motivationText}
           </blockquote>
         </div>
@@ -250,11 +244,6 @@ const TaskCard = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const resetTask = async () => {
-    await upsertTask(task, true);
-    await notify(t("taskResetSuccess"), task.title);
-  };
-
   return (
     <div className={`task-card ${task.priority}`}>
       <h3 className="text-center">{task.title}</h3>
@@ -270,16 +259,19 @@ const TaskCard = ({
           confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
         />
         <Button
-          className="w-100 justify-center padding-5 "
-          text={t("reset")}
-          onClick={resetTask}
-        />
-        <Button
           className="w-100 justify-center padding-5 active-on-hover  "
           text={t("edit")}
           onClick={() => {
             cacheLocation(`/tasks/${task.id}`, "/tasks");
             navigate(`/tasks/${task.id}`);
+          }}
+        />
+        <Button
+          className="w-100 justify-center padding-5 active-on-hover  "
+          text={t("markAsDone")}
+          onClick={() => {
+            task.status = "DONE";
+            upsertTask(task, false);
           }}
         />
       </div>

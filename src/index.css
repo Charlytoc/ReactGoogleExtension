@@ -206,14 +206,14 @@ button:focus-visible {
       stroke: var(--font-color) !important;
     }
   }
-  & svg.with-fill {
+  /* & svg.with-fill {
     & path {
-      fill: var(--bg-color) !important;
+      fill: var(--font-color) !important;
     }
   }
   & svg.with-svg-fill {
     fill: var(--bg-color) !important;
-  }
+  } */
 }
 
 .border-gray {
@@ -359,6 +359,7 @@ button:focus-visible {
     background-color: transparent;
     height: 100%;
     overflow-y: auto;
+    color: var(--font-color);
     &:focus {
       outline: none;
     }
@@ -663,4 +664,19 @@ button:focus-visible {
 
 .border-active {
   border: 1px solid var(--active-color);
+}
+.blockquote {
+  background-color: var(--opaque-gray-color);
+  padding: 10px;
+  border-radius: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--active-color) var(--bg-color);
+  border-left: 1px solid var(--active-color);
+  font-style: italic;
+}
+
+.svg {
+  width: 20px;
+  height: 20px;
 }

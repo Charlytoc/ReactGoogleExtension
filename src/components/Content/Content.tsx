@@ -23,7 +23,7 @@ export const Content = () => {
         <Button
           text={t("snapties")}
           className="padding-20 active-on-hover border-gray rounded font-bold"
-          svg={SVGS.clip}
+          svg={SVGS.pin}
           onClick={() => {
             cacheLocation("/snapties");
             navigate("/snapties");
@@ -50,7 +50,7 @@ export const Content = () => {
         <Button
           text={t("calendar")}
           className="padding-20 active-on-hover border-gray rounded font-bold"
-          svg={SVGS.calendar}
+          svg={SVGS.calendar2}
           onClick={() => {
             cacheLocation("/calendar");
             navigate("/calendar");

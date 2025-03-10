@@ -15,10 +15,6 @@ export const notify = (title: string, message: string) => {
   });
 };
 
-const milisecondToDate = (miliseconds: number) => {
-  return new Date(miliseconds).toLocaleString();
-};
-
 export const createAlarm = (
   hash: string,
   dateInMilliseconds: number,

@@ -29,6 +29,7 @@ import { TConversation, TModel } from "../../types";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
+import { Select } from "../Select/Select";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
   const messages: TMessage[] = [
@@ -68,8 +69,26 @@ type TAttachment = {
 
 type TChatTab = "history" | "config" | "chat";
 
+const appendSystemPrompt = (
+  systemPrompt: string,
+  messages: TMessage[]
+): TMessage[] => {
+  const systemMessageIndex = messages.findIndex(
+    (message) => message.role === "system"
+  );
+  if (systemMessageIndex === -1) {
+    return [{ role: "system", content: systemPrompt }, ...messages];
+  }
+  return messages.map((message) => {
+    if (message.role === "system") {
+      return { ...message, content: systemPrompt };
+    }
+    return message;
+  });
+};
 export const Chat = () => {
   const [messages, setMessages] = useState<TMessage[]>(defaultMessages);
+  const [shouldSave, setShouldSave] = useState(false);
   const [conversation, setConversation] = useState<TConversation | null>(null);
   const [apiKey, setApiKey] = useState<string>("");
   const [input, setInput] = useState<string>("");
@@ -113,14 +132,11 @@ export const Chat = () => {
   }, [aiConfig.systemPrompt]);
 
   useEffect(() => {
-    if (aiConfig.autoSaveConversations) {
+    if (shouldSave && aiConfig.autoSaveConversations) {
       saveConversation();
+      setShouldSave(false);
     }
-  }, [messages]);
-
-  useEffect(() => {
-    ChromeStorageManager.add("conversations", conversations);
-  }, [conversations]);
+  }, [shouldSave, messages]);
 
   const getApiKey = async () => {
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
@@ -132,11 +148,10 @@ export const Chat = () => {
   };
 
   const getAiConfig = async () => {
-    const { url } = await extractPageData();
     let aiConfig: TAIConfig = await ChromeStorageManager.get("aiConfig");
     if (!aiConfig) {
       aiConfig = {
-        systemPrompt: `You are a helpful assistant. You are currently on the website ${url}.`,
+        systemPrompt: `You are a helpful assistant. `,
         model: {
           name: "gpt-4o-mini",
           slug: "gpt-4o-mini",
@@ -146,7 +161,7 @@ export const Chat = () => {
         setTitleAtMessage: 0,
       };
     }
-    aiConfig.systemPrompt += `\n\nCurrent URL: ${url}`;
+
     setAiConfig(aiConfig);
   };
 
@@ -157,7 +172,7 @@ export const Chat = () => {
     setActiveTab("chat");
   };
 
-  const createNewConversation = () => {
+  const createNewConversation = async () => {
     const newConversation: TConversation = {
       id: generateRandomId("conversation"),
       messages: [],
@@ -165,6 +180,7 @@ export const Chat = () => {
       date: new Date().toISOString(),
     };
     setConversation(newConversation);
+    setMessages(defaultMessages);
   };
 
   const getConversations = async () => {
@@ -173,9 +189,6 @@ export const Chat = () => {
     );
     setConversations(conversations);
 
-    console.log("conversations", conversations);
-
-    // Find a conversation with only one message or no messages (the system message)
     const conversation = conversations.find((c) => c.messages.length <= 1);
     if (conversation) {
       setConversation(conversation);
@@ -265,6 +278,8 @@ export const Chat = () => {
   );
 
   const handleSendMessage = async () => {
+    const { url } = await extractPageData();
+    const systemPrompt = `${aiConfig.systemPrompt}\n\nCurrent URL: ${url}`;
     const message: TMessage = {
       role: "user",
       content: input,
@@ -278,9 +293,11 @@ export const Chat = () => {
     const newMessages = [...messages, message, assistantMessage];
     setMessages(newMessages);
 
-    createStreamingResponseWithFunctions(
+    await createStreamingResponseWithFunctions(
       {
-        messages: newMessages.map(convertToMessage),
+        messages: appendSystemPrompt(systemPrompt, newMessages).map(
+          convertToMessage
+        ),
         model: aiConfig.model.slug,
         temperature: aiConfig.temperature || 0.5,
         max_completion_tokens: 4000,
@@ -318,6 +335,7 @@ export const Chat = () => {
         });
       }
     );
+    setShouldSave(true);
   };
 
   const saveConversation = async () => {
@@ -336,20 +354,25 @@ export const Chat = () => {
       newConversations.push({ ...conversation, messages: messages });
       conversationIndex = newConversations.length - 1;
     }
+
     setConversations(newConversations);
 
-    if (conversation && conversation.title === "" && messages.length >= 3) {
+    if (conversation && !Boolean(conversation.title) && messages.length >= 3) {
       const title = await generateConversationTitle(
         messages.map((m) => m.content).join("\n"),
         apiKey
       );
       if (title) {
         newConversations[conversationIndex] = {
-          ...conversation,
+          ...newConversations[conversationIndex],
           title,
         };
         setConversations(newConversations);
+
+        await ChromeStorageManager.add("conversations", newConversations);
       }
+    } else {
+      await ChromeStorageManager.add("conversations", newConversations);
     }
   };
 
@@ -358,9 +381,12 @@ export const Chat = () => {
       (c) => c.id !== conversation.id
     );
     setConversations(newConversations);
+    ChromeStorageManager.add("conversations", newConversations);
   };
 
   const loadConversation = (conversation: TConversation) => {
+    console.log(conversation, "conversation from loadConversation");
+
     setMessages(conversation.messages);
     setConversation(conversation);
     setActiveTab("chat");
@@ -388,19 +414,11 @@ export const Chat = () => {
               svg={SVGS.save}
             />
           )}
-
           <Button
-            className="padding-5 "
-            title={t("clickElementAtPosition")}
-            onClick={async () => {
-              const elements = await getClickableElements.function({});
-              console.log("elements", JSON.parse(elements));
-
-              toast.success(t("elementClicked"), {
-                icon: "✅",
-              });
-            }}
-            svg={SVGS.alarmOff}
+            className="padding-5"
+            title={t("newConversation")}
+            onClick={createNewConversation}
+            svg={SVGS.plus}
           />
 
           <Button
@@ -549,26 +567,25 @@ const AIConfig = ({
         />
         <div className="flex-row gap-5 align-center ">
           <h4>{t("model")}</h4>
-          <select
-            className="w-100 border-gray padding-5 rounded"
-            value={_aiConfig.model.slug}
-            onChange={(e) => {
-              const model = models.find((m) => m.slug === e.target.value);
+          <Select
+            name="model"
+            options={models.map((model) => ({
+              label: model.name,
+              value: model.slug,
+            }))}
+            defaultValue={_aiConfig.model.slug}
+            onChange={(value) => {
+              const model = models.find((m) => m.slug === value);
               if (model) {
                 setAiConfig({ ..._aiConfig, model: model });
               }
             }}
-          >
-            {models.map((model) => (
-              <option key={model.slug} value={model.slug}>
-                {model.name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <h3>{t("conversationsConfig")}</h3>
         <div className="flex-row gap-10">
           <input
+            className="checkbox"
             type="checkbox"
             name="autoSave-conversations"
             checked={_aiConfig.autoSaveConversations}
@@ -664,10 +681,42 @@ const History = ({
   );
 };
 
+const extractReasoning = (content: string) => {
+  // Search for the text inside <thinking> </thinking> tags
+  const regex = /<thinking>([\s\S]*?)<\/thinking>/;
+  const match = content.match(regex);
+  return match ? match[1] : null;
+};
+
 export const Message = ({ message }: { message: TMessage }) => {
+  const { t } = useTranslation();
+  const [showReasoning, setShowReasoning] = useState(false);
   if (message.hidden) return null;
   return (
     <div className={`message ${message.role}`}>
+      {extractReasoning(message.content) && (
+        <div
+          className={`flex-column gap-5  rounded padding-5 ${
+            showReasoning ? "border-gray" : ""
+          }`}
+        >
+          <h4
+            className="flex-row gap-5 align-center justify-between"
+            onClick={() => setShowReasoning(!showReasoning)}
+          >
+            <span>{t("reasoning")}</span>
+            <Button
+              svg={showReasoning ? SVGS.close : SVGS.thought}
+              onClick={() => setShowReasoning(!showReasoning)}
+            />
+          </h4>
+          {showReasoning && (
+            <StyledMarkdown
+              markdown={extractReasoning(message.content) || ""}
+            />
+          )}
+        </div>
+      )}
       <StyledMarkdown markdown={message.content} />
     </div>
   );

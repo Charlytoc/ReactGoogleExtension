@@ -47,7 +47,7 @@ export const Textarea = ({
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
           }
         }}
-        className={`${className}`}
+        className={`textarea ${className}`}
         defaultValue={defaultValue}
         onChange={(e) => onChange(e.target.value)}
       />

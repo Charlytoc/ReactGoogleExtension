@@ -127,7 +127,7 @@ const updateTask = async (task) => {
 
 
 chrome.alarms.onAlarm.addListener(async function (alarm) {
-    // console.log("Alarm about to trigger", alarm)
+
     const notifyMessage = async (tasks) => {
         // Get the task with the id of the alarm
         if (alarm.name.includes("-endOfTask")) {
@@ -175,18 +175,18 @@ chrome.alarms.onAlarm.addListener(async function (alarm) {
             lastReminderAt: now.toISOString()
         }
         await updateTask(updatedTask)
-        const textToSpeak = String(alarmInfo.motivationText ? alarmInfo.motivationText : alarmInfo.description)
-        chrome.tts.speak(textToSpeak, {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            lang: "en-US",
-            voiceName: "Samantha"
-        })
+        // const textToSpeak = String(alarmInfo.motivationText ? alarmInfo.motivationText : alarmInfo.description)
+        // chrome.tts.speak(textToSpeak, {
+        //     rate: 1.0,
+        //     pitch: 1.0,
+        //     volume: 1.0,
+        //     lang: "en-US",
+        //     voiceName: "Samantha"
+        // })
     }
     // console.log("Retrieving tasks from LS")
     await retrieveFromLs("tasks", notifyMessage)
-    // console.log("Tasks retrieved from LS and the callback was called in the alarm listener")
+
 })
 
 

@@ -12,6 +12,7 @@ import { createCompletion } from "../../utils/ai.ts";
 import { useShallow } from "zustand/shallow";
 import { useStore } from "../../managers/store.ts";
 import { TTheme } from "../../managers/storeTypes.ts";
+import { Select } from "../../components/Select/Select.tsx";
 
 const generateRandomTheme = async (
   apiKey: string,
@@ -111,9 +112,9 @@ export default function Config() {
   const setConfig = useStore(useShallow((state) => state.setConfig));
   const navigate = useNavigate();
 
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    i18n.changeLanguage(e.target.value);
-    ChromeStorageManager.add("language", e.target.value);
+  const handleLanguageChange = (value: string) => {
+    i18n.changeLanguage(value);
+    ChromeStorageManager.add("language", value);
   };
 
   useEffect(() => {
@@ -158,15 +159,15 @@ export default function Config() {
     >
       <div className="flex-column gap-10">
         <div className="flex-column ">
-          {/* <h3 className="text-left">{t("language")}</h3> */}
-          <select
-            className="padding-10 w-100  rounded bg-default"
-            onChange={handleLanguageChange}
+          <Select
+            name="language"
+            options={[
+              { label: t("english"), value: "en" },
+              { label: t("spanish"), value: "es" },
+            ]}
+            onChange={(value) => handleLanguageChange(value)}
             defaultValue={i18n.language}
-          >
-            <option value="en">{t("english")}</option>
-            <option value="es">{t("spanish")}</option>
-          </select>
+          />
         </div>
         <div className="flex-column">
           <LabeledInput

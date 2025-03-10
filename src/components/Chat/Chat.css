@@ -9,6 +9,7 @@
   overflow-x: auto;
   scrollbar-width: none;
   min-height: fit-content;
+  position: relative;
 }
 
 .message.system {
