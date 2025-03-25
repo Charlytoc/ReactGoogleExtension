@@ -21,6 +21,7 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/index.html" element={<App />} />
+        <Route path="/" element={<App />} />
         <Route path="/notes" element={<NotesManager />} />
         <Route path="/notes/:id" element={<NoteDetail />} />
         <Route path="/tasks" element={<TaskManager />} />

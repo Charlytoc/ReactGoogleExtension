@@ -12,33 +12,30 @@ import { Section } from "../Section/Section";
 import toast from "react-hot-toast";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import { Select } from "../Select/Select";
+// import { useStore } from "../../managers/store"
 
-const splitInTags = (tags: string, separator: string) => {
-  return tags.split(separator);
-};
+// function hexToRgba(hex: string, alpha: number) {
+//   // Ensure HEX is in the correct format
+//   hex = hex.replace(/^#/, "");
 
-function hexToRgba(hex: string, alpha: number) {
-  // Ensure HEX is in the correct format
-  hex = hex.replace(/^#/, "");
+//   // Expand shorthand HEX (e.g., "03F" -> "0033FF")
+//   if (hex.length === 3) {
+//     hex = hex
+//       .split("")
+//       .map((char) => char + char)
+//       .join("");
+//   }
 
-  // Expand shorthand HEX (e.g., "03F" -> "0033FF")
-  if (hex.length === 3) {
-    hex = hex
-      .split("")
-      .map((char) => char + char)
-      .join("");
-  }
+//   // Convert HEX to RGB
+//   let r = parseInt(hex.substring(0, 2), 16);
+//   let g = parseInt(hex.substring(2, 4), 16);
+//   let b = parseInt(hex.substring(4, 6), 16);
 
-  // Convert HEX to RGB
-  let r = parseInt(hex.substring(0, 2), 16);
-  let g = parseInt(hex.substring(2, 4), 16);
-  let b = parseInt(hex.substring(4, 6), 16);
+//   // Ensure alpha is within range
+//   alpha = Math.min(1, Math.max(0, alpha));
 
-  // Ensure alpha is within range
-  alpha = Math.min(1, Math.max(0, alpha));
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+//   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+// }
 
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
@@ -51,44 +48,38 @@ export const NotesManager = () => {
     tags: [],
     contains: "",
   });
+  // const colorPreferences = useStore((state) => state.colorPreferences);
 
   const [showFilters, setShowFilters] = useState(false);
 
   const [tags, setTags] = useState<string[]>([]);
 
   const { t } = useTranslation();
-  const [showForm, setShowForm] = useState(false);
   const navigate = useNavigate();
 
-  const addNote = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const title = formData.get("title") as string;
-    const content = formData.get("content") as string;
-    const color = formData.get("color") as string;
-    const alpha = formData.get("alpha") as string;
-    const createdAt = new Date().toISOString();
-    const tags = formData.get("tags") as string;
-    const archived = formData.get("archived") as string;
+  const addNote = async () => {
+    const bodyElement = document.body;
+    const styles = getComputedStyle(bodyElement);
+    const cssVariableValue = styles.getPropertyValue("--bg-color");
+    const cssVariableValue2 = styles.getPropertyValue("--bg-color-secondary");
 
-    const isArchived = archived === "true";
-
-    const newNote: TNote = {
+    const defaultNote: TNote = {
       id: generateRandomId("note"),
-      title,
-      content,
-      color: hexToRgba(color, Number(alpha)),
-      createdAt,
-      tags: splitInTags(tags, ","),
-      archived: isArchived,
+      title: "",
+      content: "",
+      color: cssVariableValue,
+      createdAt: new Date().toISOString(),
+      tags: [],
+      archived: false,
+      backgroundType: "gradient",
+      color2: cssVariableValue2,
+      imageURL: "",
     };
 
-    e.currentTarget.reset();
-
-    setNotes([...notes, newNote]);
-
-    await ChromeStorageManager.add("notes", [...notes, newNote]);
-    setShowForm(false);
+    setNotes([...notes, defaultNote]);
+    await ChromeStorageManager.add("notes", [...notes, defaultNote]);
+    cacheLocation(`/notes/${defaultNote.id}`, "/notes");
+    navigate(`/notes/${defaultNote.id}`);
   };
 
   const deleteNote = async (id: string) => {
@@ -159,17 +150,18 @@ export const NotesManager = () => {
 
   return (
     <Section
-      title={t("notes")}
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("notes")}</h3>}
       close={() => {
         cacheLocation("/index.html");
         navigate("/index.html");
       }}
-      extraButtons={
+      headerRight={
         <>
           <Button
-            onClick={() => setShowForm(!showForm)}
+            onClick={addNote}
             className="justify-center padding-5 "
-            svg={showForm ? SVGS.close : SVGS.plus}
+            svg={SVGS.plus}
           />
           <Button
             onClick={() => setShowFilters(!showFilters)}
@@ -179,136 +171,119 @@ export const NotesManager = () => {
         </>
       }
     >
-      {showForm ? (
-        <NoteForm
-          addNote={addNote}
-          usedColors={[
-            ...new Set(
-              notes
-                .map((note) => note.color)
-                .filter((color) => color !== undefined)
-            ),
-          ]}
-        />
-      ) : (
-        <div className="notes-container">
-          {showFilters && (
-            <NoteFilters
-              filters={filters}
-              setFilters={setFilters}
-              tags={tags}
+      <div className="notes-container">
+        {showFilters && (
+          <NoteFilters filters={filters} setFilters={setFilters} tags={tags} />
+        )}
+        <div className="grid grid-cols-2 gap-10">
+          {notes.map((note) => (
+            <Note
+              {...note}
+              id={note.id}
+              deleteNote={() => deleteNote(note.id)}
+              key={note.id}
             />
-          )}
-          <div className="grid grid-cols-2 gap-10">
-            {notes.map((note) => (
-              <Note
-                {...note}
-                id={note.id}
-                deleteNote={() => deleteNote(note.id)}
-                key={note.id}
-              />
-            ))}
-          </div>
+          ))}
         </div>
-      )}
+      </div>
     </Section>
   );
 };
 
-const NoteForm = ({
-  addNote,
-  usedColors,
-}: {
-  addNote: (e: React.FormEvent<HTMLFormElement>) => void;
-  usedColors: string[];
-}) => {
-  const { t } = useTranslation();
+// const NoteForm = ({
+//   addNote,
+//   usedColors,
+// }: {
+//   addNote: (e: React.FormEvent<HTMLFormElement>) => void;
+//   usedColors: string[];
+// }) => {
+//   const { t } = useTranslation();
 
-  const [color, setColor] = useState("#09090d");
-  const [alpha, setAlpha] = useState(1);
+//   const [color, setColor] = useState("#09090d");
+//   const [alpha, setAlpha] = useState(1);
 
-  useEffect(() => {
-    getBackground();
-  }, []);
+//   useEffect(() => {
+//     getBackground();
+//   }, []);
 
-  const getBackground = async () => {
-    const colorPreferences = await ChromeStorageManager.get("colorPreferences");
-    if (colorPreferences) {
-      setColor(colorPreferences.backgroundColor);
-    }
-  };
+//   const getBackground = async () => {
+//     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
+//     if (colorPreferences) {
+//       setColor(colorPreferences.backgroundColor);
+//     }
+//   };
 
-  return (
-    <form
-      className="flex-column gap-10 padding-10 border-gray rounded"
-      onSubmit={addNote}
-    >
-      <input
-        className="input padding-5 w-100"
-        name="title"
-        maxLength={100}
-        type="text"
-        placeholder={t("title")}
-        required
-      />
-      <input
-        className="input padding-5 w-100"
-        name="content"
-        type="text"
-        placeholder={t("content")}
-      />
-      <div className="flex-row gap-10 padding-5">
-        <span>{t("colorOfNote")}</span>
-        <input
-          type="color"
-          name="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
-        <input
-          type="range"
-          name="alpha"
-          min={0}
-          max={1}
-          step={0.01}
-          value={alpha}
-          onChange={(e) => setAlpha(Number(e.target.value))}
-        />
-      </div>
-      {usedColors.length > 0 && (
-        <div className="flex-row gap-10">
-          {usedColors.map((color) => (
-            <div
-              key={color}
-              className="color-preview pointer"
-              style={{ backgroundColor: color }}
-              onClick={() => setColor(color)}
-            ></div>
-          ))}
-        </div>
-      )}
-      <div className="flex-row gap-10">
-        <span>{t("tags")}</span>
-        <input
-          type="text"
-          name="tags"
-          placeholder={t("tags")}
-          className="input padding-5 w-100"
-        />
-      </div>
-      <div className="flex-row gap-10">
-        <span>{t("archived")}</span>
-        <input type="checkbox" name="archived" />
-      </div>
-      <Button
-        type="submit"
-        svg={SVGS.check}
-        text={t("add")}
-        className="w-100 justify-center padding-5 active-on-hover"
-      />
-    </form>
-  );
-};
+//   return (
+//     <form
+//       className="flex-column gap-10 padding-10 border-gray rounded"
+//       onSubmit={addNote}
+//     >
+//       <input
+//         className="input padding-5 w-100"
+//         name="title"
+//         maxLength={100}
+//         type="text"
+//         placeholder={t("title")}
+//         required
+//       />
+//       <input
+//         className="input padding-5 w-100"
+//         name="content"
+//         type="text"
+//         placeholder={t("content")}
+//       />
+//       <div className="flex-row gap-10 padding-5">
+//         <span>{t("colorOfNote")}</span>
+//         <input
+//           type="color"
+//           name="color"
+//           value={color}
+//           onChange={(e) => setColor(e.target.value)}
+//         />
+//         <input
+//           type="range"
+//           name="alpha"
+//           min={0}
+//           max={1}
+//           step={0.01}
+//           value={alpha}
+//           onChange={(e) => setAlpha(Number(e.target.value))}
+//         />
+//       </div>
+//       {usedColors.length > 0 && (
+//         <div className="flex-row gap-10">
+//           {usedColors.map((color) => (
+//             <div
+//               key={color}
+//               className="color-preview pointer"
+//               style={{ backgroundColor: color }}
+//               onClick={() => setColor(color)}
+//             ></div>
+//           ))}
+//         </div>
+//       )}
+//       <div className="flex-row gap-10">
+//         <span>{t("tags")}</span>
+//         <input
+//           type="text"
+//           name="tags"
+//           placeholder={t("tags")}
+//           className="input padding-5 w-100"
+//         />
+//       </div>
+//       <div className="flex-row gap-10">
+//         <span>{t("archived")}</span>
+//         <input type="checkbox" name="archived" />
+//       </div>
+//       <Button
+//         type="submit"
+//         svg={SVGS.check}
+//         text={t("add")}
+//         className="w-100 justify-center padding-5 active-on-hover"
+//       />
+//     </form>
+//   );
+// };
 
 const NoteFilters = ({
   filters,

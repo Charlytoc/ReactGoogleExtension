@@ -52,16 +52,14 @@ export default function SnaptieDetail() {
 
   return (
     <Section
+      className="bg-gradient"
       close={() => {
         navigate("/snapties");
         cacheLocation("/snapties");
       }}
-      title={t("edit")}
+      headerLeft={<h3 className="font-mono">{t("edit")}</h3>}
     >
-      <div
-        style={{ backgroundColor: snaptie?.color }}
-        className="padding-10 rounded-10"
-      >
+      <div className="padding-10 rounded-10">
         <form onSubmit={saveSnaptie} className="flex-column gap-10">
           <LabeledInput
             name="title"

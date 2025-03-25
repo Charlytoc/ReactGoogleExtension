@@ -1,4 +1,5 @@
 import { ChromeStorageManager } from "../managers/Storage";
+import { TBackgroundType } from "../types";
 
 export const getLastPage = async () => {
   const lastPage = await ChromeStorageManager.get("lastPage");
@@ -122,7 +123,6 @@ export const extractClickableElements = (): Promise<
   });
 };
 
-
 export const extractEditableElements = (): Promise<
   {
     text: string;
@@ -224,4 +224,23 @@ export const fillElementBySelector = (selector: string, text: string) => {
       args: [selector, text],
     });
   });
+};
+
+export const buildBackground = (
+  color: string | undefined,
+  color2: string | undefined,
+  type: TBackgroundType,
+  image?: string
+) => {
+  if (type === "image") {
+    return `url(${image}) center center / cover no-repeat`;
+  }
+
+  if (type === "gradient") {
+    return `radial-gradient(circle, ${color} 0%, ${color2} 100%)`;
+  } else if (type === "solid") {
+    return color;
+  } else if (type === "none") {
+    return "none";
+  }
 };

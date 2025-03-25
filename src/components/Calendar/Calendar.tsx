@@ -96,7 +96,8 @@ const Calendar = () => {
 
   return (
     <Section
-      title={t("calendar")}
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("calendar")}</h3>}
       close={() => {
         navigate("/index.html");
         cacheLocation("/index.html", "/calendar");
@@ -162,7 +163,7 @@ const Day = ({
           <div
             key={task.id}
             title={t("task") + ": " + task.title}
-            className="ball-small bg-warning pointer"
+            className="task-small bg-warning pointer"
             onClick={() => openTask(task)}
           ></div>
         ))}

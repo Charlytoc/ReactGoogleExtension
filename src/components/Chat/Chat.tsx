@@ -88,7 +88,6 @@ const appendSystemPrompt = (
 };
 export const Chat = () => {
   const [messages, setMessages] = useState<TMessage[]>(defaultMessages);
-  const [shouldSave, setShouldSave] = useState(false);
   const [conversation, setConversation] = useState<TConversation | null>(null);
   const [apiKey, setApiKey] = useState<string>("");
   const [input, setInput] = useState<string>("");
@@ -112,6 +111,12 @@ export const Chat = () => {
   }, []);
 
   useEffect(() => {
+    if (input.includes("/send")) {
+      handleSendMessage();
+    }
+  }, [input]);
+
+  useEffect(() => {
     const systemMessageIndex = messages.findIndex(
       (message) => message.role === "system"
     );
@@ -132,11 +137,10 @@ export const Chat = () => {
   }, [aiConfig.systemPrompt]);
 
   useEffect(() => {
-    if (shouldSave && aiConfig.autoSaveConversations) {
+    if (aiConfig.autoSaveConversations) {
       saveConversation();
-      setShouldSave(false);
     }
-  }, [shouldSave, messages]);
+  }, [messages]);
 
   const getApiKey = async () => {
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
@@ -166,6 +170,8 @@ export const Chat = () => {
   };
 
   const updateAiConfig = async (newConfig: TAIConfig) => {
+    console.log(newConfig, "newConfig");
+
     setAiConfig(newConfig);
     await ChromeStorageManager.add("aiConfig", newConfig);
     notify(t("aiConfigUpdated"), "✅");
@@ -197,23 +203,23 @@ export const Chat = () => {
     }
   };
 
-  const addAttachment = (attachment: TAttachment) => {
-    setAttachments([...attachments, attachment]);
-  };
+  // const addAttachment = (attachment: TAttachment) => {
+  //   setAttachments([...attachments, attachment]);
+  // };
 
-  const uploadFile = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const attachment: TAttachment = {
-        url: e.target?.result as string,
-        content: "",
-        type: "file",
-        name: file.name,
-      };
-      addAttachment(attachment);
-    };
-    reader.readAsDataURL(file);
-  };
+  // const uploadFile = async (file: File) => {
+  //   const reader = new FileReader();
+  //   reader.onload = (e) => {
+  //     const attachment: TAttachment = {
+  //       url: e.target?.result as string,
+  //       content: "",
+  //       type: "file",
+  //       name: file.name,
+  //     };
+  //     addAttachment(attachment);
+  //   };
+  //   reader.readAsDataURL(file);
+  // };
 
   const getWebsiteContent = toolify(
     async () => {
@@ -292,7 +298,7 @@ export const Chat = () => {
 
     const newMessages = [...messages, message, assistantMessage];
     setMessages(newMessages);
-
+    setInput("");
     await createStreamingResponseWithFunctions(
       {
         messages: appendSystemPrompt(systemPrompt, newMessages).map(
@@ -335,7 +341,6 @@ export const Chat = () => {
         });
       }
     );
-    setShouldSave(true);
   };
 
   const saveConversation = async () => {
@@ -346,7 +351,6 @@ export const Chat = () => {
         ? { ...c, ...conversation, messages: messages }
         : c
     );
-    // find if the conversation is already in the list
     let conversationIndex = newConversations.findIndex(
       (c) => c.id === conversation.id
     );
@@ -399,12 +403,13 @@ export const Chat = () => {
 
   return (
     <Section
+      className="bg-gradient"
       close={() => {
         navigate("/index.html");
         cacheLocation("/index.html", "/chat");
       }}
-      title={t("AI")}
-      extraButtons={
+      headerLeft={<h3 className="font-mono">{t("AI")}</h3>}
+      headerRight={
         <>
           {!aiConfig.autoSaveConversations && (
             <Button
@@ -481,34 +486,48 @@ export const Chat = () => {
               );
             })}
           </div>
-          <section className="flex-row gap-10 w-100  padding-5 ">
-            <div className="flex-row gap-10 w-100">
-              <Textarea
-                className="w-100"
-                key={messages.length}
-                defaultValue=""
-                onChange={(value) => setInput(value)}
+          <section className="flex-column gap-10 w-100  padding-5 ">
+            <Textarea
+              label={t("commandOrPrompt")}
+              name="command"
+              className="w-100"
+              defaultValue={input}
+              onChange={(value) => {
+                setInput(value);
+              }}
+            />
+
+            <div className="flex-row gap-5">
+              <Button
+                text={t("send")}
+                className=" padding-5 align-center justify-center active-on-hover"
+                svg={SVGS.send}
+                onClick={handleSendMessage}
               />
-              <div className="flex-column gap-10">
-                <Button
-                  className=" padding-5 align-center justify-center active-on-hover"
-                  svg={SVGS.send}
-                  onClick={handleSendMessage}
-                />
-                <Button
-                  className=" padding-5 align-center justify-center active-on-hover"
-                  svg={SVGS.plus}
-                  onClick={() => {
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) uploadFile(file);
-                    };
-                    input.click();
-                  }}
-                />
-              </div>
+              <Button
+                className=" padding-5 align-center justify-center active-on-hover"
+                svg={SVGS.ai}
+                text={t("summarizeWebsite")}
+                title={t("summarizeWebsite")}
+                onClick={() => {
+                  setInput(
+                    "Summarize the current website and provide a list of the main points. /send"
+                  );
+                }}
+              />
+              {/* <Button
+                className=" padding-5 align-center justify-center active-on-hover show-text-on-hover"
+                svg={SVGS.plus}
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (file) uploadFile(file);
+                  };
+                  input.click();
+                }}
+              /> */}
             </div>
           </section>
         </div>
@@ -517,12 +536,14 @@ export const Chat = () => {
   );
 };
 
+type TReasoningTag = "thinking" | "reasoning" | "thinking_process";
 type TAIConfig = {
   systemPrompt: string;
   model: TModel;
   autoSaveConversations: boolean;
   setTitleAtMessage?: number;
   temperature?: number;
+  reasoningTag?: TReasoningTag;
 };
 
 const AIConfig = ({
@@ -554,7 +575,11 @@ const AIConfig = ({
   };
 
   return (
-    <Section title={t("chatConfig")} close={close}>
+    <Section
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("chatConfig")}</h3>}
+      close={close}
+    >
       <div className="flex-column gap-10">
         <Textarea
           label={t("systemPrompt")}
@@ -579,6 +604,21 @@ const AIConfig = ({
               if (model) {
                 setAiConfig({ ..._aiConfig, model: model });
               }
+            }}
+          />
+          <Select
+            name="reasoningTag"
+            options={[
+              { label: "thinking", value: "thinking" },
+              { label: "reasoning", value: "reasoning" },
+              { label: "thinking_process", value: "thinking_process" },
+            ]}
+            defaultValue={_aiConfig.reasoningTag || "thinking"}
+            onChange={(value) => {
+              setAiConfig({
+                ..._aiConfig,
+                reasoningTag: value as TReasoningTag,
+              });
             }}
           />
         </div>
@@ -632,7 +672,11 @@ const History = ({
   };
 
   return (
-    <Section title={t("history")} close={close}>
+    <Section
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("history")}</h3>}
+      close={close}
+    >
       {orderByDate(conversations).map((conversation, index) => (
         <div
           key={index}
@@ -681,9 +725,8 @@ const History = ({
   );
 };
 
-const extractReasoning = (content: string) => {
-  // Search for the text inside <thinking> </thinking> tags
-  const regex = /<thinking>([\s\S]*?)<\/thinking>/;
+const extractReasoning = (content: string, tagName: string = "thinking") => {
+  const regex = new RegExp(`<${tagName}>([\s\S]*?)<\/${tagName}>`);
   const match = content.match(regex);
   return match ? match[1] : null;
 };
@@ -713,11 +756,49 @@ export const Message = ({ message }: { message: TMessage }) => {
           {showReasoning && (
             <StyledMarkdown
               markdown={extractReasoning(message.content) || ""}
+              onChange={(value) => {
+                console.log(value);
+              }}
             />
           )}
         </div>
       )}
-      <StyledMarkdown markdown={message.content} />
+      <StyledMarkdown
+        markdown={message.content}
+        onChange={(value) => {
+          console.log(value);
+        }}
+      />
     </div>
   );
 };
+
+// interface Action {
+//   component: ReactNode;
+//   label: string;
+//   description: string;
+// }
+
+// interface QuickActionsProps {
+//   actions: Action[];
+//   onCommandChange: (command: string) => void;
+// }
+
+// const QuickActions = ({ actions, onCommandChange }: QuickActionsProps) => {
+//   const { t } = useTranslation();
+//   const [command, setCommand] = useState("");
+//   return (
+//     <div>
+//       <Textarea
+//         label={t("command")}
+//         name="command"
+//         className="w-100"
+//         defaultValue={command}
+//         onChange={(value) => {
+//           setCommand(value);
+//           onCommandChange(value);
+//         }}
+//       />
+//     </div>
+//   );
+// };

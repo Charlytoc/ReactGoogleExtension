@@ -1,11 +1,18 @@
+export type TBackgroundType = "gradient" | "solid" | "none" | "image";
+
 export type TNote = {
   id: string;
   title?: string;
   content?: string;
   color?: string;
+  backgroundType?: TBackgroundType;
+  color2?: string;
   tags?: string[];
+  font?: string;
   archived?: boolean;
   createdAt?: string;
+  imageURL?: string;
+  opacity?: number;
 };
 
 export type TMessage = {

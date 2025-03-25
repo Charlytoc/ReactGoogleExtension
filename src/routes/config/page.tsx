@@ -17,7 +17,7 @@ import { Select } from "../../components/Select/Select.tsx";
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
-) => {
+): Promise<TColors> => {
   const prompt = `You are tasked to create a set of colors for a website.
   The colors should be random and should be in the HSL format.
   The colors should be in the following format:
@@ -107,6 +107,8 @@ export default function Config() {
     fontColorSecondary: "",
     backgroundColorSecondary: "",
     themePreferences: "",
+    backgroundType: "gradient",
+    imageURL: "",
   });
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
@@ -151,7 +153,8 @@ export default function Config() {
 
   return (
     <Section
-      title={t("settings")}
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("settings")}</h3>}
       close={() => {
         cacheLocation("/index.html");
         navigate("/index.html");

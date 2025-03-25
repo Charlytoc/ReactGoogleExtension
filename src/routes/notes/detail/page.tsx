@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
-import { TMessage, TNote } from "../../../types";
+import { TBackgroundType, TMessage, TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
-import { cacheLocation } from "../../../utils/lib";
-import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
+import { buildBackground, cacheLocation } from "../../../utils/lib";
+// import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
-import { NoteEditor } from "../../../components/Note/Note";
+// import { NoteEditor } from "../../../components/Note/Note";
 import {
   convertToMessage,
   createStreamingResponseWithFunctions,
@@ -20,6 +20,11 @@ import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 import { useStore } from "../../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { Message } from "../../../components/Chat/Chat";
+import toast from "react-hot-toast";
+// import { Textarea } from "../../../components/Textarea/Textarea";
+import { Select } from "../../../components/Select/Select";
+import { Textarea } from "../../../components/Textarea/Textarea";
+import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 
 const Prompter = ({
   systemPrompt,
@@ -150,10 +155,25 @@ const Prompter = ({
     </>
   );
 };
+
+const BROWSER_FONTS = [
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times New Roman", value: '"Times New Roman", serif' },
+  { label: "Trebuchet MS", value: '"Trebuchet MS", sans-serif' },
+  { label: "Tahoma", value: "Tahoma, sans-serif" },
+  { label: "Courier New", value: '"Courier New", monospace' },
+  { label: "Comic Sans MS", value: '"Comic Sans MS", cursive' },
+  { label: "Lucida Console", value: '"Lucida Console", monospace' },
+  { label: "Impact", value: "Impact, sans-serif" },
+];
+
 export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   if (!id) return <div>No id</div>;
   const [note, setNote] = useState<TNote>({
@@ -163,8 +183,13 @@ export default function NoteDetail() {
     color: "var(--bg-color)",
     tags: [],
     archived: false,
+    font: "Arial",
+    backgroundType: "solid",
+    color2: "var(--bg-color-secondary)",
+    imageURL: "",
+    opacity: 0.5,
   });
-  const [isEditing, setIsEditing] = useState(false);
+  // const [isEditing, setIsEditing] = useState(false);
   // const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
 
@@ -210,6 +235,40 @@ export default function NoteDetail() {
     await ChromeStorageManager.add("notes", newNotes);
   };
 
+  const updateColorTool = toolify(
+    (args: { color: string }) => {
+      console.log(args.color, "color from updateColorTool");
+
+      setNote({ ...note, color: args.color });
+      toast.success(t("noteUpdated"));
+      return "Color updated successfully";
+    },
+    "updateColorTool",
+    "Update the background color of the note. The color should be a valid CSS color. Include the alpha value if you want a transparent color.",
+    {
+      color: {
+        type: "string",
+        description: "The new color to update the note",
+      },
+    }
+  );
+
+  const updateTitleTool = toolify(
+    (args: { title: string }) => {
+      setNote({ ...note, title: args.title });
+      toast.success(t("noteUpdated"));
+      return "Title updated successfully";
+    },
+    "updateTitleTool",
+    "Update the title of the note. The title should be a string. The title should be a short description of the note.",
+    {
+      title: {
+        type: "string",
+        description: "The new title to update the note",
+      },
+    }
+  );
+
   // const replaceInNote = toolify(
   //   ({
   //     searchString,
@@ -237,80 +296,74 @@ export default function NoteDetail() {
   //   }
   // );
 
-  const updateEntireNote = toolify(
+  const processImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNote({ ...note, imageURL: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const updateNoteContent = toolify(
     (newContent: { newContent: string }) => {
       console.log("AI wants to update the entire note", newContent);
       setNote({ ...note, content: newContent.newContent });
+      toast.success(t("noteUpdated"));
       return "Note updated successfully";
     },
-    "updateEntireNote",
-    "Update the entire note content. Use this tool when you need to make big changes to the note.",
+    "updateNoteContent",
+    "Update the content of the note. Use this tool when you need to make changes to the note. The function expects a string representing the entire content of the note.",
     {
       newContent: {
         type: "string",
-        description: "The new content to update the note",
+        description:
+          "The new content to update the note. The content should be a string representing the entire content of the note.",
       },
     }
   );
 
   return (
     <div className=" padding-10">
-      {isEditing ? (
-        <Section
-          title={note?.title || ""}
-          extraButtons={
-            <>
-              <Button
-                svg={SVGS.save}
-                title={t("save")}
-                className="w-100 justify-center padding-5 "
-                onClick={() => {
-                  setIsEditing(false);
-                  saveNote();
-                }}
-              />
-            </>
-          }
-        >
-          <NoteEditor
-            note={note}
-            setNote={setNote}
-            close={() => {
-              setIsEditing(false);
-            }}
-          />
-        </Section>
-      ) : (
-        <Section
-          close={async () => {
-            const prevPage = await ChromeStorageManager.get("prevPage");
+      <Section
+        style={{
+          background: buildBackground(
+            note.color,
+            note.color2,
+            note.backgroundType || "solid",
+            note.imageURL
+          ),
+          fontFamily: note.font || "Arial",
+        }}
+        close={async () => {
+          const prevPage = await ChromeStorageManager.get("prevPage");
 
-            cacheLocation(prevPage, "lastPage");
-            navigate(prevPage);
-          }}
-          title={note?.title || ""}
-          extraButtons={
-            <>
-              <Button
-                svg={SVGS.edit}
-                title={t("edit")}
-                className="w-100 justify-center padding-5 "
-                onClick={() => setIsEditing(true)}
-              />
-
-              <Prompter
-                systemPrompt={`
+          cacheLocation(prevPage, "lastPage");
+          navigate(prevPage);
+        }}
+        headerLeft={
+          <h3
+            autoFocus={!note.title}
+            contentEditable
+            onBlur={(e) => setNote({ ...note, title: e.target.innerText })}
+            suppressContentEditableWarning
+            className={`padding-5 ${note.title ? "" : "bg-active"}`}
+          >
+            {note?.title || ""}
+          </h3>
+        }
+        headerRight={
+          <div className="flex-row gap-5">
+            <Prompter
+              systemPrompt={`
 ## SYSTEM
 
 You are a powerful note taking assistant.
-You will be given a note and you will need to update the note based on the context and instructions you have. 
+You will be given a note and you will need to update the note based on the context and instructions you have. You can use a set of tools to help you manage the note and customize it to match the user's needs.
 
-The title of the note is: "${note.title}"
-
-The content of the note is: 
-"""
-${note.content}
-"""
+This is a JSON representation of the note:
+\`\`\`json 
+${JSON.stringify(note)}
+\`\`\`
                 
 ## RULES
 - Use the right tool depending on the task in hand.
@@ -318,14 +371,148 @@ ${note.content}
 - Ask for clarification if needed.
   
                     `}
-                functions={[updateEntireNote]}
+              functions={[updateNoteContent, updateColorTool, updateTitleTool]}
+            />
+            <Button
+              title={isEditing ? t("close") : t("edit")}
+              onClick={() => setIsEditing(!isEditing)}
+              svg={isEditing ? SVGS.close : SVGS.edit}
+            />
+          </div>
+        }
+      >
+        <div className="w-100 padding-bottom-50">
+          {isEditing ? (
+            <div className="flex-column gap-5">
+              <Textarea
+                defaultValue={note.content || ""}
+                onChange={(value) => setNote({ ...note, content: value })}
+                name="content"
+                placeholder={t("writeYourNoteHere")}
+                isMarkdown
               />
-            </>
-          }
-        >
-          <StyledMarkdown markdown={note?.content || ""} />
-        </Section>
-      )}
+              <h3>{t("customization")}</h3>
+              <span>{t("font")}</span>
+              <Select
+                options={[
+                  ...BROWSER_FONTS,
+                  { label: "ShareTechMono", value: "ShareTechMono" },
+                  // { label: "Courier", value: "Courier" },
+                ]}
+                defaultValue={note.font || "Arial"}
+                onChange={(value) => setNote({ ...note, font: value })}
+                name="font"
+              />
+              <p>
+                <span>{t("backgroundType")}: </span>
+                <select
+                  value={note.backgroundType}
+                  onChange={(e) =>
+                    setNote({
+                      ...note,
+                      backgroundType: e.target.value as TBackgroundType,
+                    })
+                  }
+                >
+                  <option value="gradient">{t("gradient")}</option>
+                  <option value="solid">{t("solid")}</option>
+                  <option value="none">{t("none")}</option>
+                  <option value="image">{t("image")}</option>
+                </select>
+              </p>
+              <p className="flex-row gap-5 align-center">
+                {note.backgroundType === "gradient" && (
+                  <>
+                    <span>Color 1: </span>
+                    <input
+                      type="color"
+                      value={note.color}
+                      onChange={(e) =>
+                        setNote({ ...note, color: e.target.value })
+                      }
+                    />
+                    <span>Color 2: </span>
+                    <input
+                      type="color"
+                      value={note.color2}
+                      onChange={(e) =>
+                        setNote({ ...note, color2: e.target.value })
+                      }
+                    />
+                  </>
+                )}
+                {note.backgroundType === "image" && (
+                  <div className="flex-column gap-5 align-center justify-center">
+                    <span>Image: </span>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          processImage(file);
+                        }
+                      }}
+                    />
+                    <span>Opacity: </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      onChange={(e) => {
+                        setNote({
+                          ...note,
+                          opacity: parseFloat(e.target.value),
+                        });
+                        document.documentElement.style.setProperty(
+                          "--overlay-opacity",
+                          `${parseFloat(e.target.value)}`
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+                {note.backgroundType === "solid" && (
+                  <>
+                    <span>Color: </span>
+                    <input
+                      type="color"
+                      value={note.color}
+                      onChange={(e) =>
+                        setNote({ ...note, color: e.target.value })
+                      }
+                    />
+                  </>
+                )}
+              </p>
+              <div className="flex-row gap-5 align-center">
+                <h3>{t("archived")}</h3>
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={note?.archived}
+                  onChange={(e) =>
+                    setNote({ ...note, archived: e.target.checked })
+                  }
+                />
+              </div>
+              <div className="flex-row gap-5 align-center">
+                <h3>{t("tags")}</h3>
+                <input
+                  className="input"
+                  type="text"
+                  value={note.tags?.join(", ") || ""}
+                  onChange={(e) =>
+                    setNote({ ...note, tags: e.target.value.split(",") })
+                  }
+                />
+              </div>
+            </div>
+          ) : (
+            <StyledMarkdown markdown={note.content || ""} />
+          )}
+        </div>
+      </Section>
     </div>
   );
 }

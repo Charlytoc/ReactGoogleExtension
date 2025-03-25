@@ -26,13 +26,18 @@ export type TTool = {
   function: (args: Record<string, any>) => Promise<string>;
 };
 
+type TToolArguments = {
+  type: string;
+  description: string;
+};
+
 export const toolify = <T extends (args: any) => any>(
   fn: T,
   name: string,
   description: string,
-  argumentsMap: Record<string, { type: string; description: string }>
+  argumentsMap: Record<string, TToolArguments>
 ): TTool => {
-  const properties: Record<string, { type: string; description?: string }> = {};
+  const properties: Record<string, TToolArguments> = {};
   const required: string[] = [];
 
   for (const key of Object.keys(argumentsMap)) {

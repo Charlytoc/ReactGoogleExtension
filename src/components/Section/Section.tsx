@@ -4,22 +4,26 @@ import { Button } from "../Button/Button";
 type SectionProps = {
   children: React.ReactNode;
   close?: () => void;
-  title: string;
-  extraButtons?: React.ReactNode;
+  headerLeft?: React.ReactNode;
+  headerRight?: React.ReactNode;
+  style?: React.CSSProperties;
+  className?: string;
 };
 
 export const Section = ({
   close = undefined,
   children,
-  title,
-  extraButtons,
+  headerLeft,
+  headerRight,
+  className,
+  style = { backgroundColor: "var(--bg-color)" },
 }: SectionProps) => {
   return (
-    <div className="absolute-container bg-gradient">
+    <div className={`absolute-container ${className}`} style={style}>
       <section className="flex-row gap-10 align-center justify-between padding-10">
-        <h3 className="font-mono">{title}</h3>
+        {headerLeft}
         <div className="flex-row gap-5">
-          {extraButtons}
+          {headerRight}
           {close && (
             <Button className="padding-5" svg={SVGS.back} onClick={close} />
           )}

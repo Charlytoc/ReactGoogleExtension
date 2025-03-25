@@ -142,5 +142,15 @@
     "search": "Buscar",
     "reasoning": "Razonamiento",
     "month": "Mes",
-    "year": "Año"
+    "year": "Año",
+    "command": "Comando",
+    "commandOrPrompt": "Comando o prompt",
+    "send": "Enviar",
+    "summarizeWebsite": "Resumir página web",
+    "backgroundType": "Tipo de fondo",
+    "gradient": "Gradiente",
+    "solid": "Sólido",
+    "none": "Ninguno",
+    "image": "Imagen",
+    "customization": "Personalización"
 }

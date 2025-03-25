@@ -5,7 +5,11 @@ import "./Note.css";
 
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { generateRandomId, cacheLocation } from "../../utils/lib";
+import {
+  generateRandomId,
+  cacheLocation,
+  buildBackground,
+} from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { notify } from "../../utils/chromeFunctions";
 import { Textarea } from "../Textarea/Textarea";
@@ -27,6 +31,9 @@ export const Note = ({
   deleteNote,
   id,
   color = "var(--bg-color)",
+  color2 = "var(--bg-color2)",
+  backgroundType = "gradient",
+  imageURL = "",
 }: TNoteProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -49,7 +56,14 @@ export const Note = ({
 
   return (
     <div
-      style={{ backgroundColor: color }}
+      style={{
+        background: buildBackground(
+          color,
+          color2,
+          backgroundType || "gradient",
+          imageURL
+        ),
+      }}
       className="padding-10 rounded w-100"
     >
       <h4>{title?.slice(0, 20) || t("untitled")}</h4>
@@ -269,15 +283,6 @@ export const NoteEditor = ({
           aiButton={true}
           value={note?.tags?.join(",") || ""}
           onChange={(value) => setNote({ ...note, tags: value.split(",") })}
-        />
-      </div>
-      <div className="flex-row gap-5 align-center">
-        <h3>{t("archived")}</h3>
-        <input
-          type="checkbox"
-          className="checkbox"
-          checked={note?.archived}
-          onChange={(e) => setNote({ ...note, archived: e.target.checked })}
         />
       </div>
     </div>

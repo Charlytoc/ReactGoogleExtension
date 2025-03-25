@@ -74,12 +74,14 @@ export const Snapties = () => {
 
   return (
     <Section
+      
+      className="bg-gradient"
       close={() => {
         cacheLocation("/index.html");
         navigate("/index.html");
       }}
-      title="Snapties"
-      extraButtons={
+      headerLeft={<h3 className="font-mono">Snapties</h3>}
+      headerRight={
         <Button
           className="padding-5"
           onClick={() => setShowForm(!showForm)}

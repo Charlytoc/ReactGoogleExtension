@@ -1,3 +1,5 @@
+import { TBackgroundType } from "../types";
+
 type TChatConfig = {
   autoSaveNotes: boolean;
   setTitleAtMessage: number;
@@ -6,6 +8,7 @@ type TChatConfig = {
 type TAuthConfig = {
   openaiApiKey: string;
 };
+
 export type TTheme = {
   fontColor: string;
   backgroundColor: string;
@@ -13,6 +16,8 @@ export type TTheme = {
   fontColorSecondary: string;
   backgroundColorSecondary: string;
   themePreferences: string;
+  imageURL: string;
+  backgroundType: TBackgroundType;
 };
 
 type TConfig = {

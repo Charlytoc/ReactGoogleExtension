@@ -1,4 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -61,6 +63,27 @@ const Tasky = ({ children, node }: { children: ReactNode; node: any }) => {
   );
 };
 
+const CustomCode = ({ children, node }: { children: ReactNode; node: any }) => {
+  const { t } = useTranslation();
+
+  const copyToClipboard = () => {
+    const codeText = node.children[0]?.children[0]?.value || "";
+    if (codeText) {
+      navigator.clipboard.writeText(codeText).then(() => {
+        console.log("Código copiado al portapapeles");
+        toast.success(t("codeCopied"));
+      });
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={copyToClipboard}>Copiar</button>
+      <pre>{children}</pre>
+    </div>
+  );
+};
+
 export const RenderMarkdown = ({ markdown }: { markdown: string }) => {
   return (
     <Markdown
@@ -72,6 +95,11 @@ export const RenderMarkdown = ({ markdown }: { markdown: string }) => {
               {props.children}
             </CustomAnchor>
           );
+        },
+        pre: (props) => {
+          console.log(props.node, "pre");
+
+          return <CustomCode node={props.node}>{props.children}</CustomCode>;
         },
         li: (props) => {
           if (props.className === "task-list-item") {

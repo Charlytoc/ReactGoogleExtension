@@ -8,7 +8,8 @@ import { useNavigate } from "react-router";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { TTheme } from "../../managers/storeTypes";
-import { Navbar } from "../../components/Navbar/Navbar";
+// import { Navbar } from "../../components/Navbar/Navbar";
+import { Section } from "../../components/Section/Section";
 
 function App() {
   const { i18n } = useTranslation();
@@ -70,14 +71,14 @@ function App() {
       navigate(lastPage);
     }
   };
-
   return (
-    // <Section title="automata.ai">
-    <div className="bg-gradient h-100">
-      <Navbar />
+    <Section
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">automata.ai</h3>}
+    >
+      {/* <Navbar /> */}
       <Content />
-    </div>
-    // </Section>
+    </Section>
   );
 }
 

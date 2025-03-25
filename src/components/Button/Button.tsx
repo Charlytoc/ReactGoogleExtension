@@ -65,10 +65,10 @@ ButtonProps) => {
       )}
 
       {(timesClicked === 0 || confirmations.length === 0) && text ? (
-        <span>{text}</span>
+        <span className="text-target">{text}</span>
       ) : (
         confirmations[timesClicked - 1]?.text && (
-          <span>{confirmations[timesClicked - 1]?.text}</span>
+          <span className="text-target">{confirmations[timesClicked - 1]?.text}</span>
         )
       )}
     </button>
