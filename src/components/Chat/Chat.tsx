@@ -101,6 +101,7 @@ export const Chat = () => {
   const [conversations, setConversations] = useState<TConversation[]>([]);
   const [error, setError] = useState<string>("");
   const [attachments, setAttachments] = useState<TAttachment[]>([]);
+  const autoScroll = true;
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -139,6 +140,12 @@ export const Chat = () => {
   useEffect(() => {
     if (aiConfig.autoSaveConversations) {
       saveConversation();
+    }
+    if (autoScroll) {
+      const chatMessages = document.querySelector(".chat-messages");
+      if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
     }
   }, [messages]);
 
@@ -284,6 +291,7 @@ export const Chat = () => {
   );
 
   const handleSendMessage = async () => {
+    if (!input) return;
     const { url } = await extractPageData();
     const systemPrompt = `${aiConfig.systemPrompt}\n\nCurrent URL: ${url}`;
     const message: TMessage = {
@@ -486,7 +494,7 @@ export const Chat = () => {
               );
             })}
           </div>
-          <section className="flex-column gap-10 w-100  padding-5 ">
+          <section className="flex-row gap-10 w-100 padding-5 ">
             <Textarea
               label={t("commandOrPrompt")}
               name="command"
@@ -495,11 +503,18 @@ export const Chat = () => {
               onChange={(value) => {
                 setInput(value);
               }}
+              onKeyUp={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
             />
 
-            <div className="flex-row gap-5">
+            <div className="flex-column gap-5 floating-buttons">
               <Button
-                text={t("send")}
+                // text={t("send")}
+                title={t("send")}
                 className=" padding-5 align-center justify-center active-on-hover"
                 svg={SVGS.send}
                 onClick={handleSendMessage}
@@ -507,7 +522,7 @@ export const Chat = () => {
               <Button
                 className=" padding-5 align-center justify-center active-on-hover"
                 svg={SVGS.ai}
-                text={t("summarizeWebsite")}
+                // text={t("summarizeWebsite")}
                 title={t("summarizeWebsite")}
                 onClick={() => {
                   setInput(
@@ -515,19 +530,6 @@ export const Chat = () => {
                   );
                 }}
               />
-              {/* <Button
-                className=" padding-5 align-center justify-center active-on-hover show-text-on-hover"
-                svg={SVGS.plus}
-                onClick={() => {
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (file) uploadFile(file);
-                  };
-                  input.click();
-                }}
-              /> */}
             </div>
           </section>
         </div>

@@ -5,16 +5,16 @@ import { Button } from "../Button/Button";
 import { Select } from "../Select/Select";
 import { useRef } from "react";
 
-const makeHumanReadableDatetime = (date: string) => {
-  const dateObj = new Date(date);
-  return dateObj.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+// const makeHumanReadableDatetime = (date: string) => {
+//   const dateObj = new Date(date);
+//   return dateObj.toLocaleDateString("en-US", {
+//     year: "numeric",
+//     month: "long",
+//     day: "numeric",
+//     hour: "2-digit",
+//     minute: "2-digit",
+//   });
+// };
 
 export const TaskForm = ({
   closeForm,
@@ -23,8 +23,6 @@ export const TaskForm = ({
     id: "",
     title: "",
     description: "",
-    startDatetime: "",
-    dueDatetime: "",
     reminderEvery: undefined,
     motivationText: "",
     priority: "low",
@@ -75,14 +73,7 @@ export const TaskForm = ({
         placeholder={t("description-placeholder")}
         defaultValue={initialValues.description}
       />
-      <LabeledInput
-        label={t("startDatetime")}
-        type="datetime-local"
-        required
-        name="startDatetime"
-        // placeholder={t("startDatetime")}
-        defaultValue={initialValues.startDatetime}
-      />
+
       <div className="flex-row gap-5 align-center">
         <LabeledInput
           label={t("estimatedTime")}
@@ -102,12 +93,6 @@ export const TaskForm = ({
           defaultValue={initialValues.estimatedTimeUnit || ""}
         />
       </div>
-      {initialValues.dueDatetime && (
-        <p className="text-mini color-gray">
-          {t("task-ready-at")}:{" "}
-          {makeHumanReadableDatetime(initialValues.dueDatetime)}
-        </p>
-      )}
 
       <div className="border-gray rounded-10 padding-10">
         <section className="flex-row gap-5 align-center">

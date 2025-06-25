@@ -308,7 +308,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 
 chrome.commands.onCommand.addListener(async (command) => {
-    console.log(command, "COMMAND RECEIVED")
+    // console.log(command, "COMMAND RECEIVED")
     if (command === "auto-complete") {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
 

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { SVGS } from "../../assets/svgs";
 import { Button } from "../Button/Button";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
+// import useDebounce from "../../hooks/useDebounce";
+// import toast from "react-hot-toast";
 
 type TTextareaProps = {
   defaultValue?: string;
@@ -12,6 +14,7 @@ type TTextareaProps = {
   placeholder?: string;
   maxHeight?: string;
   isMarkdown?: boolean;
+  onKeyUp?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 };
 
 const MarkdownEditor = ({
@@ -32,6 +35,13 @@ const MarkdownEditor = ({
   );
 };
 
+// const defaultAutoCompletions = [
+//   "Hello",
+//   "World",
+//   "This is a test",
+//   "This is another test",
+// ];
+
 export const Textarea = ({
   defaultValue = "",
   name = "textarea",
@@ -41,23 +51,21 @@ export const Textarea = ({
   placeholder,
   maxHeight = "200px",
   isMarkdown = false,
+  onKeyUp = () => {},
 }: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<"markdown" | "plain">("plain");
-  //   adjust the height of the textarea to the content when the user is typing
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [defaultValue]);
 
-  useEffect(() => {
-    if (isMarkdown) {
-      setMode("markdown");
+    if (!defaultValue && textareaRef.current) {
+      textareaRef.current.value = "";
     }
-  }, [isMarkdown]);
+  }, [defaultValue]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -87,26 +95,46 @@ export const Textarea = ({
           }}
         />
       ) : (
-        <textarea
-          placeholder={placeholder}
-          name={name}
-          ref={textareaRef}
-          style={{
-            overflowY: "auto",
-            resize: "none",
-            scrollbarWidth: "none",
-            maxHeight: maxHeight,
-          }}
-          onInput={() => {
-            if (textareaRef.current) {
-              textareaRef.current.style.height = "auto";
-              textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-            }
-          }}
-          className={`textarea ${className}`}
-          defaultValue={defaultValue}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <>
+          <textarea
+            placeholder={placeholder}
+            name={name}
+            ref={textareaRef}
+            style={{
+              overflowY: "auto",
+              resize: "none",
+              scrollbarWidth: "none",
+              minHeight: "100px",
+              maxHeight: maxHeight,
+            }}
+            onInput={() => {
+              if (textareaRef.current) {
+                textareaRef.current.style.height = "auto";
+                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+              }
+            }}
+            className={`${className}`}
+            defaultValue={defaultValue}
+            onChange={(e) => {
+              onChange(e.target.value);
+            }}
+            onKeyUp={(e) => {
+              onKeyUp(e);
+            }}
+          />
+          {/* {autoCompletions.map((completion) => (
+            <Button
+              text={completion}
+              key={completion}
+              onClick={() => {
+                if (textareaRef.current) {
+                  textareaRef.current.value += completion;
+                  onChange(textareaRef.current.value);
+                }
+              }}
+            />
+          ))} */}
+        </>
       )}
     </div>
   );

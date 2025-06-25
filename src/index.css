@@ -15,6 +15,7 @@
   --success-color: #7cff7c;
   --bg-color-secondary: #1b1b33;
   --warning-color: #ffc107;
+  --reference-font-size: 18px;
 
   --active-color: #be90ff;
   --opaque-gray-color: rgba(145, 145, 145, 0.303);
@@ -238,6 +239,10 @@ button:focus-visible {
     margin-block: 10px;
   }
 
+  & p {
+    font-size: var(--reference-font-size) !important;
+  }
+
   & hr {
     margin-block: 10px;
     border-radius: 5px;
@@ -361,6 +366,7 @@ button:focus-visible {
     border: none;
     padding: 10px;
     width: 100%;
+    font-size: var(--reference-font-size);
     background-color: transparent;
     height: 100%;
     overflow-y: auto;

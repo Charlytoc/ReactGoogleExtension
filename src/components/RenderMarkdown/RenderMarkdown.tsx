@@ -18,7 +18,7 @@ const CustomAnchor = ({
   );
 };
 
-const Tasky = ({ children, node }: { children: ReactNode; node: any }) => {
+const Tasky = ({ node }: { children: ReactNode; node: any }) => {
   const inputNode = node.children.find(
     (child: any) => child.type === "element" && child.tagName === "input"
   );

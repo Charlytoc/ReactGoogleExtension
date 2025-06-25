@@ -152,5 +152,13 @@
     "solid": "Sólido",
     "none": "Ninguno",
     "image": "Imagen",
-    "customization": "Personalización"
+    "customization": "Personalización",
+    "markAsDone": "Marcar como hecho",
+    "start": "Comenzar",
+    "showDetails": "Mostrar detalles",
+    "alarmTriggeredEvery": "Esta alarma se activará cada {{minutes}} minutos",
+    "estimatedTimeNotSet": "Tiempo estimado no establecido, por favor establézcalo primero",
+    "done": "Hecho",
+    "inProgress": "En progreso",
+    "todo": "Por hacer"
 }

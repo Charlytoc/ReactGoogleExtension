@@ -51,7 +51,8 @@ const estimateDueTime = (
   estimatedTime: number,
   estimatedTimeUnit: string,
   startDatetime: string
-) => {
+): string | undefined => {
+  if (!startDatetime || !estimatedTime || !estimatedTimeUnit) return undefined;
   const now = new Date(startDatetime);
   const dueDate = new Date(now);
   dueDate.setMinutes(
@@ -108,10 +109,10 @@ const TaskVisualizer = ({
     };
 
     await upsertTask(editedTask);
-    notify(
-      t("alarmSet").replace("%s", editedTask.title),
-      editedTask.motivationText || ""
-    );
+    // notify(
+    //   t("alarmSet").replace("%s", editedTask.title),
+    //   editedTask.motivationText || ""
+    // );
     toast.success(t("taskSaved"), { id: toastId });
     onFinish();
   };

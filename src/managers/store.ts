@@ -17,6 +17,8 @@ export const useStore = create<TStore>((set, get) => ({
       fontColorSecondary: "#B0B0B0",
       backgroundColorSecondary: "#151e47",
       themePreferences: "",
+      imageURL: "",
+      backgroundType: "solid",
     },
   },
   setConfig: (newConfig) => {

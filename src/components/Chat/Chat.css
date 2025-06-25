@@ -42,3 +42,15 @@
   scrollbar-width: none;
   padding: 10px;
 }
+
+.floating-buttons {
+  position: absolute;
+  bottom: 100px;
+  right: 0;
+  width: fit-content;
+ 
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 2px;
+}

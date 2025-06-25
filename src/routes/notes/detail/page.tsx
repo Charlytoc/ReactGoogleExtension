@@ -390,6 +390,7 @@ ${JSON.stringify(note)}
                 name="content"
                 placeholder={t("writeYourNoteHere")}
                 isMarkdown
+                maxHeight="75vh"
               />
               <h3>{t("customization")}</h3>
               <span>{t("font")}</span>

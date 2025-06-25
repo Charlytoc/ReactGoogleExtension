@@ -152,5 +152,13 @@
     "solid": "Solid",
     "none": "None",
     "image": "Image",
-    "customization": "Customization"
+    "customization": "Customization",
+    "markAsDone": "Mark as done",
+    "start": "Start",
+    "showDetails": "Show details",
+    "alarmTriggeredEvery": "This alarm will be triggered every {{minutes}} minutes",
+    "estimatedTimeNotSet": "Estimated time not set, please set it first",
+    "done": "Done",
+    "inProgress": "In progress",
+    "todo": "To do"
 }

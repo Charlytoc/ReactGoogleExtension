@@ -19,7 +19,10 @@ import {
   notify,
 } from "../../utils/chromeFunctions";
 import { Section } from "../Section/Section";
+
+import { TaskCard } from "./TaskCard";
 import CircularProgress from "../CircularProgress/CircularProgress";
+import { LabeledInput } from "../LabeledInput/LabeledInput";
 
 export const hashText = (text: string) => {
   return text.replace(/\s+/g, "-");
@@ -58,7 +61,7 @@ export const upsertTask = async (task: TTask, alarm = true) => {
     (taskMilliseconds - nowInMilliseconds) / 60000
   );
 
-  if (alarm) {
+  if (alarm && task.startDatetime && task.dueDatetime) {
     createAlarm(
       task.id,
       task.startDatetime
@@ -99,6 +102,7 @@ const createRandomTask = async () => {
 export const TaskManager = () => {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<TTask[]>([]);
+  const [view, setView] = useState<"list" | "table">("list");
   const navigate = useNavigate();
 
   const getTasks = async () => {
@@ -156,10 +160,20 @@ export const TaskManager = () => {
               { className: "bg-danger", svg: SVGS.trash, text: "" },
             ]}
           />
+          <Button
+            onClick={() => setView(view === "list" ? "table" : "list")}
+            className="justify-center padding-5 "
+            title={t("toggleView")}
+            svg={view === "list" ? SVGS.table : SVGS.list}
+          />
         </>
       }
     >
-      <ListView tasks={tasks} deleteTask={deleteTask} />
+      {view === "list" ? (
+        <ListView tasks={tasks} deleteTask={deleteTask} reload={getTasks} />
+      ) : (
+        <TableView tasks={tasks} />
+      )}
     </Section>
   );
 };
@@ -168,130 +182,122 @@ export const reminderToMinutes = (amount: number, unit: string) => {
   return amount * (unit === "minutes" ? 1 : unit === "hours" ? 60 : 3600);
 };
 
-const calculateMinutesAgo = (startDatetime: string): number => {
-  const startDate = new Date(startDatetime);
-  const now = new Date();
-
-  const diffMinutes = Math.floor(
-    (now.getTime() - startDate.getTime()) / (1000 * 60)
-  );
-
-  return diffMinutes;
-};
-
-const calculatePercentageDone = (
-  totalMinutes: number,
-  workedMinutes: number
-) => {
-  // Keep only the first 3 digits after the decimal point
-  const percentage = (workedMinutes / totalMinutes) * 100;
-  if (percentage > 100) {
-    return 100;
-  }
-
-  if (percentage < 0) {
-    return 0;
-  }
-
-  return Math.round(percentage * 100) / 100;
-};
-
-const TaskStadistics = ({ task }: { task: TTask }) => {
-  const { t } = useTranslation();
-  return (
-    <div className="flex-row align-center justify-between">
-      <div>
-        <div>
-          {t("startsOn")}{" "}
-          {task.startDatetime
-            ? new Date(task.startDatetime).toLocaleString()
-            : ""}
-        </div>
-        <div>
-          {t("endsOn")}{" "}
-          {task.dueDatetime ? new Date(task.dueDatetime).toLocaleString() : ""}
-        </div>
-        <div className="">
-          <div className="flex-row gap-5">
-            <span>{t("reminderEvery")}</span>
-            <span>{task.reminderEvery}</span>
-            <span>{t("minutes")}</span>
-          </div>
-          <blockquote className="blockquote">
-            <strong>{"☁️"}</strong> {task.motivationText}
-          </blockquote>
-        </div>
-      </div>
-      <CircularProgress
-        percentage={calculatePercentageDone(
-          transformToMinutes(
-            task.estimatedTime ? task.estimatedTime : 0,
-            task.estimatedTimeUnit ? task.estimatedTimeUnit : "minutes"
-          ),
-          calculateMinutesAgo(task.startDatetime || "")
-        )}
-      />
-    </div>
-  );
-};
-
-const TaskCard = ({
-  task,
-  deleteTask,
-}: {
-  task: TTask;
-  deleteTask: () => void;
-}) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-
-  return (
-    <div className={`task-card ${task.priority}`}>
-      <h3 className="text-center">{task.title}</h3>
-      <p className="text-mini">{task.description}</p>
-
-      <TaskStadistics task={task} />
-
-      <div className="flex-row gap-5">
-        <Button
-          className="w-100 justify-center padding-5 "
-          text={t("delete")}
-          onClick={deleteTask}
-          confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
-        />
-        <Button
-          className="w-100 justify-center padding-5 active-on-hover  "
-          text={t("edit")}
-          onClick={() => {
-            cacheLocation(`/tasks/${task.id}`, "/tasks");
-            navigate(`/tasks/${task.id}`);
-          }}
-        />
-        <Button
-          className="w-100 justify-center padding-5 active-on-hover  "
-          text={t("markAsDone")}
-          onClick={() => {
-            task.status = "DONE";
-            upsertTask(task, false);
-          }}
-        />
-      </div>
-    </div>
-  );
-};
-
 const ListView = ({
   tasks,
   deleteTask,
+  reload,
 }: {
   tasks: TTask[];
   deleteTask: (index: number) => void;
+  reload: () => void;
 }) => {
   return (
     <div className="flex-column gap-10">
       {tasks.map((task, index) => (
-        <TaskCard task={task} deleteTask={() => deleteTask(index)} />
+        <TaskCard
+          key={task.id}
+          task={task}
+          deleteTask={() => deleteTask(index)}
+          reload={reload}
+        />
       ))}
+    </div>
+  );
+};
+
+const columns = [
+  { key: "title", label: "📌 Title" },
+  { key: "startDatetime", label: "📅 Start" },
+  { key: "dueDatetime", label: "⏳ Due" },
+  { key: "estimatedTime", label: "⏱️ Est." },
+  { key: "progress", label: "🎯 Progress" },
+  { key: "motivationText", label: "📖 Motivation" },
+  { key: "actions", label: "⚙️ Actions" },
+];
+
+export const TableView = ({ tasks }: { tasks: TTask[] }) => {
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(columns.map((col) => [col.key, true]))
+  );
+  const { t } = useTranslation();
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  return (
+    <div className="table-view">
+      <table>
+        <thead>
+          <tr>
+            {columns.map(
+              (col) =>
+                visibleColumns[col.key] && (
+                  <th key={col.key} onClick={() => toggleColumn(col.key)}>
+                    {col.label}
+                  </th>
+                )
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task) => (
+            <tr key={task.id}>
+              {visibleColumns.title && <td>{task.title}</td>}
+
+              {visibleColumns.startDatetime && (
+                <td>
+                  {task.startDatetime
+                    ? new Date(task.startDatetime).toLocaleString()
+                    : "-"}
+                </td>
+              )}
+
+              {visibleColumns.dueDatetime && (
+                <td>
+                  {task.dueDatetime
+                    ? new Date(task.dueDatetime).toLocaleString()
+                    : "-"}
+                </td>
+              )}
+
+              {visibleColumns.estimatedTime && (
+                <td>
+                  {task.estimatedTime} {task.estimatedTimeUnit}
+                </td>
+              )}
+
+              {visibleColumns.progress && <td>—{/* Add progress here */}</td>}
+
+              {visibleColumns.motivationText && (
+                <td>
+                  <em>{task.motivationText ?? "—"}</em>
+                </td>
+              )}
+
+              {visibleColumns.actions && (
+                <td className="actions">
+                  <Button
+                    text="Edit"
+                    onClick={() => console.log("Edit", task.id)}
+                  />
+                  <Button
+                    text="Delete"
+                    onClick={() => console.log("Delete", task.id)}
+                  />
+                  <Button
+                    text="Done"
+                    onClick={() => {
+                      task.status = "DONE";
+                      console.log("Mark as done", task.id);
+                    }}
+                  />
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
