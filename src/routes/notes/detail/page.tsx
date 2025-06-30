@@ -232,6 +232,7 @@ export default function NoteDetail() {
       });
     }
 
+    console.log(newNotes, "newNotes");
     await ChromeStorageManager.add("notes", newNotes);
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./NotesManager.css";
 import { Note } from "../Note/Note";
 import { TNote } from "../../types";
@@ -39,6 +39,7 @@ import { Select } from "../Select/Select";
 
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
+  const allNotesRef = useRef<TNote[]>([]);
   const [filters, setFilters] = useState<{
     archived: "show" | "hide" | "only";
     tags: string[];
@@ -76,8 +77,11 @@ export const NotesManager = () => {
       imageURL: "",
     };
 
-    setNotes([...notes, defaultNote]);
-    await ChromeStorageManager.add("notes", [...notes, defaultNote]);
+    setNotes([...allNotesRef.current, defaultNote]);
+    await ChromeStorageManager.add("notes", [
+      ...allNotesRef.current,
+      defaultNote,
+    ]);
     cacheLocation(`/notes/${defaultNote.id}`, "/notes");
     navigate(`/notes/${defaultNote.id}`);
   };
@@ -93,12 +97,9 @@ export const NotesManager = () => {
     getNotes();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [filters]);
-
   const getNotes = async () => {
     const notes: TNote[] = await ChromeStorageManager.get("notes");
+    allNotesRef.current = notes;
     if (notes) {
       setNotes(notes);
       let _tags: string[] = Array.from(
@@ -115,11 +116,9 @@ export const NotesManager = () => {
     }
   };
 
-  const applyFilters = async () => {
-    let notes = await ChromeStorageManager.get("notes");
-    console.log(notes, "notes");
-
+  const applyFilters = (notes: TNote[]): TNote[] => {
     let notesToShow = notes;
+
     if (filters.archived === "hide") {
       notesToShow = notesToShow.filter((note: TNote) => !note.archived);
     }
@@ -144,8 +143,7 @@ export const NotesManager = () => {
         filters.tags.some((tag) => note.tags?.includes(tag))
       );
     }
-
-    setNotes(notesToShow);
+    return notesToShow;
   };
 
   return (
@@ -176,7 +174,7 @@ export const NotesManager = () => {
           <NoteFilters filters={filters} setFilters={setFilters} tags={tags} />
         )}
         <div className="grid grid-cols-2 gap-10">
-          {notes.map((note) => (
+          {applyFilters(notes).map((note) => (
             <Note
               {...note}
               id={note.id}
