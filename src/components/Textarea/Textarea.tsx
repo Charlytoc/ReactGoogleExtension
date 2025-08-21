@@ -56,14 +56,16 @@ export const Textarea = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<"markdown" | "plain">("plain");
 
+  console.log(defaultValue, "defaultValue");
+
   useEffect(() => {
+    
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-
-    if (!defaultValue && textareaRef.current) {
-      textareaRef.current.value = "";
+      textareaRef.current.value = defaultValue;
+    } else {
+      console.log("textareaRef.current is null");
     }
   }, [defaultValue]);
 

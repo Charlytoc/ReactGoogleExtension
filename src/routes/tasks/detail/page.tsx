@@ -11,7 +11,7 @@ import {
 
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { notify } from "../../../utils/chromeFunctions";
+// import { notify } from "../../../utils/chromeFunctions";
 import { TaskForm } from "../../../components/TaskManager/TaskForm";
 
 export default function TaskDetail() {

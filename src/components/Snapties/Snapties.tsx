@@ -48,7 +48,7 @@ export const Snapties = () => {
 
   const getSnapties = async () => {
     const snapties = await ChromeStorageManager.get("snapties");
-    if (snapties) {
+    if (snapties && Array.isArray(snapties)) {
       setSnapties(snapties);
     }
   };
@@ -64,13 +64,13 @@ export const Snapties = () => {
     setSnapties(newSnapties);
   };
 
-  const categories = snapties.reduce((acc, snaptie) => {
+  const categories = snapties &&snapties.length > 0 ? snapties.reduce((acc, snaptie) => {
     if (!acc[snaptie.category]) {
       acc[snaptie.category] = [];
     }
     acc[snaptie.category].push(snaptie);
     return acc;
-  }, {} as Record<string, TSnaptie[]>);
+  }, {} as Record<string, TSnaptie[]>): {};
 
   return (
     <Section

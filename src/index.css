@@ -716,3 +716,202 @@ button:focus-visible {
 .padding-bottom-50 {
   padding-bottom: 50px;
 }
+
+/* Estilos para el preview de Markdown en Snapties */
+.markdown-preview-container {
+  border: 1px solid var(--opaque-gray-color);
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--bg-color) 0%, var(--bg-color-secondary) 100%);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease-in-out;
+}
+
+.markdown-preview-container:hover {
+  border-color: var(--active-color);
+  box-shadow: 0 6px 20px rgba(190, 144, 255, 0.15);
+}
+
+.markdown-preview-header {
+  background: linear-gradient(90deg, var(--active-color) 0%, var(--bg-color-secondary) 100%);
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--opaque-gray-color);
+}
+
+.markdown-preview-label {
+  color: var(--bg-color);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.markdown-preview-content {
+  padding: 20px;
+  max-height: 50vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--active-color) var(--bg-color);
+}
+
+.markdown-preview-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.markdown-preview-content::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 3px;
+}
+
+.markdown-preview-content::-webkit-scrollbar-thumb {
+  background: var(--active-color);
+  border-radius: 3px;
+}
+
+.markdown-preview-content::-webkit-scrollbar-thumb:hover {
+  background: var(--font-color);
+}
+
+/* Estilos mejorados para los colores */
+.color-label {
+  color: var(--font-color-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.color-input {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--opaque-gray-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  background: transparent;
+}
+
+.color-input:hover {
+  border-color: var(--active-color);
+  transform: scale(1.05);
+}
+
+.color-input:focus {
+  outline: none;
+  border-color: var(--active-color);
+  box-shadow: 0 0 0 3px rgba(190, 144, 255, 0.2);
+}
+
+.used-colors-label {
+  color: var(--font-color-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.used-colors-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.color-preview {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 2px solid var(--opaque-gray-color);
+  transition: all 0.3s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.color-preview:hover {
+  transform: scale(1.1);
+  border-color: var(--active-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.color-preview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.color-preview:hover::before {
+  opacity: 1;
+}
+
+/* Estilos para el toggle de Markdown */
+.markdown-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: var(--opaque-gray-color);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.3s ease-in-out;
+}
+
+.markdown-toggle-container:hover {
+  border-color: var(--active-color);
+  background: rgba(190, 144, 255, 0.1);
+}
+
+/* Mejoras en el formulario */
+.snaptie-form {
+  background: linear-gradient(135deg, rgba(190, 144, 255, 0.05) 0%, rgba(27, 27, 51, 0.1) 100%);
+  padding: 20px;
+  border-radius: 15px;
+  border: 1px solid var(--opaque-gray-color);
+  transition: all 0.3s ease-in-out;
+}
+
+.snaptie-form:hover {
+  border-color: var(--active-color);
+  box-shadow: 0 8px 25px rgba(190, 144, 255, 0.1);
+}
+
+/* Animaciones para el cambio de modo */
+.markdown-preview-container,
+.textarea-container {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estilos responsivos para el header */
+@media (max-width: 480px) {
+  .markdown-preview-header {
+    padding: 10px 12px;
+  }
+  
+  .markdown-preview-content {
+    padding: 15px;
+  }
+  
+  .color-input {
+    width: 35px;
+    height: 35px;
+  }
+  
+  .color-preview {
+    width: 25px;
+    height: 25px;
+  }
+}

@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import {
   cacheLocation,
   generateRandomId,
-  transformToMinutes,
+  // transformToMinutes,
 } from "../../utils/lib";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
@@ -21,8 +21,8 @@ import {
 import { Section } from "../Section/Section";
 
 import { TaskCard } from "./TaskCard";
-import CircularProgress from "../CircularProgress/CircularProgress";
-import { LabeledInput } from "../LabeledInput/LabeledInput";
+// import CircularProgress from "../CircularProgress/CircularProgress";
+// import { LabeledInput } from "../LabeledInput/LabeledInput";
 
 export const hashText = (text: string) => {
   return text.replace(/\s+/g, "-");
@@ -219,7 +219,7 @@ export const TableView = ({ tasks }: { tasks: TTask[] }) => {
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
     () => Object.fromEntries(columns.map((col) => [col.key, true]))
   );
-  const { t } = useTranslation();
+  // const { t } = useTranslation();
 
   const toggleColumn = (key: string) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));

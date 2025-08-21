@@ -3,17 +3,20 @@ import { useNavigate, useParams } from "react-router";
 import { cacheLocation } from "../../../utils/lib";
 import toast from "react-hot-toast";
 import { TSnaptie } from "../../../types";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChromeStorageManager } from "../../../managers/Storage";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
+import { RenderMarkdown } from "../../../components/RenderMarkdown/RenderMarkdown";
 
 export default function SnaptieDetail() {
+  const formRef = useRef<HTMLFormElement>(null);
   const [snaptie, setSnaptie] = useState<TSnaptie | null>(null);
   const [usedColors, setUsedColors] = useState<string[]>([]);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -38,6 +41,7 @@ export default function SnaptieDetail() {
   };
 
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
+    console.log("saveSnaptie");
     e.preventDefault();
     if (!snaptie) return;
     const prevSnapties = await ChromeStorageManager.get("snapties");
@@ -50,6 +54,8 @@ export default function SnaptieDetail() {
     cacheLocation("/snapties");
   };
 
+  console.log(snaptie, "snaptie");
+
   return (
     <Section
       className="bg-gradient"
@@ -58,9 +64,28 @@ export default function SnaptieDetail() {
         cacheLocation("/snapties");
       }}
       headerLeft={<h3 className="font-mono">{t("edit")}</h3>}
+      headerRight={
+        <div className="flex-row gap-10 align-center">
+          <Button
+            onClick={() => setIsMarkdownMode(!isMarkdownMode)}
+            text={isMarkdownMode ? t("edit") : t("preview")}
+            className="w-auto padding-5 justify-center"
+            svg={isMarkdownMode ? SVGS.text : SVGS.markdown}
+          />
+          <Button
+            onClick={() => {
+              console.log("saveSnaptie");
+              formRef.current?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }}
+            text={t("save")}
+            className="w-100 padding-5 justify-center"
+            svg={SVGS.save}
+          />
+        </div>
+      }
     >
       <div className="padding-10 rounded-10">
-        <form onSubmit={saveSnaptie} className="flex-column gap-10">
+        <form ref={formRef} onSubmit={saveSnaptie} className="flex-column gap-10 snaptie-form">
           <LabeledInput
             name="title"
             label={t("title")}
@@ -71,15 +96,30 @@ export default function SnaptieDetail() {
               setSnaptie({ ...snaptie, title: e });
             }}
           />
-          <Textarea
-            label={t("content")}
-            name="content"
-            defaultValue={snaptie?.content || ""}
-            onChange={(e) => {
-              if (!snaptie) return;
-              setSnaptie({ ...snaptie, content: e });
-            }}
-          />
+          
+          {isMarkdownMode ? (
+            <div className="markdown-preview-container">
+              <div className="markdown-preview-header">
+                <span className="markdown-preview-label">{t("content")} - {t("preview")}</span>
+              </div>
+              <div className="markdown-preview-content">
+                <RenderMarkdown markdown={snaptie?.content || ""} />
+              </div>
+            </div>
+          ) : (
+            <div className="textarea-container">
+              <Textarea
+                label={t("content")}
+                name="content"
+                maxHeight="50vh"
+                defaultValue={snaptie?.content || ""}
+                onChange={(e) => {
+                  if (!snaptie) return;
+                  setSnaptie({ ...snaptie, content: e });
+                }}
+              />
+            </div>
+          )}
 
           <LabeledInput
             name="category"
@@ -91,8 +131,8 @@ export default function SnaptieDetail() {
               setSnaptie({ ...snaptie, category: e });
             }}
           />
-          <div className="flex-row gap-10">
-            <span>{t("color")}</span>
+          <div className="flex-row gap-10 align-center">
+            <span className="color-label">{t("color")}</span>
             <input
               type="color"
               name="color"
@@ -101,29 +141,28 @@ export default function SnaptieDetail() {
                 if (!snaptie) return;
                 setSnaptie({ ...snaptie, color: e.target.value });
               }}
+              className="color-input"
             />
           </div>
           {usedColors.length > 0 && (
             <div className="flex-row gap-10">
-              {usedColors.map((color) => (
-                <div
-                  key={color}
-                  className="color-preview pointer"
-                  style={{ backgroundColor: color }}
-                  onClick={() => {
-                    if (!snaptie) return;
-                    setSnaptie({ ...snaptie, color: color });
-                  }}
-                ></div>
-              ))}
+              <span className="used-colors-label">{t("used-colors") || "Colores usados"}:</span>
+              <div className="used-colors-container">
+                {usedColors.map((color) => (
+                  <div
+                    key={color}
+                    className="color-preview pointer"
+                    style={{ backgroundColor: color }}
+                    onClick={() => {
+                      if (!snaptie) return;
+                      setSnaptie({ ...snaptie, color: color });
+                    }}
+                    title={`Usar color: ${color}`}
+                  ></div>
+                ))}
+              </div>
             </div>
           )}
-          <Button
-            type="submit"
-            text={t("save")}
-            className="w-100 padding-5 justify-center"
-            svg={SVGS.save}
-          />
         </form>
       </div>
     </Section>
