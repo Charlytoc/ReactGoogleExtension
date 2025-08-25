@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 type TOption = {
   label: string;
   value: string;
@@ -20,10 +22,22 @@ export const Select = ({
   id?: string;
   required?: boolean;
 }) => {
+  const [innerValue, setInnerValue] = useState(defaultValue);
+
+  useEffect(() => {
+    const option = options.find((option) => option.value === defaultValue);
+    if (option) {
+      setInnerValue(option.value);
+    }
+  }, [defaultValue, options]);
+
   return (
     <select
-      defaultValue={defaultValue}
-      onChange={(e) => onChange && onChange(e.target.value)}
+      value={innerValue}
+      onChange={(e) => {
+        setInnerValue(e.target.value);
+        onChange && onChange(e.target.value);
+      }}
       className={`color-normal rounded bg-default padding-5 ${className} `}
       id={id}
       name={name}

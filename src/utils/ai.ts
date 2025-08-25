@@ -8,6 +8,8 @@ import {
 } from "openai/resources/chat/completions";
 
 import { TMessage, TModel } from "../types";
+import { ChromeStorageManager } from "./chromeStorageManager";
+
 
 type TCompletionRequest = {
   messages: ChatCompletionMessageParam[];
@@ -357,4 +359,39 @@ export const createToolsMap = (functions: TTool[]) => {
   }
 
   return functionMap;
+};
+
+
+const titlelify = (slug: string) => {
+  // replace all - with spaces
+  const title = slug.replace(/-/g, " ");
+  return title.charAt(0).toUpperCase() + title.slice(1);
+};
+
+const isLLM = (slug: string) => {
+  return slug.startsWith("gpt-") || slug.startsWith("o") || slug.startsWith("chatgpt");
+};
+
+const isReasoningModel = (slug: string) => {
+  // If the models slug starts with o, it has reasoning or gpt-5 then is reasoning
+  return slug.startsWith("o") || slug.startsWith("gpt-5");
+};
+
+export const listModels = async (apiKey: string) => {
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+
+  const list = await openai.models.list();
+
+  let models: TModel[] = [];
+
+  for await (const model of list) {
+    if (model.owned_by === "system" && isLLM(model.id)) {
+      models.push({
+        name: titlelify(model.id),
+        slug: model.id,
+        hasReasoning: isReasoningModel(model.id),
+      });
+    }
+  }
+  return models;
 };

@@ -308,6 +308,7 @@ export default function Config() {
         svg={SVGS.save}
         onClick={() => {
           ChromeStorageManager.add("colorPreferences", colors);
+          ChromeStorageManager.add("openaiApiKey", apiKey);
           toast.success(t("settingsSaved"));
         }}
       />

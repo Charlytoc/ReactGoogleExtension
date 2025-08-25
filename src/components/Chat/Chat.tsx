@@ -5,6 +5,7 @@ import {
   // createStreamingResponse,
   createStreamingResponseWithFunctions,
   createToolsMap,
+  listModels,
   toolify,
 } from "../../utils/ai";
 import { Textarea } from "../Textarea/Textarea";
@@ -73,6 +74,8 @@ const appendSystemPrompt = (
   systemPrompt: string,
   messages: TMessage[]
 ): TMessage[] => {
+  console.log("appendSystemPrompt", systemPrompt, messages);
+  
   const systemMessageIndex = messages.findIndex(
     (message) => message.role === "system"
   );
@@ -200,6 +203,11 @@ export const Chat = () => {
     const conversations: TConversation[] = await ChromeStorageManager.get(
       "conversations"
     );
+    if (!conversations) {
+      setConversations([]);
+      createNewConversation();
+      return;
+    }
     setConversations(conversations);
 
     const conversation = conversations.find((c) => c.messages.length <= 1);
@@ -229,13 +237,23 @@ export const Chat = () => {
   // };
 
   const getWebsiteContent = toolify(
-    async () => {
-      const { url, content } = await extractPageData();
-      return JSON.stringify({ url, content });
+    async (args: { start: number; end: number }) => {
+      console.log(args, "IA is trying to get website content");
+      
+      try {
+        const { url, content } = await extractPageData(Number(args.start), Number(args.end));
+        return JSON.stringify({ url, content });
+      } catch (error) {
+        console.log("error trying to get website content", error);
+        return "There was an error trying to get the website content. the error was: " + error;
+      }
     },
     "getWebsiteContent",
-    "Get the content of the current website",
-    {}
+    "Get the content of the current website, you can decide how much content to access using the start and end parameters. The start and end parameters are the percentage of the content to access from 0 to 1. For example, if you want to access the first 50% of the content, you can use the start parameter as 0 and the end parameter as 0.5. If you want to access the last 50% of the content, you can use the start parameter as 0.5 and the end parameter as 1. You will never be able of extracting more than 30 percent at once for safety reasons. So the maximun different between start and end is 0.3",
+    {
+      start: { type: "number", description: "The percentage of the content to access from 0 to 1" },
+      end: { type: "number", description: "The percentage of the content to access from 0 to 1" },
+    }
   );
 
   const clickElementBySelectorTool = toolify(
@@ -292,8 +310,16 @@ export const Chat = () => {
 
   const handleSendMessage = async () => {
     if (!input) return;
-    const { url } = await extractPageData();
-    const systemPrompt = `${aiConfig.systemPrompt}\n\nCurrent URL: ${url}`;
+
+    let url = "";
+
+    try {
+      const { url: _url } = await extractPageData(0, 0.01);
+      url = _url;
+    } catch (error) {
+      console.log("error trying to get url", error);
+    }
+    const systemPrompt = `${aiConfig.systemPrompt}\n${url ? `Current URL: ${url}` : ""}`;
     const message: TMessage = {
       role: "user",
       content: input,
@@ -352,6 +378,8 @@ export const Chat = () => {
   };
 
   const saveConversation = async () => {
+    console.log("SAVING CONVERSATIONS");
+    
     if (!conversation) return;
 
     const newConversations = conversations.map((c) =>
@@ -560,21 +588,26 @@ const AIConfig = ({
   const { t } = useTranslation();
   const [_aiConfig, setAiConfig] = useState<TAIConfig>(aiConfig);
 
-  const models: TModel[] = [
-    { name: "gpt-4o", slug: "gpt-4o", hasReasoning: false },
-    { name: "gpt-3.5-turbo", slug: "gpt-3.5-turbo", hasReasoning: false },
-    { name: "gpt-4o-mini", slug: "gpt-4o-mini", hasReasoning: false },
-    {
-      name: "chatgpt-4o-latest",
-      slug: "chatgpt-4o-latest",
-      hasReasoning: false,
-    },
-    { name: "o3-mini", slug: "o3-mini", hasReasoning: true },
-  ];
+  const [ models, setModels ] = useState<TModel[]>([]);
 
   const finishConfig = () => {
     updateAiConfig({ ..._aiConfig });
   };
+
+  useEffect(() => {
+    const getModels = async () => {
+      const apiKey = await ChromeStorageManager.get("openaiApiKey");  
+      if (!apiKey) {
+        toast.error(t("noApiKeyError"));
+        return;
+      }
+      const models = await listModels(apiKey as string);
+      setModels(models);
+    };
+    getModels();
+  }, []);
+
+  console.log(aiConfig, "aiConfig");
 
   return (
     <Section
@@ -608,7 +641,7 @@ const AIConfig = ({
               }
             }}
           />
-          <Select
+          {/* <Select
             name="reasoningTag"
             options={[
               { label: "thinking", value: "thinking" },
@@ -622,7 +655,7 @@ const AIConfig = ({
                 reasoningTag: value as TReasoningTag,
               });
             }}
-          />
+          /> */}
         </div>
         <h3>{t("conversationsConfig")}</h3>
         <div className="flex-row gap-10">
@@ -758,19 +791,11 @@ export const Message = ({ message }: { message: TMessage }) => {
           {showReasoning && (
             <StyledMarkdown
               markdown={extractReasoning(message.content) || ""}
-              onChange={(value) => {
-                console.log(value);
-              }}
             />
           )}
         </div>
       )}
-      <StyledMarkdown
-        markdown={message.content}
-        onChange={(value) => {
-          console.log(value);
-        }}
-      />
+      <StyledMarkdown markdown={message.content} />
     </div>
   );
 };

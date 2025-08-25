@@ -39,7 +39,20 @@ export const transformToMinutes = (amount: number, unit: string) => {
   return amount;
 };
 
-export const extractPageData = (): Promise<{
+const getSlicedContent = (content: string, start: number, end: number) => {
+  // Calcukate the percentage of the content based in the start, that is a float from 0 to 1
+  const startIndex = Math.floor(content.length * start);
+  const endIndex = Math.floor(content.length * end);
+
+  // If the startIndex is greater than the endIndex, return an empty string
+  if (startIndex > endIndex) {
+    return "";
+  }
+
+  return content.slice(startIndex, endIndex);
+};
+
+export const extractPageData = (start: number, end: number): Promise<{
   url: string;
   content: string;
   html: string;
@@ -60,8 +73,19 @@ export const extractPageData = (): Promise<{
         })
         .then((results) => {
           if (results && results[0] && results[0].result) {
-            resolve({ url, ...results[0].result });
+            const slicedContent = getSlicedContent(
+              results[0].result.content,
+              start,
+              end
+            );
+            const slicedHtml = getSlicedContent(
+              results[0].result.html,
+              start,
+              end
+            );
+            resolve({ url, content: slicedContent, html: slicedHtml });
           } else {
+            console.log(results, "results");
             reject("Failed to extract content");
           }
         })

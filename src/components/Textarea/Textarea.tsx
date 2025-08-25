@@ -25,13 +25,17 @@ const MarkdownEditor = ({
   onChange: (value: string) => void;
 }) => {
   const [markdown, setMarkdown] = useState(defaultValue);
-  console.log(onChange);
+
+  useEffect(() => {
+    setMarkdown(defaultValue);
+  }, [defaultValue]);
+
+  useEffect(() => {
+    onChange(markdown);
+  }, [markdown]);
 
   return (
-    <StyledMarkdown
-      markdown={markdown}
-      onChange={(value) => setMarkdown(value)}
-    />
+    <StyledMarkdown markdown={markdown} />
   );
 };
 
@@ -55,8 +59,6 @@ export const Textarea = ({
 }: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<"markdown" | "plain">("plain");
-
-  console.log(defaultValue, "defaultValue");
 
   useEffect(() => {
     
