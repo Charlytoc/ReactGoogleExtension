@@ -1,7 +1,5 @@
-@font-face {
-  font-family: "ShareTechMono";
-  src: url("../fonts/ShareTechMono-Regular.ttf");
-}
+@import "tailwindcss";
+
 
 :root {
   font-family: Inter, Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -111,9 +109,7 @@ button:focus-visible {
   );
 }
 
-.font-mono {
-  font-family: "ShareTechMono";
-}
+
 
 .flex-column {
   display: flex;
@@ -629,9 +625,6 @@ button:focus-visible {
 
 .above {
   z-index: 1000;
-}
-.share-tech-mono {
-  font-family: "ShareTechMono";
 }
 
 .grid {

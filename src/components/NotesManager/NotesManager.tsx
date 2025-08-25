@@ -99,8 +99,8 @@ export const NotesManager = () => {
 
   const getNotes = async () => {
     const notes: TNote[] = await ChromeStorageManager.get("notes");
-    allNotesRef.current = notes;
     if (notes) {
+      allNotesRef.current = notes;
       setNotes(notes);
       let _tags: string[] = Array.from(
         new Set(
@@ -188,101 +188,6 @@ export const NotesManager = () => {
   );
 };
 
-// const NoteForm = ({
-//   addNote,
-//   usedColors,
-// }: {
-//   addNote: (e: React.FormEvent<HTMLFormElement>) => void;
-//   usedColors: string[];
-// }) => {
-//   const { t } = useTranslation();
-
-//   const [color, setColor] = useState("#09090d");
-//   const [alpha, setAlpha] = useState(1);
-
-//   useEffect(() => {
-//     getBackground();
-//   }, []);
-
-//   const getBackground = async () => {
-//     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
-//     if (colorPreferences) {
-//       setColor(colorPreferences.backgroundColor);
-//     }
-//   };
-
-//   return (
-//     <form
-//       className="flex-column gap-10 padding-10 border-gray rounded"
-//       onSubmit={addNote}
-//     >
-//       <input
-//         className="input padding-5 w-100"
-//         name="title"
-//         maxLength={100}
-//         type="text"
-//         placeholder={t("title")}
-//         required
-//       />
-//       <input
-//         className="input padding-5 w-100"
-//         name="content"
-//         type="text"
-//         placeholder={t("content")}
-//       />
-//       <div className="flex-row gap-10 padding-5">
-//         <span>{t("colorOfNote")}</span>
-//         <input
-//           type="color"
-//           name="color"
-//           value={color}
-//           onChange={(e) => setColor(e.target.value)}
-//         />
-//         <input
-//           type="range"
-//           name="alpha"
-//           min={0}
-//           max={1}
-//           step={0.01}
-//           value={alpha}
-//           onChange={(e) => setAlpha(Number(e.target.value))}
-//         />
-//       </div>
-//       {usedColors.length > 0 && (
-//         <div className="flex-row gap-10">
-//           {usedColors.map((color) => (
-//             <div
-//               key={color}
-//               className="color-preview pointer"
-//               style={{ backgroundColor: color }}
-//               onClick={() => setColor(color)}
-//             ></div>
-//           ))}
-//         </div>
-//       )}
-//       <div className="flex-row gap-10">
-//         <span>{t("tags")}</span>
-//         <input
-//           type="text"
-//           name="tags"
-//           placeholder={t("tags")}
-//           className="input padding-5 w-100"
-//         />
-//       </div>
-//       <div className="flex-row gap-10">
-//         <span>{t("archived")}</span>
-//         <input type="checkbox" name="archived" />
-//       </div>
-//       <Button
-//         type="submit"
-//         svg={SVGS.check}
-//         text={t("add")}
-//         className="w-100 justify-center padding-5 active-on-hover"
-//       />
-//     </form>
-//   );
-// };
-
 const NoteFilters = ({
   filters,
   setFilters,
@@ -343,9 +248,8 @@ const NoteFilters = ({
                 })
               }
               key={tag}
-              className={`tag ${
-                filters.tags.includes(tag || "") ? "active" : ""
-              }`}
+              className={`tag ${filters.tags.includes(tag || "") ? "active" : ""
+                }`}
             >
               {tag}
             </div>

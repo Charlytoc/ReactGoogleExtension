@@ -47,7 +47,7 @@ export const Content = () => {
             navigate("/tasks");
           }}
         />
-        <Button
+        {/* <Button
           text={t("calendar")}
           className="padding-20 active-on-hover border-gray rounded font-bold"
           svg={SVGS.calendar2}
@@ -55,7 +55,7 @@ export const Content = () => {
             cacheLocation("/calendar");
             navigate("/calendar");
           }}
-        />
+        /> */}
         <Button
           text={t("config")}
           className="padding-20 active-on-hover border-gray rounded font-bold"
