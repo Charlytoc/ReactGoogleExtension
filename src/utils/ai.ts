@@ -8,7 +8,7 @@ import {
 } from "openai/resources/chat/completions";
 
 import { TMessage, TModel } from "../types";
-import { ChromeStorageManager } from "./chromeStorageManager";
+
 
 
 type TCompletionRequest = {

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-
 :root {
   font-family: Inter, Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -16,6 +15,8 @@
   --reference-font-size: 18px;
 
   --active-color: #be90ff;
+  --active-color-10: color-mix(in srgb, var(--active-color) 30%, transparent);
+
   --opaque-gray-color: rgba(145, 145, 145, 0.303);
 
   --extension-width: 500px;
@@ -108,8 +109,6 @@ button:focus-visible {
     var(--bg-color-secondary) 100%
   );
 }
-
-
 
 .flex-column {
   display: flex;
@@ -490,6 +489,11 @@ button:focus-visible {
   color: var(--bg-color) !important;
 }
 
+.bg-active-100 {
+  color: var(--font-color) !important;
+  background: var(--active-color-10);
+}
+
 .bg-gray {
   background-color: var(--opaque-gray-color) !important;
 }
@@ -715,7 +719,11 @@ button:focus-visible {
   border: 1px solid var(--opaque-gray-color);
   border-radius: 10px;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--bg-color) 0%, var(--bg-color-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-color) 0%,
+    var(--bg-color-secondary) 100%
+  );
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease-in-out;
 }
@@ -726,7 +734,11 @@ button:focus-visible {
 }
 
 .markdown-preview-header {
-  background: linear-gradient(90deg, var(--active-color) 0%, var(--bg-color-secondary) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--active-color) 0%,
+    var(--bg-color-secondary) 100%
+  );
   padding: 12px 15px;
   border-bottom: 1px solid var(--opaque-gray-color);
 }
@@ -824,13 +836,18 @@ button:focus-visible {
 }
 
 .color-preview::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 70%
+  );
   opacity: 0;
   transition: opacity 0.3s ease-in-out;
 }
@@ -859,7 +876,11 @@ button:focus-visible {
 
 /* Mejoras en el formulario */
 .snaptie-form {
-  background: linear-gradient(135deg, rgba(190, 144, 255, 0.05) 0%, rgba(27, 27, 51, 0.1) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(190, 144, 255, 0.05) 0%,
+    rgba(27, 27, 51, 0.1) 100%
+  );
   padding: 20px;
   border-radius: 15px;
   border: 1px solid var(--opaque-gray-color);
@@ -893,16 +914,16 @@ button:focus-visible {
   .markdown-preview-header {
     padding: 10px 12px;
   }
-  
+
   .markdown-preview-content {
     padding: 15px;
   }
-  
+
   .color-input {
     width: 35px;
     height: 35px;
   }
-  
+
   .color-preview {
     width: 25px;
     height: 25px;

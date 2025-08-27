@@ -9,16 +9,15 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import { Textarea } from "../Textarea/Textarea";
-import { 
-  Search, 
-  X, 
-  ArrowLeft, 
-  Plus, 
-  ExternalLink, 
-  Trash2, 
+import {
+  Search,
+  X,
+  ArrowLeft,
+  Plus,
+  ExternalLink,
+  Trash2,
   Edit3,
-  FolderOpen,
-  Copy
+  Copy,
 } from "lucide-react";
 
 export const Snapties = () => {
@@ -28,6 +27,10 @@ export const Snapties = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<TSnaptie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [navigationMode, setNavigationMode] = useState<
+    "categories" | "snapties"
+  >("categories");
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -39,7 +42,7 @@ export const Snapties = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Only handle 'q' key when not in form and when we can go back
-      if (e.key === 'q' && !showForm && (selectedCategory || isSearching)) {
+      if (e.key === "q" && !showForm && (selectedCategory || isSearching)) {
         e.preventDefault();
         if (selectedCategory) {
           handleBackToCategories();
@@ -49,11 +52,41 @@ export const Snapties = () => {
       }
     };
 
-    document.addEventListener('keydown', handleKeyPress);
-    return () => {
-      document.removeEventListener('keydown', handleKeyPress);
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      if (showForm) return; // Don't handle navigation when form is open
+
+      if (
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight"
+      ) {
+        e.preventDefault();
+
+        if (selectedCategory || isSearching) {
+          // Navigation in snapties view
+          handleSnaptiesNavigation(e.key);
+        } else {
+          // Navigation in categories view
+          handleCategoriesNavigation(e.key);
+        }
+      }
     };
-  }, [showForm, selectedCategory, isSearching]);
+
+    document.addEventListener("keydown", handleKeyPress);
+    document.addEventListener("keydown", handleArrowKeys);
+    return () => {
+      document.removeEventListener("keydown", handleKeyPress);
+      document.removeEventListener("keydown", handleArrowKeys);
+    };
+  }, [
+    showForm,
+    selectedCategory,
+    isSearching,
+    selectedIndex,
+    snapties,
+    searchResults,
+  ]);
 
   const getSnapties = async () => {
     const snapties = await ChromeStorageManager.get("snapties");
@@ -72,45 +105,105 @@ export const Snapties = () => {
     await ChromeStorageManager.add("snapties", newSnapties);
     setSnapties(newSnapties);
     // Also remove from search results if present
-    setSearchResults(prev => prev.filter(snaptie => snaptie.id !== id));
+    setSearchResults((prev) => prev.filter((snaptie) => snaptie.id !== id));
   };
 
   // Get all categories (for when no filter is applied)
-  const allCategories = snapties && snapties.length > 0 ? snapties.reduce((acc, snaptie) => {
-    const category = snaptie.category || t("uncategorized");
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(snaptie);
-    return acc;
-  }, {} as Record<string, TSnaptie[]>) : {};
+  const allCategories =
+    snapties && snapties.length > 0
+      ? snapties.reduce((acc, snaptie) => {
+          const category = snaptie.category || t("uncategorized");
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push(snaptie);
+          return acc;
+        }, {} as Record<string, TSnaptie[]>)
+      : {};
 
   // While typing: search all snapdeals and show categories that contain matching snapdeals
-  const matchingSnapdeals = nameFilter ? snapties.filter((snaptie) => {
-    const titleIncludes = snaptie.title
-      .toLowerCase()
-      .includes(nameFilter.toLowerCase());
-    const contentIncludes = snaptie.content
-      .toLowerCase()
-      .includes(nameFilter.toLowerCase());
-    const categoryIncludes = snaptie.category
-      .toLowerCase()
-      .includes(nameFilter.toLowerCase());
-    return titleIncludes || contentIncludes || categoryIncludes;
-  }) : [];
+  const matchingSnapdeals = nameFilter
+    ? snapties.filter((snaptie) => {
+        const titleIncludes = snaptie.title
+          .toLowerCase()
+          .includes(nameFilter.toLowerCase());
+        const contentIncludes = snaptie.content
+          .toLowerCase()
+          .includes(nameFilter.toLowerCase());
+        const categoryIncludes = snaptie.category
+          .toLowerCase()
+          .includes(nameFilter.toLowerCase());
+        return titleIncludes || contentIncludes || categoryIncludes;
+      })
+    : [];
 
   // Get categories that contain matching snapdeals (for filtered view)
-  const filteredCategories = matchingSnapdeals.length > 0 ? matchingSnapdeals.reduce((acc, snaptie) => {
-    const category = snaptie.category || t("uncategorized");
-    if (!acc[category]) {
-      acc[category] = [];
+  const filteredCategories =
+    matchingSnapdeals.length > 0
+      ? matchingSnapdeals.reduce((acc, snaptie) => {
+          const category = snaptie.category || t("uncategorized");
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push(snaptie);
+          return acc;
+        }, {} as Record<string, TSnaptie[]>)
+      : {};
+
+  const handleCategoriesNavigation = (key: string) => {
+    const categories = Object.keys(categoriesToShow);
+    if (categories.length === 0) return;
+
+    let newIndex = selectedIndex;
+
+    switch (key) {
+      case "ArrowRight":
+        newIndex = Math.min(selectedIndex + 1, categories.length - 1);
+        break;
+      case "ArrowLeft":
+        newIndex = Math.max(selectedIndex - 1, 0);
+        break;
+      case "ArrowDown":
+        newIndex = Math.min(selectedIndex + 3, categories.length - 1);
+        break;
+      case "ArrowUp":
+        newIndex = Math.max(selectedIndex - 3, 0);
+        break;
     }
-    acc[category].push(snaptie);
-    return acc;
-  }, {} as Record<string, TSnaptie[]>) : {};
+
+    setSelectedIndex(newIndex);
+    setNavigationMode("categories");
+  };
+
+  const handleSnaptiesNavigation = (key: string) => {
+    const currentSnapties = selectedCategory ? filteredSnapties : searchResults;
+    if (currentSnapties.length === 0) return;
+
+    let newIndex = selectedIndex;
+
+    switch (key) {
+      case "ArrowRight":
+        newIndex = Math.min(selectedIndex + 1, currentSnapties.length - 1);
+        break;
+      case "ArrowLeft":
+        newIndex = Math.max(selectedIndex - 1, 0);
+        break;
+      case "ArrowDown":
+        newIndex = Math.min(selectedIndex + 4, currentSnapties.length - 1);
+        break;
+      case "ArrowUp":
+        newIndex = Math.max(selectedIndex - 4, 0);
+        break;
+    }
+
+    setSelectedIndex(newIndex);
+    setNavigationMode("snapties");
+  };
 
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(category);
+    setSelectedIndex(-1); // Reset selection when entering category
+    setNavigationMode("snapties");
     // Don't clear the filter when navigating to category
     // setSearchResults([]);
     // setIsSearching(false);
@@ -118,6 +211,8 @@ export const Snapties = () => {
 
   const handleBackToCategories = () => {
     setSelectedCategory(null);
+    setSelectedIndex(-1); // Reset selection when going back
+    setNavigationMode("categories");
     // Don't clear the filter when going back - preserve search context
     // setNameFilter("");
     setSearchResults([]);
@@ -136,24 +231,60 @@ export const Snapties = () => {
   };
 
   // Use allCategories when navigating to a specific category, filteredCategories when showing filtered view
-  const categoriesToShow = selectedCategory ? allCategories : (nameFilter ? filteredCategories : allCategories);
-  
-  // Apply filter to selected category if there's a filter active
-  const filteredSnapties = selectedCategory ? 
-    (nameFilter ? 
-      allCategories[selectedCategory]?.filter(snaptie => {
-        const titleIncludes = snaptie.title.toLowerCase().includes(nameFilter.toLowerCase());
-        const contentIncludes = snaptie.content.toLowerCase().includes(nameFilter.toLowerCase());
-        const categoryIncludes = snaptie.category.toLowerCase().includes(nameFilter.toLowerCase());
-        return titleIncludes || contentIncludes || categoryIncludes;
-      }) || []
-      : allCategories[selectedCategory] || []
-    ) : [];
+  const categoriesToShow = selectedCategory
+    ? allCategories
+    : nameFilter
+    ? filteredCategories
+    : allCategories;
 
-  // Show search results if there's a search query
-  const showSearchResults = isSearching && searchResults.length > 0;
+  // Apply filter to selected category if there's a filter active
+  const filteredSnapties = selectedCategory
+    ? nameFilter
+      ? allCategories[selectedCategory]?.filter((snaptie) => {
+          const titleIncludes = snaptie.title
+            .toLowerCase()
+            .includes(nameFilter.toLowerCase());
+          const contentIncludes = snaptie.content
+            .toLowerCase()
+            .includes(nameFilter.toLowerCase());
+          const categoryIncludes = snaptie.category
+            .toLowerCase()
+            .includes(nameFilter.toLowerCase());
+          return titleIncludes || contentIncludes || categoryIncludes;
+        }) || []
+      : allCategories[selectedCategory] || []
+    : [];
+
   // Show search results even if empty when there's a search query
   const showSearchView = isSearching && !selectedCategory;
+
+  // Set initial selection when categories or snapties change
+  useEffect(() => {
+    if (selectedCategory || isSearching) {
+      // In snapties view, select first item if available
+      const currentSnapties = selectedCategory
+        ? filteredSnapties
+        : searchResults;
+      if (currentSnapties.length > 0 && selectedIndex === -1) {
+        setSelectedIndex(0);
+        setNavigationMode("snapties");
+      }
+    } else {
+      // In categories view, select first category if available
+      const categories = Object.keys(categoriesToShow);
+      if (categories.length > 0 && selectedIndex === -1) {
+        setSelectedIndex(0);
+        setNavigationMode("categories");
+      }
+    }
+  }, [
+    selectedCategory,
+    isSearching,
+    filteredSnapties,
+    searchResults,
+    categoriesToShow,
+    selectedIndex,
+  ]);
 
   return (
     <Section
@@ -188,17 +319,27 @@ export const Snapties = () => {
               {t("press-q-to-go-back")}
             </span>
           </div>
+          <div className="text-sm text-gray-600 text-center padding-10">
+            {t("use-arrow-keys-to-navigate")}
+          </div>
           {searchResults.length === 0 ? (
             <div className="text-center text-gray-600 padding-20">
               {t("no-snapdeals-found")}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-5">
-              {searchResults.map((snaptie) => (
+              {searchResults.map((snaptie, index) => (
                 <SnaptieCard
                   key={snaptie.id}
                   snaptie={snaptie}
                   deleteSnaptie={deleteSnaptie}
+                  isSelected={
+                    navigationMode === "snapties" && selectedIndex === index
+                  }
+                  onFocus={() => {
+                    setSelectedIndex(index);
+                    setNavigationMode("snapties");
+                  }}
                 />
               ))}
             </div>
@@ -212,34 +353,36 @@ export const Snapties = () => {
               className="padding-5"
               onClick={handleBackToCategories}
               svg={<ArrowLeft size={20} />}
-              text={t("back-to-categories")}
+              title={t("back-to-categories")}
             />
-            <h4 className="font-mono">
-              {selectedCategory}
-              {nameFilter && (
-                <span className="text-sm text-gray-600 ml-2">
-                  ({t("filtered-by")}: "{nameFilter}")
-                </span>
-              )}
-            </h4>
+            <h4 className="font-mono">{selectedCategory}</h4>
             <span className="text-sm text-gray-600 ml-auto">
               {t("press-q-to-go-back")}
             </span>
           </div>
+          <div className="text-sm text-gray-600 text-center padding-10">
+            {t("use-arrow-keys-to-navigate")}
+          </div>
           {filteredSnapties.length === 0 ? (
             <div className="text-center text-gray-600 padding-20">
-              {nameFilter ? 
-                t("no-snapdeals-in-category-with-filter") 
-                : t("no-snapdeals-in-category")
-              }
+              {nameFilter
+                ? t("no-snapdeals-in-category-with-filter")
+                : t("no-snapdeals-in-category")}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-5">
-              {filteredSnapties.map((snaptie) => (
+              {filteredSnapties.map((snaptie, index) => (
                 <SnaptieCard
                   key={snaptie.id}
                   snaptie={snaptie}
                   deleteSnaptie={deleteSnaptie}
+                  isSelected={
+                    navigationMode === "snapties" && selectedIndex === index
+                  }
+                  onFocus={() => {
+                    setSelectedIndex(index);
+                    setNavigationMode("snapties");
+                  }}
                 />
               ))}
             </div>
@@ -282,20 +425,34 @@ export const Snapties = () => {
           <h4 className="font-mono text-center">
             {nameFilter ? t("matching-categories") : t("categories")}
           </h4>
+          <div className="text-sm text-gray-600 text-center padding-10">
+            {t("use-arrow-keys-to-navigate")}
+          </div>
           {Object.keys(categoriesToShow).length === 0 ? (
             <div className="text-center text-gray-600 padding-20">
-              {nameFilter ? t("no-categories-found") : t("no-categories-available")}
+              {nameFilter
+                ? t("no-categories-found")
+                : t("no-categories-available")}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-10">
-              {Object.entries(categoriesToShow).map(([category, categorySnapties]) => (
-                <CategoryCard
-                  key={category}
-                  category={category}
-                  count={(categorySnapties as TSnaptie[]).length}
-                  onClick={() => handleCategoryClick(category)}
-                />
-              ))}
+              {Object.entries(categoriesToShow).map(
+                ([category, categorySnapties], index) => (
+                  <CategoryCard
+                    key={category}
+                    category={category}
+                    count={(categorySnapties as TSnaptie[]).length}
+                    onClick={() => handleCategoryClick(category)}
+                    isSelected={
+                      navigationMode === "categories" && selectedIndex === index
+                    }
+                    onFocus={() => {
+                      setSelectedIndex(index);
+                      setNavigationMode("categories");
+                    }}
+                  />
+                )
+              )}
             </div>
           )}
         </div>
@@ -376,9 +533,13 @@ const SnaptieForm = ({ close }: { close: () => void }) => {
 const SnaptieCard = ({
   snaptie,
   deleteSnaptie,
+  isSelected,
+  onFocus,
 }: {
   snaptie: TSnaptie;
   deleteSnaptie: (id: string) => void;
+  isSelected?: boolean;
+  onFocus?: () => void;
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -391,7 +552,10 @@ const SnaptieCard = ({
   return (
     <div
       style={{ backgroundColor: snaptie.color }}
-      className="padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover pos-relative"
+      className={`padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover pos-relative ${
+        isSelected ? " scale-105" : ""
+      }`}
+      onFocus={onFocus}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           pasteSnaptie();
@@ -443,15 +607,22 @@ const CategoryCard = ({
   category,
   count,
   onClick,
+  isSelected,
+  onFocus,
 }: {
   category: string;
   count: number;
   onClick: () => void;
+  isSelected?: boolean;
+  onFocus?: () => void;
 }) => {
   return (
     <div
-      className="padding-20 border-gray rounded flex-column gap-10 pointer scale-on-hover text-center"
+      className={`padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover text-center ${
+        isSelected ? " bg-active-100 font-bold" : ""
+      }`}
       onClick={onClick}
+      onFocus={onFocus}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           onClick();
@@ -461,8 +632,8 @@ const CategoryCard = ({
       role="button"
       aria-label={`${category} category with ${count} snapdeals`}
     >
-      <h4 className="font-mono text-center">{category}</h4>
-      <div className="text-sm text-gray-600">{count} snapdeals</div>
+      <h4 className="font-mono font-bold text-md text-center">{category}</h4>
+      <div className="text-sm text-gray-400">{count} snapties</div>
     </div>
   );
 };
