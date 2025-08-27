@@ -173,6 +173,21 @@ export const Snapties = () => {
 
     setSelectedIndex(newIndex);
     setNavigationMode("categories");
+
+    // Scroll to keep selected element in view
+    setTimeout(() => {
+      const categoryElements = document.querySelectorAll(
+        "[data-category-index]"
+      );
+      const selectedElement = categoryElements[newIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }, 0);
   };
 
   const handleSnaptiesNavigation = (key: string) => {
@@ -198,6 +213,19 @@ export const Snapties = () => {
 
     setSelectedIndex(newIndex);
     setNavigationMode("snapties");
+
+    // Scroll to keep selected element in view
+    setTimeout(() => {
+      const snaptieElements = document.querySelectorAll("[data-snaptie-index]");
+      const selectedElement = snaptieElements[newIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }, 0);
   };
 
   const handleCategoryClick = (category: string) => {
@@ -340,6 +368,7 @@ export const Snapties = () => {
                     setSelectedIndex(index);
                     setNavigationMode("snapties");
                   }}
+                  index={index}
                 />
               ))}
             </div>
@@ -383,6 +412,7 @@ export const Snapties = () => {
                     setSelectedIndex(index);
                     setNavigationMode("snapties");
                   }}
+                  index={index}
                 />
               ))}
             </div>
@@ -450,6 +480,7 @@ export const Snapties = () => {
                       setSelectedIndex(index);
                       setNavigationMode("categories");
                     }}
+                    index={index}
                   />
                 )
               )}
@@ -535,11 +566,13 @@ const SnaptieCard = ({
   deleteSnaptie,
   isSelected,
   onFocus,
+  index,
 }: {
   snaptie: TSnaptie;
   deleteSnaptie: (id: string) => void;
   isSelected?: boolean;
   onFocus?: () => void;
+  index?: number;
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -563,6 +596,7 @@ const SnaptieCard = ({
       }}
       tabIndex={0}
       role="button"
+      data-snaptie-index={index}
       aria-label={`${snaptie.title} - ${snaptie.category} category. Click to copy content.`}
     >
       <div className="snaptie-bg" onClick={pasteSnaptie}></div>
@@ -609,12 +643,14 @@ const CategoryCard = ({
   onClick,
   isSelected,
   onFocus,
+  index,
 }: {
   category: string;
   count: number;
   onClick: () => void;
   isSelected?: boolean;
   onFocus?: () => void;
+  index?: number;
 }) => {
   return (
     <div
@@ -630,6 +666,7 @@ const CategoryCard = ({
       }}
       tabIndex={0}
       role="button"
+      data-category-index={index}
       aria-label={`${category} category with ${count} snapdeals`}
     >
       <h4 className="font-mono font-bold text-md text-center">{category}</h4>
