@@ -10,12 +10,14 @@ import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
+import { Select } from "../../../components/Select/Select";
 import { RenderMarkdown } from "../../../components/RenderMarkdown/RenderMarkdown";
 
 export default function SnaptieDetail() {
   const formRef = useRef<HTMLFormElement>(null);
   const [snaptie, setSnaptie] = useState<TSnaptie | null>(null);
   const [usedColors, setUsedColors] = useState<string[]>([]);
+  const [usedCategories, setUsedCategories] = useState<string[]>([]);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
 
   const navigate = useNavigate();
@@ -34,14 +36,21 @@ export default function SnaptieDetail() {
     setUsedColors([
       ...new Set(
         snapties
-          .filter((color: string) => color !== undefined)
+          .filter((snaptie: TSnaptie) => snaptie.color !== undefined)
           .map((snaptie: TSnaptie) => snaptie.color)
+      ),
+    ] as string[]);
+
+    setUsedCategories([
+      ...new Set(
+        snapties
+          .filter((snaptie: TSnaptie) => snaptie.category && snaptie.category.trim() !== "")
+          .map((snaptie: TSnaptie) => snaptie.category)
       ),
     ] as string[]);
   };
 
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
-    console.log("saveSnaptie");
     e.preventDefault();
     if (!snaptie) return;
     const prevSnapties = await ChromeStorageManager.get("snapties");
@@ -116,21 +125,31 @@ export default function SnaptieDetail() {
                 onChange={(e) => {
                   if (!snaptie) return;
                   setSnaptie({ ...snaptie, content: e });
+                  if (e.startsWith("http") || e.startsWith("file")) {
+                    setSnaptie({ ...snaptie, isUrl: true });
+                  } else {
+                    setSnaptie({ ...snaptie, isUrl: false });
+                  }
                 }}
               />
             </div>
           )}
 
-          <LabeledInput
-            name="category"
-            label={t("category")}
-            type="text"
-            value={snaptie?.category || ""}
-            onChange={(e) => {
-              if (!snaptie) return;
-              setSnaptie({ ...snaptie, category: e });
-            }}
-          />
+          <div className="flex-column gap-5">
+            <label className="color-secondary">{t("category")}</label>
+            <Select
+              name="category"
+              options={[
+                { label: t("select-category") || "Select category", value: "" },
+                ...usedCategories.map(category => ({ label: category, value: category }))
+              ]}
+              defaultValue={snaptie?.category || ""}
+              onChange={(value) => {
+                if (!snaptie) return;
+                setSnaptie({ ...snaptie, category: value });
+              }}
+            />
+          </div>
           <div className="flex-row gap-10 align-center">
             <span className="color-label">{t("color")}</span>
             <input

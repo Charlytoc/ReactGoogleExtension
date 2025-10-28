@@ -320,4 +320,17 @@ chrome.commands.onCommand.addListener(async (command) => {
             })
         }
     }
+
+    if (command === "open-automator") {
+        // Open the extension popup (open a new window/tab pointing to the popup page)
+        const popupUrl = chrome.runtime.getURL('index.html')
+        // Try to focus an existing tab with the popup, otherwise create one
+        const tabs = await chrome.tabs.query({ url: popupUrl })
+        if (tabs && tabs.length > 0) {
+            await chrome.tabs.update(tabs[0].id, { active: true })
+            await chrome.windows.update(tabs[0].windowId, { focused: true })
+        } else {
+            await chrome.tabs.create({ url: popupUrl })
+        }
+    }
 })

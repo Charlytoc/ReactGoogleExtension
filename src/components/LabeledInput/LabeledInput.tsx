@@ -33,6 +33,7 @@ export const LabeledInput = ({
   autoFocus = false,
   required = false,
   onChange = () => {},
+  onKeyDown = () => {},
   readOnly = false,
   aiButton = false,
   getAIContext = () => "",
@@ -52,6 +53,7 @@ export const LabeledInput = ({
   aiButton?: boolean;
   getAIContext?: () => string;
   onChange?: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   fillPrompt?: (currentValue: string, inputData: string) => string;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +131,7 @@ export const LabeledInput = ({
         value={value}
         defaultValue={defaultValue}
         onChange={(e) => onChange?.(e.target.value)}
+        onKeyDown={onKeyDown}
         required={required}
         readOnly={readOnly}
       />

@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { TSnaptie } from "../../types";
 import { ChromeStorageManager } from "../../managers/Storage";
-import { cacheLocation, generateRandomId, isUrl } from "../../utils/lib";
+import { cacheLocation, generateRandomId } from "../../utils/lib";
 import { Button } from "../Button/Button";
 import { Section } from "../Section/Section";
 import { useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
-import { Textarea } from "../Textarea/Textarea";
 import {
   Search,
   X,
@@ -17,20 +16,18 @@ import {
   ExternalLink,
   Trash2,
   Edit3,
-  Copy,
 } from "lucide-react";
 
 export const Snapties = () => {
   const [snapties, setSnapties] = useState<TSnaptie[]>([]);
-  const [showForm, setShowForm] = useState(false);
   const [nameFilter, setNameFilter] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<TSnaptie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [navigationMode, setNavigationMode] = useState<
-    "categories" | "snapties"
-  >("categories");
+    "search" | "categories" | "snapties"
+  >("search");
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -42,7 +39,7 @@ export const Snapties = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Only handle 'q' key when not in form and when we can go back
-      if (e.key === "q" && !showForm && (selectedCategory || isSearching)) {
+      if (e.key === "q" && (selectedCategory || isSearching)) {
         e.preventDefault();
         if (selectedCategory) {
           handleBackToCategories();
@@ -53,7 +50,6 @@ export const Snapties = () => {
     };
 
     const handleArrowKeys = (e: KeyboardEvent) => {
-      if (showForm) return; // Don't handle navigation when form is open
 
       if (
         e.key === "ArrowUp" ||
@@ -62,6 +58,32 @@ export const Snapties = () => {
         e.key === "ArrowRight"
       ) {
         e.preventDefault();
+
+        // Check if we're in the search input
+        if (e.target instanceof HTMLInputElement && e.target.name === "name-filter") {
+          if (e.key === "ArrowDown") {
+            // Move from search input to first category
+            const searchInput = e.target;
+            searchInput.blur(); // Remove focus from input
+            setSelectedIndex(0);
+            setNavigationMode("categories");
+            
+            // Focus the first category element
+            setTimeout(() => {
+              const categoryElements = document.querySelectorAll("[data-category-index]");
+              const firstCategory = categoryElements[0] as HTMLElement;
+              if (firstCategory) {
+                firstCategory.focus();
+                firstCategory.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                  inline: "center",
+                });
+              }
+            }, 0);
+          }
+          return;
+        }
 
         if (selectedCategory || isSearching) {
           // Navigation in snapties view
@@ -73,19 +95,70 @@ export const Snapties = () => {
       }
     };
 
+    const handleEnterKey = (e: KeyboardEvent) => {
+
+      // Don't interfere with form submission (search form)
+      if (e.target instanceof HTMLInputElement && e.target.name === "name-filter") {
+        return; // Let the form handle the submission
+      }
+
+      // Don't handle if the event is coming from a snaptie card (it has its own handler)
+      if (e.target instanceof HTMLElement && e.target.hasAttribute('data-snaptie-index')) {
+        return; // Let the snaptie card handle it
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        
+        if (navigationMode === "categories" && selectedIndex >= 0) {
+          // Enter selected category
+          const categories = Object.keys(categoriesToShow);
+          if (categories[selectedIndex]) {
+            handleCategoryClick(categories[selectedIndex]);
+          }
+        }
+      }
+    };
+
+    const handleSpaceKey = (e: KeyboardEvent) => {
+
+      // Don't handle if the event is coming from a snaptie card (it has its own handler)
+      if (e.target instanceof HTMLElement && e.target.hasAttribute('data-snaptie-index')) {
+        return; // Let the snaptie card handle it
+      }
+
+      if (e.key === " ") {
+        e.preventDefault();
+        
+        if (navigationMode === "snapties" && selectedIndex >= 0) {
+          // Copy selected snaptie content
+          const currentSnapties = selectedCategory ? filteredSnapties : searchResults;
+          if (currentSnapties[selectedIndex]) {
+            navigator.clipboard.writeText(currentSnapties[selectedIndex].content);
+            toast.success(t("snaptie.copied"));
+          }
+        }
+      }
+    };
+
     document.addEventListener("keydown", handleKeyPress);
     document.addEventListener("keydown", handleArrowKeys);
+    document.addEventListener("keydown", handleEnterKey);
+    document.addEventListener("keydown", handleSpaceKey);
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
       document.removeEventListener("keydown", handleArrowKeys);
+      document.removeEventListener("keydown", handleEnterKey);
+      document.removeEventListener("keydown", handleSpaceKey);
     };
   }, [
-    showForm,
     selectedCategory,
     isSearching,
     selectedIndex,
     snapties,
     searchResults,
+    navigationMode,
+    t,
   ]);
 
   const getSnapties = async () => {
@@ -95,9 +168,31 @@ export const Snapties = () => {
     }
   };
 
-  const closeAndRefresh = () => {
-    setShowForm(false);
-    getSnapties();
+
+  const addSnaptie = async () => {
+    const bodyElement = document.body;
+    const styles = getComputedStyle(bodyElement);
+    const cssVariableValue = styles.getPropertyValue("--bg-color");
+
+    const defaultSnaptie: TSnaptie = {
+      id: generateRandomId("snaptie"),
+      title: "",
+      content: "",
+      category: "",
+      color: cssVariableValue,
+      createdAt: new Date().toISOString(),
+      isUrl: false,
+    };
+
+    const previousSnapties = await ChromeStorageManager.get("snapties");
+    if (previousSnapties) {
+      ChromeStorageManager.add("snapties", [...previousSnapties, defaultSnaptie]);
+    } else {
+      ChromeStorageManager.add("snapties", [defaultSnaptie]);
+    }
+    
+    cacheLocation(`/snapties/${defaultSnaptie.id}`, "/snapties");
+    navigate(`/snapties/${defaultSnaptie.id}`);
   };
 
   const deleteSnaptie = async (id: string) => {
@@ -167,6 +262,16 @@ export const Snapties = () => {
         newIndex = Math.min(selectedIndex + 3, categories.length - 1);
         break;
       case "ArrowUp":
+        // If we're in the first row (index 0, 1, 2) and press up, focus the search field
+        if (selectedIndex <= 2) {
+          const searchInput = document.querySelector('input[name="name-filter"]') as HTMLInputElement;
+          if (searchInput) {
+            searchInput.focus();
+            setSelectedIndex(-1);
+            setNavigationMode("search");
+            return;
+          }
+        }
         newIndex = Math.max(selectedIndex - 3, 0);
         break;
     }
@@ -174,13 +279,14 @@ export const Snapties = () => {
     setSelectedIndex(newIndex);
     setNavigationMode("categories");
 
-    // Scroll to keep selected element in view
+    // Focus the selected element and scroll to keep it in view
     setTimeout(() => {
       const categoryElements = document.querySelectorAll(
         "[data-category-index]"
       );
       const selectedElement = categoryElements[newIndex] as HTMLElement;
       if (selectedElement) {
+        selectedElement.focus();
         selectedElement.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -214,11 +320,12 @@ export const Snapties = () => {
     setSelectedIndex(newIndex);
     setNavigationMode("snapties");
 
-    // Scroll to keep selected element in view
+    // Focus the selected element and scroll to keep it in view
     setTimeout(() => {
       const snaptieElements = document.querySelectorAll("[data-snaptie-index]");
       const selectedElement = snaptieElements[newIndex] as HTMLElement;
       if (selectedElement) {
+        selectedElement.focus();
         selectedElement.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -296,13 +403,29 @@ export const Snapties = () => {
       if (currentSnapties.length > 0 && selectedIndex === -1) {
         setSelectedIndex(0);
         setNavigationMode("snapties");
+        // Focus the first snaptie
+        setTimeout(() => {
+          const snaptieElements = document.querySelectorAll("[data-snaptie-index]");
+          const firstSnaptie = snaptieElements[0] as HTMLElement;
+          if (firstSnaptie) {
+            firstSnaptie.focus();
+          }
+        }, 0);
       }
-    } else {
+    } else if (navigationMode !== "search") {
       // In categories view, select first category if available
       const categories = Object.keys(categoriesToShow);
       if (categories.length > 0 && selectedIndex === -1) {
         setSelectedIndex(0);
         setNavigationMode("categories");
+        // Focus the first category
+        setTimeout(() => {
+          const categoryElements = document.querySelectorAll("[data-category-index]");
+          const firstCategory = categoryElements[0] as HTMLElement;
+          if (firstCategory) {
+            firstCategory.focus();
+          }
+        }, 0);
       }
     }
   }, [
@@ -312,6 +435,7 @@ export const Snapties = () => {
     searchResults,
     categoriesToShow,
     selectedIndex,
+    navigationMode,
   ]);
 
   return (
@@ -325,14 +449,12 @@ export const Snapties = () => {
       headerRight={
         <Button
           className="padding-5"
-          onClick={() => setShowForm(!showForm)}
-          svg={showForm ? <X size={20} /> : <Plus size={20} />}
+          onClick={addSnaptie}
+          svg={<Plus size={20} />}
         />
       }
     >
-      {showForm ? (
-        <SnaptieForm close={closeAndRefresh} />
-      ) : showSearchView ? (
+      {showSearchView ? (
         // Show search results
         <div className="flex-column gap-10">
           <div className="flex-row gap-10 align-center">
@@ -429,6 +551,9 @@ export const Snapties = () => {
               name="name-filter"
               type="text"
               placeholder={t("search")}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+              }}
               value={nameFilter}
               onChange={(e) => setNameFilter(e)}
             />
@@ -492,74 +617,6 @@ export const Snapties = () => {
   );
 };
 
-const SnaptieForm = ({ close }: { close: () => void }) => {
-  const { t } = useTranslation();
-  const [color, setColor] = useState<string>("#09090d");
-  const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const title = formData.get("title") as string;
-    const content = formData.get("content") as string;
-    const category = formData.get("category") as string;
-    const color = formData.get("color") as string;
-
-    const newSnaptie = {
-      id: generateRandomId("snaptie"),
-      title,
-      content,
-      category,
-      createdAt: new Date().toISOString(),
-      isUrl: isUrl(content),
-      color,
-    };
-    toast.success(t("snaptie-saved"));
-    const previousSnapties = await ChromeStorageManager.get("snapties");
-    if (previousSnapties) {
-      ChromeStorageManager.add("snapties", [...previousSnapties, newSnaptie]);
-    } else {
-      ChromeStorageManager.add("snapties", [newSnaptie]);
-    }
-    close();
-  };
-
-  return (
-    <form onSubmit={saveSnaptie} className="flex-column gap-10 rounded">
-      <LabeledInput
-        label={t("title")}
-        name="title"
-        type="text"
-        placeholder={t("my-snaptie")}
-      />
-      <Textarea
-        placeholder={t("something-I-want-to-remember-or-copy-easily")}
-        label={t("content")}
-        name="content"
-      />
-      <LabeledInput
-        label={t("category")}
-        name="category"
-        type="text"
-        placeholder={t("passwords-links-etc")}
-      />
-      <div className="flex-row gap-10">
-        <span>{t("color")}</span>
-        <input
-          type="color"
-          name="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
-      </div>
-
-      <Button
-        type="submit"
-        className="w-100 padding-5 justify-center"
-        text={t("save")}
-        svg={<Copy size={20} />}
-      />
-    </form>
-  );
-};
 
 const SnaptieCard = ({
   snaptie,
@@ -582,6 +639,10 @@ const SnaptieCard = ({
     toast.success(t("snaptie.copied"));
   };
 
+  const openLink = () => {
+    window.open(snaptie.content, "_blank");
+  };
+
   return (
     <div
       style={{ backgroundColor: snaptie.color }}
@@ -591,13 +652,21 @@ const SnaptieCard = ({
       onFocus={onFocus}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          e.preventDefault();
+          if (snaptie.isUrl) {
+            openLink();
+          } else {
+            pasteSnaptie();
+          }
+        } else if (e.key === " ") {
+          e.preventDefault();
           pasteSnaptie();
         }
       }}
       tabIndex={0}
       role="button"
       data-snaptie-index={index}
-      aria-label={`${snaptie.title} - ${snaptie.category} category. Click to copy content.`}
+      aria-label={`${snaptie.title} - ${snaptie.category} category. ${snaptie.isUrl ? 'Press Enter to open link, Space to copy. Click to copy content.' : 'Press Enter or Space to copy content. Click to copy content.'}`}
     >
       <div className="snaptie-bg" onClick={pasteSnaptie}></div>
       <h4 className="text-center">{snaptie.title.slice(0, 20)}</h4>

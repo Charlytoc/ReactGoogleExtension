@@ -23,10 +23,19 @@
   "commands": {
     "auto-complete": {
       "suggested_key": {
+        "windows": "Ctrl+Shift+V",
         "default": "Ctrl+Shift+V",
         "mac": "Command+Shift+V"
       },
       "description": "Trigger AutoComplete"
+    },
+    "open-automator": {
+      "suggested_key": {
+        "windows": "Ctrl+Shift+Y",
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Open Automator popup"
     }
   },
   "background": {
