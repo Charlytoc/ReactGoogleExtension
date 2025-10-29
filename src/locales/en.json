@@ -177,5 +177,8 @@
     "estimatedTimeNotSet": "Estimated time not set, please set it first",
     "done": "Done",
     "inProgress": "In progress",
-    "todo": "To do"
+    "todo": "To do",
+    "name-filter-stored": "Name filter stored",
+    "persist-search": "Persist search",
+    "persist-search-tooltip": "Persist search filter and show matching categories"
 }

@@ -370,6 +370,18 @@ export const Snapties = () => {
     }
   };
 
+  const clearSearch = () => {
+    setNameFilter("");
+    storeNameFilter("");
+    setSearchResults([]);
+    setIsSearching(false);
+  };
+
+   const persistSearch = () => {
+    storeNameFilter(nameFilter);
+    toast.success(t("name-filter-stored"));
+   };
+
   // Use allCategories when navigating to a specific category, filteredCategories when showing filtered view
   const categoriesToShow = selectedCategory
     ? allCategories
@@ -574,11 +586,13 @@ export const Snapties = () => {
               <>
                 <Button
                   className="padding-5"
+                  onKeyUp={(e) => {
+                    if (e.key === "Enter") {
+                      clearSearch();
+                    }
+                  }}
                   onClick={() => {
-                    setNameFilter("");
-                    storeNameFilter("");
-                    // setSearchResults([]);
-                    // setIsSearching(false);
+                    clearSearch();
                   }}
                   svg={<X size={20} />}
                   aria-label={t("clear-search")}
@@ -586,12 +600,17 @@ export const Snapties = () => {
                 />
                 <Button
                   className="padding-5"
+                  onKeyUp={(e) => {
+                    if (e.key === "Enter") {
+                      persistSearch();
+                    }
+                  }}
                   onClick={() => {
-                    storeNameFilter(nameFilter);
+                    persistSearch();
                   }}
                   svg={<Save size={20} />}
                   aria-label={t("persist-search")}
-                  title={t("persist-search")}
+                  title={t("persist-search-tooltip")}
                 />
               </>
             )}
