@@ -124,12 +124,8 @@ export default function SnaptieDetail() {
                 defaultValue={snaptie?.content || ""}
                 onChange={(e) => {
                   if (!snaptie) return;
-                  setSnaptie({ ...snaptie, content: e });
-                  if (e.startsWith("http") || e.startsWith("file")) {
-                    setSnaptie({ ...snaptie, isUrl: true });
-                  } else {
-                    setSnaptie({ ...snaptie, isUrl: false });
-                  }
+                  const isUrl = e.startsWith("http") || e.startsWith("file");
+                  setSnaptie({ ...snaptie, content: e, isUrl: isUrl });
                 }}
               />
             </div>
