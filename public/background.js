@@ -196,6 +196,11 @@ chrome.runtime.onInstalled.addListener(() => {
         title: "Auto Complete",
         contexts: ["all"],
     })
+    chrome.contextMenus.create({
+        id: "translate-selection",
+        title: "Translate to English",
+        contexts: ["selection"],
+    })
 })
 
 
@@ -268,16 +273,110 @@ async function autoComplete() {
     }
 }
 
+async function translateSelection() {
+    const activeElem = document.activeElement
+
+    // Get selected text from the active element
+    let selectedText = ""
+    const isTextInput = activeElem && (
+        activeElem.tagName === "TEXTAREA" ||
+        (activeElem.tagName === "INPUT" && ["text", "search", "email", "url", "tel"].includes(
+            (activeElem.getAttribute("type") || "text").toLowerCase()
+        ))
+    )
+
+    if (isTextInput) {
+        selectedText = activeElem.value.substring(activeElem.selectionStart, activeElem.selectionEnd)
+    } else if (window.getSelection) {
+        selectedText = window.getSelection().toString()
+    }
+
+    if (!selectedText.trim()) {
+        chrome.runtime.sendMessage({
+            action: "notify",
+            title: "No Selection",
+            message: "Please select some text to translate."
+        })
+        return
+    }
+
+    chrome.runtime.sendMessage({
+        action: "generateCompletion",
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "system",
+                content: `You are a translator. Translate the given text to English. Return ONLY the translated text, nothing else. No quotes, no explanations, no notes. Preserve the original formatting (line breaks, punctuation, etc.).`
+            },
+            {
+                role: "user",
+                content: selectedText
+            }
+        ],
+        max_completion_tokens: 1000,
+        temperature: 0.3,
+        response_format: { type: "text" }
+    }, (translated) => {
+        if (!translated) return
+        translated = translated.replace(/^"|"$/g, '')
+
+        // Case 1: input/textarea
+        if (isTextInput) {
+            const start = activeElem.selectionStart
+            const end = activeElem.selectionEnd
+            const value = activeElem.value
+            activeElem.value = value.slice(0, start) + translated + value.slice(end)
+
+            const pos = start + translated.length
+            activeElem.setSelectionRange(pos, pos)
+
+            activeElem.dispatchEvent(new Event("input", { bubbles: true }))
+            activeElem.dispatchEvent(new Event("change", { bubbles: true }))
+            return
+        }
+
+        // Case 2: contenteditable
+        if (activeElem && activeElem.isContentEditable) {
+            const sel = window.getSelection()
+            if (!sel || sel.rangeCount === 0) return
+
+            const range = sel.getRangeAt(0)
+            range.deleteContents()
+
+            const node = document.createTextNode(translated)
+            range.insertNode(node)
+
+            range.setStartAfter(node)
+            range.setEndAfter(node)
+            sel.removeAllRanges()
+            sel.addRange(range)
+            return
+        }
+
+        // Not editable - notify user with the translation
+        chrome.runtime.sendMessage({
+            action: "notify",
+            title: "Translation",
+            message: translated
+        })
+    })
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId === "auto-complete") {
-
         await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: autoComplete,
             injectImmediately: true
         })
+    }
 
-
+    if (info.menuItemId === "translate-selection") {
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: translateSelection,
+            injectImmediately: true
+        })
     }
 })
 
@@ -316,6 +415,18 @@ chrome.commands.onCommand.addListener(async (command) => {
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: autoComplete,
+                injectImmediately: true
+            })
+        }
+    }
+
+    if (command === "translate-selection") {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+
+        if (tab) {
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: translateSelection,
                 injectImmediately: true
             })
         }

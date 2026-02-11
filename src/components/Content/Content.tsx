@@ -21,6 +21,15 @@ export const Content = () => {
           }}
         />
         <Button
+          text={t("formatters")}
+          className="padding-20 active-on-hover border-gray rounded font-bold"
+          svg={SVGS.random}
+          onClick={() => {
+            cacheLocation("/formatters");
+            navigate("/formatters");
+          }}
+        />
+        <Button
           text={t("snapties")}
           className="padding-20 active-on-hover border-gray rounded font-bold"
           svg={SVGS.pin}

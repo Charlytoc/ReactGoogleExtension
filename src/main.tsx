@@ -14,6 +14,8 @@ import SnaptieDetail from "./routes/snapties/detail/page.tsx";
 import TaskDetail from "./routes/tasks/detail/page.tsx";
 import Calendar from "./components/Calendar/Calendar.tsx";
 import { Toaster } from "react-hot-toast";
+import FormattersPage from "./routes/formatters/page.tsx";
+import FormatterDetail from "./routes/formatters/detail/page.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -31,6 +33,8 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/snapties" element={<Snapties />} />
         <Route path="/snapties/:id" element={<SnaptieDetail />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/formatters" element={<FormattersPage />} />
+        <Route path="/formatters/:id" element={<FormatterDetail />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

@@ -34,6 +34,7 @@ export const LabeledInput = ({
   required = false,
   onChange = () => {},
   onKeyDown = () => {},
+  onPaste = () => {},
   readOnly = false,
   aiButton = false,
   getAIContext = () => "",
@@ -54,6 +55,7 @@ export const LabeledInput = ({
   getAIContext?: () => string;
   onChange?: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   fillPrompt?: (currentValue: string, inputData: string) => string;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +134,7 @@ export const LabeledInput = ({
         defaultValue={defaultValue}
         onChange={(e) => onChange?.(e.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
         required={required}
         readOnly={readOnly}
       />
