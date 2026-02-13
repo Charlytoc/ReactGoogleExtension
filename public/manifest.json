@@ -44,6 +44,14 @@
         "mac": "Command+Shift+L"
       },
       "description": "Translate selection to English"
+    },
+    "check-grammar": {
+      "suggested_key": {
+        "windows": "Ctrl+Shift+G",
+        "default": "Ctrl+Shift+G",
+        "mac": "Command+Shift+G"
+      },
+      "description": "Fix grammar of selected text"
     }
   },
   "background": {

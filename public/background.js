@@ -99,14 +99,42 @@ const createRandomId = () => {
     )
 }
 
-const notify = (title, message) => {
-    chrome.notifications.create(createRandomId(), {
+const notify = (title, message, { copyable = false } = {}) => {
+    const id = createRandomId()
+    chrome.notifications.create(id, {
         title: title,
-        message: message,
+        message: copyable ? message + "\n\n(Click to copy)" : message,
         iconUrl: "icons/icon.png",
         type: "basic",
     })
+    if (copyable) {
+        pendingCopies.set(id, message)
+    }
 }
+
+// Store text that can be copied when clicking a notification
+const pendingCopies = new Map()
+
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+    const textToCopy = pendingCopies.get(notificationId)
+    if (!textToCopy) return
+
+    pendingCopies.delete(notificationId)
+    chrome.notifications.clear(notificationId)
+
+    // Copy to clipboard via the active tab (service workers can't access clipboard directly)
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (tab) {
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (text) => navigator.clipboard.writeText(text),
+            args: [textToCopy],
+            injectImmediately: true
+        })
+    }
+
+    notify("Copied!", "Translation copied to clipboard.")
+})
 
 const retrieveFromLs = async (key, callback) => {
     const result = await ChromeStorageManager.get(key)
@@ -199,6 +227,11 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
         id: "translate-selection",
         title: "Translate to English",
+        contexts: ["selection"],
+    })
+    chrome.contextMenus.create({
+        id: "check-grammar",
+        title: "Fix Grammar",
         contexts: ["selection"],
     })
 })
@@ -353,11 +386,101 @@ async function translateSelection() {
             return
         }
 
-        // Not editable - notify user with the translation
+        // Not editable - notify user with the translation (clickable to copy)
         chrome.runtime.sendMessage({
             action: "notify",
             title: "Translation",
-            message: translated
+            message: translated,
+            copyable: true
+        })
+    })
+}
+
+async function checkGrammar() {
+    const activeElem = document.activeElement
+
+    let selectedText = ""
+    const isTextInput = activeElem && (
+        activeElem.tagName === "TEXTAREA" ||
+        (activeElem.tagName === "INPUT" && ["text", "search", "email", "url", "tel"].includes(
+            (activeElem.getAttribute("type") || "text").toLowerCase()
+        ))
+    )
+
+    if (isTextInput) {
+        selectedText = activeElem.value.substring(activeElem.selectionStart, activeElem.selectionEnd)
+    } else if (window.getSelection) {
+        selectedText = window.getSelection().toString()
+    }
+
+    if (!selectedText.trim()) {
+        chrome.runtime.sendMessage({
+            action: "notify",
+            title: "No Selection",
+            message: "Please select some text to fix."
+        })
+        return
+    }
+
+    chrome.runtime.sendMessage({
+        action: "generateCompletion",
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "system",
+                content: `You are a grammar and spelling corrector. Fix the grammar, spelling, and punctuation of the given text. Keep the SAME language as the original — do NOT translate. Return ONLY the corrected text, nothing else. No quotes, no explanations, no notes. Preserve the original meaning and tone. If the text is already correct, return it unchanged.`
+            },
+            {
+                role: "user",
+                content: selectedText
+            }
+        ],
+        max_completion_tokens: 1000,
+        temperature: 0.2,
+        response_format: { type: "text" }
+    }, (corrected) => {
+        if (!corrected) return
+        corrected = corrected.replace(/^"|"$/g, '')
+
+        // Case 1: input/textarea
+        if (isTextInput) {
+            const start = activeElem.selectionStart
+            const end = activeElem.selectionEnd
+            const value = activeElem.value
+            activeElem.value = value.slice(0, start) + corrected + value.slice(end)
+
+            const pos = start + corrected.length
+            activeElem.setSelectionRange(pos, pos)
+
+            activeElem.dispatchEvent(new Event("input", { bubbles: true }))
+            activeElem.dispatchEvent(new Event("change", { bubbles: true }))
+            return
+        }
+
+        // Case 2: contenteditable
+        if (activeElem && activeElem.isContentEditable) {
+            const sel = window.getSelection()
+            if (!sel || sel.rangeCount === 0) return
+
+            const range = sel.getRangeAt(0)
+            range.deleteContents()
+
+            const node = document.createTextNode(corrected)
+            range.insertNode(node)
+
+            range.setStartAfter(node)
+            range.setEndAfter(node)
+            sel.removeAllRanges()
+            sel.addRange(range)
+            return
+        }
+
+        // Not editable - notify with the corrected text (clickable to copy)
+        chrome.runtime.sendMessage({
+            action: "notify",
+            title: "Grammar Fix",
+            message: corrected,
+            copyable: true
         })
     })
 }
@@ -375,6 +498,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: translateSelection,
+            injectImmediately: true
+        })
+    }
+
+    if (info.menuItemId === "check-grammar") {
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: checkGrammar,
             injectImmediately: true
         })
     }
@@ -401,7 +532,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === "notify") {
-        notify(request.title, request.message)
+        notify(request.title, request.message, { copyable: !!request.copyable })
     }
 })
 
@@ -427,6 +558,18 @@ chrome.commands.onCommand.addListener(async (command) => {
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: translateSelection,
+                injectImmediately: true
+            })
+        }
+    }
+
+    if (command === "check-grammar") {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+
+        if (tab) {
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: checkGrammar,
                 injectImmediately: true
             })
         }
