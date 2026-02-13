@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -10,6 +10,14 @@ import { Button } from "../Button/Button";
 import { Section } from "../Section/Section";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import { SVGS } from "../../assets/svgs";
+import {
+  UnstyledButton,
+  Text,
+  Group,
+  Stack,
+  ActionIcon,
+} from "@mantine/core";
+import { IconCheck, IconCode, IconTrash } from "@tabler/icons-react";
 
 export const Formatters = () => {
   const [formatters, setFormatters] = useState<TFormatter[]>([]);
@@ -60,7 +68,8 @@ export const Formatters = () => {
     navigate(`/formatters/${defaultFormatter.id}`);
   };
 
-  const deleteFormatter = async (id: string) => {
+  const deleteFormatter = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     const newFormatters = formatters.filter((f) => f.id !== id);
     await ChromeStorageManager.add("formatters", newFormatters);
     setFormatters(newFormatters);
@@ -91,39 +100,42 @@ export const Formatters = () => {
         />
       }
     >
-      <div className="flex-column gap-10 padding-10">
-        <div className="flex-row gap-10">
-          <LabeledInput
-            className="w-100"
-            label={t("filter-by-name")}
-            name="name-filter-formatters"
-            type="text"
-            placeholder={t("search")}
-            value={nameFilter}
-            onChange={(value) => setNameFilter(value)}
-          />
-        </div>
+      <Stack gap="sm" p="sm">
+        <LabeledInput
+          className="w-100"
+          label={t("filter-by-name")}
+          name="name-filter-formatters"
+          type="text"
+          placeholder={t("search")}
+          value={nameFilter}
+          onChange={(value) => setNameFilter(value)}
+        />
 
         {filteredFormatters.length === 0 ? (
-          <div className="text-center text-gray-600 padding-20">
-            {formatters.length === 0 ? t("no-categories-available") : t("no-snapdeals-found")}
-          </div>
+          <Text c="dimmed" ta="center" py="xl" size="sm">
+            {formatters.length === 0
+              ? t("no-categories-available")
+              : t("no-snapdeals-found")}
+          </Text>
         ) : (
-          <div className="grid grid-cols-3 gap-10">
+          <Stack gap={6}>
             {filteredFormatters.map((formatter) => (
               <FormatterCard
                 key={formatter.id}
                 formatter={formatter}
                 onDelete={deleteFormatter}
                 onOpen={() => {
-                  cacheLocation(`/formatters/${formatter.id}`, "/formatters");
+                  cacheLocation(
+                    `/formatters/${formatter.id}`,
+                    "/formatters"
+                  );
                   navigate(`/formatters/${formatter.id}`);
                 }}
               />
             ))}
-          </div>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </Section>
   );
 };
@@ -134,36 +146,53 @@ const FormatterCard = ({
   onOpen,
 }: {
   formatter: TFormatter;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
   onOpen: () => void;
 }) => {
-  const inputLabels = formatter.inputs.map((input) => input.label).join(", ");
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirming) {
+      clearTimeout(timerRef.current);
+      onDelete(formatter.id, e);
+    } else {
+      setConfirming(true);
+      timerRef.current = setTimeout(() => setConfirming(false), 2500);
+    }
+  };
 
   return (
-    <div
-      className="padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover pos-relative"
-      style={{ backgroundColor: formatter.color || "var(--bg-color-secondary)" }}
+    <UnstyledButton
       onClick={onOpen}
+      style={{
+        border: "1px solid var(--opaque-gray-color)",
+        borderRadius: 8,
+        padding: "10px 14px",
+        transition: "background-color 0.15s",
+      }}
     >
-      <h4 className="font-mono text-center">{formatter.title || "Formatter"}</h4>
-      {formatter.description && (
-        <p className="text-sm text-gray-200 line-clamp-2">{formatter.description}</p>
-      )}
-      <div className="text-xs text-gray-300 font-mono">
-        {inputLabels && <div>Inputs: {inputLabels}</div>}
-        {formatter.prompt && (
-          <div className="line-clamp-2">{formatter.prompt}</div>
-        )}
-      </div>
-      <div className="flex-row gap-5 justify-end">
-        <Button
-          className="padding-5"
-          svg={SVGS.trash}
-          onClick={() => {
-            onDelete(formatter.id);
-          }}
-        />
-      </div>
-    </div>
+      <Group justify="space-between" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+          <IconCode
+            size={18}
+            style={{ flexShrink: 0, opacity: 0.5 }}
+          />
+          <Text size="sm" fw={500} truncate>
+            {formatter.title || "Untitled"}
+          </Text>
+        </Group>
+
+        <ActionIcon
+          variant="subtle"
+          color={confirming ? "red" : "gray"}
+          size="sm"
+          onClick={handleDelete}
+        >
+          {confirming ? <IconCheck size={15} /> : <IconTrash size={15} />}
+        </ActionIcon>
+      </Group>
+    </UnstyledButton>
   );
 };

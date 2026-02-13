@@ -9,15 +9,15 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import {
-  Search,
-  X,
-  ArrowLeft,
-  Plus,
-  ExternalLink,
-  Trash2,
-  Edit3,
-  Save,
-} from "lucide-react";
+  IconSearch as Search,
+  IconX as X,
+  IconArrowLeft as ArrowLeft,
+  IconPlus as Plus,
+  IconExternalLink as ExternalLink,
+  IconTrash as Trash2,
+  IconEdit as Edit3,
+  IconDeviceFloppy as Save,
+} from "@tabler/icons-react";
 
 export const Snapties = () => {
   const [snapties, setSnapties] = useState<TSnaptie[]>([]);

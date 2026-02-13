@@ -1,0 +1,38 @@
+/* ─── Home navigation cards ─── */
+
+.nav-card {
+  border: 1px solid var(--opaque-gray-color);
+  border-radius: 10px;
+  padding: 18px 12px;
+  transition: all 0.15s ease;
+  color: var(--font-color);
+  background-color: transparent;
+}
+
+.nav-card:hover {
+  background-color: var(--bg-color-secondary);
+  border-color: var(--font-color-secondary);
+}
+
+.nav-card:active {
+  transform: scale(0.98);
+  background-color: var(--bg-color-secondary);
+}
+
+/* Hero chat button — subtle accent, not a solid color block */
+.nav-card--hero {
+  border-color: var(--active-color-10);
+  background-color: var(--active-color-10);
+  padding: 22px 12px;
+}
+
+.nav-card--hero:hover {
+  background-color: color-mix(in srgb, var(--active-color) 20%, transparent);
+  border-color: var(--active-color);
+}
+
+.nav-card--hero:active {
+  background-color: color-mix(in srgb, var(--active-color) 25%, transparent);
+  border-color: var(--active-color);
+  transform: scale(0.98);
+}

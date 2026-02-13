@@ -181,21 +181,38 @@ The theme is controlled by CSS custom properties on `:root`:
 
 These are dynamically updated when the user changes theme colors in Settings.
 
-### Tailwind CSS v4
-Tailwind is used via the Vite plugin (`@tailwindcss/vite`). Import is in `src/index.css`:
-```css
-@import "tailwindcss";
+### Mantine v8 (Component Library)
+Mantine is the primary component library. It is configured via:
+- `src/theme.ts` — custom theme with purple primary color, dark background palette, fonts
+- `src/main.tsx` — `<MantineProvider theme={theme} defaultColorScheme="dark">` wraps the app
+- `postcss.config.cjs` — PostCSS preset for Mantine (required for responsive styles)
+- `@mantine/core/styles.css` — imported before app CSS in `main.tsx`
+
+When migrating components to Mantine, use Mantine components (`Button`, `TextInput`, `Select`, `Stack`, `Group`, `Card`, `ActionIcon`, etc.) instead of custom HTML + CSS classes.
+
+### Icons (@tabler/icons-react)
+All icons use the Tabler Icons library (tree-shakable, ~5000 icons). The centralized icon map lives in `src/assets/svgs.tsx` — it exports a `SVGS` object where each key maps to a Tabler `<Icon* size={20} />` element. Components consume icons via `SVGS.close`, `SVGS.note`, etc.
+
+To add a new icon, import it in `svgs.tsx` and add an entry to the `SVGS` object:
+```tsx
+import { IconSearch } from "@tabler/icons-react";
+// In SVGS:  search: <IconSearch size={20} />,
 ```
 
-### Custom Utility Classes
-Additional utility classes are defined in `src/index.css`:
+Tabler icons use `currentColor`, so they automatically follow the parent's CSS `color` property — no need for explicit color props.
+
+### Legacy Custom Utility Classes (being migrated)
+The project is incrementally migrating from custom CSS classes to Mantine components. During the transition, these legacy utilities remain in `src/index.css`:
 - Layout: `.flex-row`, `.flex-column`, `.gap-{n}`, `.w-100`
 - Spacing: `.padding-{n}`
 - Alignment: `.align-center`, `.justify-center`, `.justify-between`
 - Theme: `.bg-gradient`, `.active-on-hover`
+- Tailwind replacements: `.text-gray-*`, `.text-sm`, `.text-xs`, `.font-mono`, `.line-clamp-2`, etc.
+
+These will be removed as each component is migrated to use Mantine's built-in props and components.
 
 ### Component CSS
-Components with complex styling have their own `.css` file (e.g., `Chat.css`, `TaskManager.css`, `Note.css`).
+Components with complex styling have their own `.css` file (e.g., `Chat.css`, `TaskManager.css`, `Note.css`). These will be simplified or removed as components adopt Mantine styling.
 
 ---
 
@@ -208,7 +225,7 @@ Components with complex styling have their own `.css` file (e.g., `Chat.css`, `T
 5. **Define types**: Add types to `src/types.ts`
 6. **Storage**: Use `ChromeStorageManager.add/get/delete()` with a new key
 7. **Translations**: Add keys to both `src/locales/en.json` and `src/locales/es.json`
-8. **SVG icons**: If needed, add to `src/assets/svgs.tsx`
+8. **Icons**: Add new Tabler icons to `src/assets/svgs.tsx` and reference via `SVGS.iconName`
 
 ---
 

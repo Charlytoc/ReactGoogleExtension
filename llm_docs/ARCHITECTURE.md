@@ -6,7 +6,8 @@
 notes-ext/
 ├── index.html                  # Single HTML entry point (React SPA)
 ├── package.json                # Client dependencies & scripts
-├── vite.config.ts              # Vite config (React SWC, Tailwind, API proxy)
+├── vite.config.ts              # Vite config (React SWC, API proxy)
+├── postcss.config.cjs          # PostCSS config (Mantine preset)
 ├── tsconfig.json               # TS project references
 ├── tsconfig.app.json           # TS config for src/
 ├── tsconfig.node.json          # TS config for vite.config.ts
@@ -23,8 +24,9 @@ notes-ext/
 │       └── icon-128.png        # 128x128 generated
 │
 ├── src/
-│   ├── main.tsx                # React entry + React Router setup
-│   ├── index.css               # Global styles, Tailwind import, CSS variables
+│   ├── main.tsx                # React entry + React Router + MantineProvider setup
+│   ├── theme.ts                # Mantine theme (colors, fonts, component defaults)
+│   ├── index.css               # Global styles, CSS variables, legacy utility classes
 │   ├── types.ts                # All TypeScript type definitions
 │   ├── vite-env.d.ts           # Vite type declarations
 │   ├── internationalization.ts # i18next initialization
@@ -201,3 +203,6 @@ Task created with reminderEvery → chrome.alarms.create()
 - **IDs**: Generated with `Math.random().toString(36).substring(2, 15)` concatenation
 - **Navigation caching**: `cacheLocation()` / `getLastPage()` stores last visited route
 - **CSS variables**: Theme is applied by setting CSS custom properties on `:root`
+- **UI library**: Mantine v8 with dark color scheme; components are being incrementally migrated from custom CSS to Mantine
+- **Icons**: `@tabler/icons-react` for new icons; legacy custom SVGs in `src/assets/svgs.tsx`
+- **Theme**: Defined in `src/theme.ts` using Mantine's `createTheme()`, applied via `MantineProvider` in `main.tsx`

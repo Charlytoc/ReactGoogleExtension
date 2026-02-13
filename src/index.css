@@ -1,4 +1,19 @@
-@import "tailwindcss";
+/* ─── Tailwind replacement utilities (temporary, removed as components migrate to Mantine) ─── */
+.text-gray-600 { color: #4b5563; }
+.text-gray-400 { color: #9ca3af; }
+.text-gray-300 { color: #d1d5db; }
+.text-gray-200 { color: #e5e7eb; }
+.text-red-400  { color: #f87171; }
+.text-sm       { font-size: 0.875rem; }
+.text-xs       { font-size: 0.75rem; }
+.text-md       { font-size: 1rem; }
+.line-clamp-2  { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.whitespace-pre-wrap { white-space: pre-wrap; }
+.ml-auto       { margin-left: auto; }
+.w-auto        { width: auto; }
+.scale-105     { transform: scale(1.05); }
+.font-mono     { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.gap-2         { gap: 2px; }
 
 :root {
   font-family: Inter, Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -198,23 +213,6 @@ button:focus-visible {
   color: var(--font-color) !important;
   box-shadow: 0 0 10px var(--bg-color) !important;
   scale: 1.015;
-
-  & svg.with-stroke {
-    & path {
-      stroke: var(--font-color) !important;
-    }
-    & circle {
-      stroke: var(--font-color) !important;
-    }
-  }
-  /* & svg.with-fill {
-    & path {
-      fill: var(--font-color) !important;
-    }
-  }
-  & svg.with-svg-fill {
-    fill: var(--bg-color) !important;
-  } */
 }
 
 .border-gray {
@@ -470,14 +468,6 @@ button:focus-visible {
   width: 50px;
 }
 
-.botonera {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  & button {
-    width: 100%;
-  }
-}
 
 .hover-effect-one:hover {
   background-color: var(--active-color);

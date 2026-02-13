@@ -8,11 +8,13 @@ import { useNavigate } from "react-router";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { TTheme } from "../../managers/storeTypes";
-// import { Navbar } from "../../components/Navbar/Navbar";
 import { Section } from "../../components/Section/Section";
+import { ActionIcon, Tooltip } from "@mantine/core";
+import { IconSettings } from "@tabler/icons-react";
+import { cacheLocation } from "../../utils/lib";
 
 function App() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
   const navigate = useNavigate();
@@ -71,12 +73,28 @@ function App() {
       navigate(lastPage);
     }
   };
+  const goToSettings = () => {
+    cacheLocation("/config");
+    navigate("/config");
+  };
+
   return (
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">automata.ai</h3>}
+      headerRight={
+        <Tooltip label={t("config")} position="left" withArrow>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="lg"
+            onClick={goToSettings}
+          >
+            <IconSettings size={20} />
+          </ActionIcon>
+        </Tooltip>
+      }
     >
-      {/* <Navbar /> */}
       <Content />
     </Section>
   );

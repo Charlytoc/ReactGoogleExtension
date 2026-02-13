@@ -25,14 +25,14 @@ The extension is designed to help users:
 | ---------------- | ------------------------------------------------- |
 | Frontend         | React 18 + TypeScript                             |
 | Build tool       | Vite 6 (with SWC for Fast Refresh)                |
-| Styling          | Tailwind CSS v4 + CSS variables + component CSS   |
+| Styling          | Mantine v8 + CSS variables + component CSS        |
 | State management | Zustand 5                                         |
 | Routing          | React Router 7                                    |
 | AI               | OpenAI SDK (`openai` npm package)                 |
 | i18n             | react-i18next (English + Spanish)                 |
 | Toasts           | react-hot-toast                                   |
 | Markdown         | react-markdown + remark-gfm                       |
-| Icons            | lucide-react + custom inline SVGs                 |
+| Icons            | @tabler/icons-react + custom inline SVGs          |
 | Persistence      | chrome.storage.local                              |
 | Backend          | Express.js + Stripe (subscription payments)       |
 | Extension        | Chrome Manifest V3                                |
