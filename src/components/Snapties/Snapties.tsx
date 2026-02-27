@@ -17,6 +17,8 @@ import {
   IconTrash as Trash2,
   IconEdit as Edit3,
   IconDeviceFloppy as Save,
+  IconPin,
+  IconPinFilled,
 } from "@tabler/icons-react";
 
 export const Snapties = () => {
@@ -211,6 +213,14 @@ export const Snapties = () => {
     setSnapties(newSnapties);
     // Also remove from search results if present
     setSearchResults((prev) => prev.filter((snaptie) => snaptie.id !== id));
+  };
+
+  const togglePin = async (id: string) => {
+    const newSnapties = snapties.map((s) =>
+      s.id === id ? { ...s, pinned: !s.pinned } : s
+    );
+    await ChromeStorageManager.add("snapties", newSnapties);
+    setSnapties(newSnapties);
   };
 
   // Get all categories (for when no filter is applied)
@@ -410,6 +420,8 @@ export const Snapties = () => {
   // Show search results even if empty when there's a search query
   const showSearchView = isSearching && !selectedCategory;
 
+  const pinnedSnapties = snapties.filter((s) => s.pinned);
+
   // Set initial selection when categories or snapties change
   useEffect(() => {
     if (selectedCategory || isSearching) {
@@ -462,7 +474,7 @@ export const Snapties = () => {
         cacheLocation("/index.html");
         navigate("/index.html");
       }}
-      headerLeft={<h3 className="font-mono">Snapties</h3>}
+      headerLeft={<h3 className="font-mono">{t("bookmarks")}</h3>}
       headerRight={
         <Button
           className="padding-5"
@@ -494,12 +506,13 @@ export const Snapties = () => {
               {t("no-snapdeals-found")}
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-5">
+            <div className="grid grid-cols-3 gap-5">
               {searchResults.map((snaptie, index) => (
                 <SnaptieCard
                   key={snaptie.id}
                   snaptie={snaptie}
                   deleteSnaptie={deleteSnaptie}
+                  onTogglePin={togglePin}
                   isSelected={
                     navigationMode === "snapties" && selectedIndex === index
                   }
@@ -538,12 +551,13 @@ export const Snapties = () => {
                 : t("no-snapdeals-in-category")}
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-5">
+            <div className="grid grid-cols-3 gap-5">
               {filteredSnapties.map((snaptie, index) => (
                 <SnaptieCard
                   key={snaptie.id}
                   snaptie={snaptie}
                   deleteSnaptie={deleteSnaptie}
+                  onTogglePin={togglePin}
                   isSelected={
                     navigationMode === "snapties" && selectedIndex === index
                   }
@@ -615,6 +629,27 @@ export const Snapties = () => {
               </>
             )}
           </form>
+
+          {/* Pinned bookmarks — always visible on main view */}
+          {pinnedSnapties.length > 0 && (
+            <div className="flex-column gap-5">
+              <h4 className="font-mono">{t("pinned")}</h4>
+              <div className="grid grid-cols-3 gap-5">
+                {pinnedSnapties.map((snaptie, index) => (
+                  <SnaptieCard
+                    key={snaptie.id}
+                    snaptie={snaptie}
+                    deleteSnaptie={deleteSnaptie}
+                    onTogglePin={togglePin}
+                    isSelected={false}
+                    onFocus={() => {}}
+                    index={index}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <h4 className="font-mono text-center">
             {nameFilter ? t("matching-categories") : t("categories")}
           </h4>
@@ -659,12 +694,14 @@ export const Snapties = () => {
 const SnaptieCard = ({
   snaptie,
   deleteSnaptie,
+  onTogglePin,
   isSelected,
   onFocus,
   index,
 }: {
   snaptie: TSnaptie;
   deleteSnaptie: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   isSelected?: boolean;
   onFocus?: () => void;
   index?: number;
@@ -683,8 +720,12 @@ const SnaptieCard = ({
 
   return (
     <div
-      style={{ backgroundColor: snaptie.color }}
-      className={`padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover pos-relative ${isSelected ? " scale-105" : ""
+      style={{
+        border: "1px solid rgba(145, 145, 145, 0.303)",
+        borderLeft: `4px solid ${snaptie.color}`,
+        minWidth: 0,
+      }}
+      className={`padding-10 rounded flex-column gap-5 pointer scale-on-hover pos-relative ${isSelected ? " scale-105" : ""
         }`}
       onFocus={onFocus}
       onKeyDown={(e) => {
@@ -708,9 +749,19 @@ const SnaptieCard = ({
       <div className="snaptie-bg" onClick={pasteSnaptie}></div>
       <h4 className="text-center">{snaptie.title.slice(0, 20)}</h4>
       <div className="flex-row gap-5 justify-center">
+        {onTogglePin && (
+          <Button
+            tabIndex={0}
+            className={snaptie.pinned ? "bg-active-100" : ""}
+            svg={snaptie.pinned ? <IconPinFilled size={20} /> : <IconPin size={20} />}
+            onClick={() => onTogglePin(snaptie.id)}
+            aria-label={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
+            title={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
+          />
+        )}
         {snaptie.isUrl && (
           <Button
-            className=" justify-center align-center"
+            className="justify-center align-center"
             tabIndex={0}
             svg={<ExternalLink size={20} />}
             onClick={() => window.open(snaptie.content, "_blank")}
@@ -718,7 +769,6 @@ const SnaptieCard = ({
           />
         )}
         <Button
-          className="  "
           tabIndex={0}
           svg={<Trash2 size={20} />}
           confirmations={[
@@ -729,7 +779,7 @@ const SnaptieCard = ({
         />
         <Button
           tabIndex={0}
-          className=" justify-center  align-center above text-center "
+          className="justify-center align-center above text-center"
           svg={<Edit3 size={20} />}
           onClick={() => {
             navigate(`/snapties/${snaptie.id}`);
@@ -758,6 +808,7 @@ const CategoryCard = ({
   onFocus?: () => void;
   index?: number;
 }) => {
+  const { t } = useTranslation();
   return (
     <div
       className={`padding-10 border-gray rounded flex-column gap-5 pointer scale-on-hover text-center ${isSelected ? " bg-active-100 font-bold" : ""
@@ -775,7 +826,7 @@ const CategoryCard = ({
       aria-label={`${category} category with ${count} snapdeals`}
     >
       <h4 className="font-mono font-bold text-md text-center">{category}</h4>
-      <div className="text-sm text-gray-400">{count} snapties</div>
+      <div className="text-sm text-gray-400">{count} {t("bookmarks").toLowerCase()}</div>
     </div>
   );
 };

@@ -57,6 +57,7 @@ export type TSnaptie = {
   category: string;
   isUrl: boolean;
   color: string;
+  pinned?: boolean;
 };
 
 export type TFormatterInput = {

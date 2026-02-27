@@ -183,5 +183,10 @@
     "todo": "Por hacer",
     "name-filter-stored": "Filtro de nombre guardado",
     "persist-search": "Persistir búsqueda",
-    "persist-search-tooltip": "Persistir filtro de búsqueda y mostrar categorías coincidentes"
+    "persist-search-tooltip": "Persistir filtro de búsqueda y mostrar categorías coincidentes",
+    "bookmarks": "Marcadores",
+    "bookmark": "Marcador",
+    "pinned": "Fijados",
+    "pin-bookmark": "Fijar marcador",
+    "unpin-bookmark": "Desfijar marcador"
 }

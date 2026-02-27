@@ -263,7 +263,7 @@ chrome.runtime.onInstalled.addListener(() => {
   });
   chrome.contextMenus.create({
     id: "translate-selection",
-    title: "Translate to English",
+    title: "Translate (EN↔ES)",
     contexts: ["selection"],
   });
   chrome.contextMenus.create({
@@ -392,7 +392,7 @@ function translateSelection(): void {
         {
           role: "system",
           content:
-            "You are a translator. Translate the given text to English. Return ONLY the translated text, nothing else. No quotes, no explanations, no notes. Preserve the original formatting (line breaks, punctuation, etc.).",
+            "You are a translator that toggles between English and Spanish. If the given text is in Spanish, translate it to English. If the given text is in English, translate it to Spanish. If it is in any other language, translate it to English. Return ONLY the translated text, nothing else. No quotes, no explanations, no notes. Preserve the original formatting (line breaks, punctuation, etc.).",
         },
         {
           role: "user",

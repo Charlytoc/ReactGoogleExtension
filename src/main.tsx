@@ -19,6 +19,7 @@ import FormatterDetail from "./routes/formatters/detail/page.tsx";
 import "@mantine/core/styles.css";
 import { MantineProvider } from "@mantine/core";
 import { theme } from "./theme";
+import { AppLayout } from "./components/AppLayout/AppLayout.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -26,19 +27,21 @@ createRoot(document.getElementById("root")!).render(
       <Toaster />
       <BrowserRouter>
         <Routes>
-          <Route path="/index.html" element={<App />} />
-          <Route path="/" element={<App />} />
-          <Route path="/notes" element={<NotesManager />} />
-          <Route path="/notes/:id" element={<NoteDetail />} />
-          <Route path="/tasks" element={<TaskManager />} />
-          <Route path="/tasks/:id" element={<TaskDetail />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/config" element={<Config />} />
-          <Route path="/snapties" element={<Snapties />} />
-          <Route path="/snapties/:id" element={<SnaptieDetail />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/formatters" element={<FormattersPage />} />
-          <Route path="/formatters/:id" element={<FormatterDetail />} />
+          <Route element={<AppLayout />}>
+            <Route path="/index.html" element={<App />} />
+            <Route path="/" element={<App />} />
+            <Route path="/notes" element={<NotesManager />} />
+            <Route path="/notes/:id" element={<NoteDetail />} />
+            <Route path="/tasks" element={<TaskManager />} />
+            <Route path="/tasks/:id" element={<TaskDetail />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/config" element={<Config />} />
+            <Route path="/snapties" element={<Snapties />} />
+            <Route path="/snapties/:id" element={<SnaptieDetail />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/formatters" element={<FormattersPage />} />
+            <Route path="/formatters/:id" element={<FormatterDetail />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </MantineProvider>

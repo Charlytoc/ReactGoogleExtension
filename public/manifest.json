@@ -43,13 +43,13 @@
         "default": "Ctrl+Shift+L",
         "mac": "Command+Shift+L"
       },
-      "description": "Translate selection to English"
+      "description": "Toggle translation (EN↔ES)"
     },
     "check-grammar": {
       "suggested_key": {
-        "windows": "Ctrl+Shift+G",
-        "default": "Ctrl+Shift+G",
-        "mac": "Command+Shift+G"
+        "windows": "Ctrl+Shift+K",
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
       },
       "description": "Fix grammar of selected text"
     }
