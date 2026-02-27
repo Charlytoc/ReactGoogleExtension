@@ -174,6 +174,7 @@ export default function NoteDetail() {
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
 
   if (!id) return <div>No id</div>;
   const [note, setNote] = useState<TNote>({
@@ -305,6 +306,15 @@ export default function NoteDetail() {
     reader.readAsDataURL(file);
   };
 
+  const deleteCurrentNote = async () => {
+    const newNotes = notes.filter((n) => n.id !== id);
+    setNotes(newNotes);
+    await ChromeStorageManager.add("notes", newNotes);
+    const prevPage = (await ChromeStorageManager.get("prevPage")) || "/notes";
+    cacheLocation(prevPage, "lastPage");
+    navigate(prevPage);
+  };
+
   const updateNoteContent = toolify(
     (newContent: { newContent: string }) => {
       console.log("AI wants to update the entire note", newContent);
@@ -379,6 +389,17 @@ ${JSON.stringify(note)}
               onClick={() => setIsEditing(!isEditing)}
               svg={isEditing ? SVGS.close : SVGS.edit}
             />
+            <Button
+              title={t("customization")}
+              onClick={() => setIsCustomizeOpen(true)}
+              svg={SVGS.palette}
+            />
+            <Button
+              title={t("delete")}
+              svg={SVGS.trash}
+              onClick={deleteCurrentNote}
+              confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
+            />
           </div>
         }
       >
@@ -393,13 +414,49 @@ ${JSON.stringify(note)}
                 isMarkdown
                 maxHeight="75vh"
               />
-              <h3>{t("customization")}</h3>
+            </div>
+          ) : (
+            <StyledMarkdown markdown={note.content || ""} />
+          )}
+        </div>
+        {isCustomizeOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.45)",
+              zIndex: 30,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: "16px",
+            }}
+            onClick={() => setIsCustomizeOpen(false)}
+          >
+            <div
+              className="bg-gradient rounded padding-10 flex-column gap-10"
+              style={{
+                width: "min(700px, 95vw)",
+                maxHeight: "85vh",
+                overflowY: "auto",
+                border: "1px solid var(--text-color-secondary)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-row justify-between align-center">
+                <h3>{t("customization")}</h3>
+                <Button
+                  className="padding-5"
+                  title={t("close")}
+                  svg={SVGS.close}
+                  onClick={() => setIsCustomizeOpen(false)}
+                />
+              </div>
               <span>{t("font")}</span>
               <Select
                 options={[
                   ...BROWSER_FONTS,
                   { label: "ShareTechMono", value: "ShareTechMono" },
-                  // { label: "Courier", value: "Courier" },
                 ]}
                 defaultValue={note.font || "Arial"}
                 onChange={(value) => setNote({ ...note, font: value })}
@@ -461,6 +518,7 @@ ${JSON.stringify(note)}
                       min="0"
                       max="1"
                       step="0.1"
+                      value={note.opacity ?? 0.5}
                       onChange={(e) => {
                         setNote({
                           ...note,
@@ -510,10 +568,8 @@ ${JSON.stringify(note)}
                 />
               </div>
             </div>
-          ) : (
-            <StyledMarkdown markdown={note.content || ""} />
-          )}
-        </div>
+          </div>
+        )}
       </Section>
     </div>
   );

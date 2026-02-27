@@ -15,6 +15,7 @@ type TTextareaProps = {
   maxHeight?: string;
   isMarkdown?: boolean;
   onKeyUp?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  autoFocus?: boolean;
 };
 
 const MarkdownEditor = ({
@@ -56,6 +57,7 @@ export const Textarea = ({
   maxHeight = "200px",
   isMarkdown = false,
   onKeyUp = () => {},
+  autoFocus = false,
 }: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<"markdown" | "plain">("plain");
@@ -104,6 +106,7 @@ export const Textarea = ({
             placeholder={placeholder}
             name={name}
             ref={textareaRef}
+            autoFocus={autoFocus}
             style={{
               overflowY: "auto",
               resize: "none",

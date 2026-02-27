@@ -527,6 +527,7 @@ export const Chat = () => {
               label={t("commandOrPrompt")}
               name="command"
               className="w-100"
+              autoFocus
               defaultValue={input}
               onChange={(value) => {
                 setInput(value);

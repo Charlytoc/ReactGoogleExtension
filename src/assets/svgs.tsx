@@ -33,6 +33,7 @@ import {
   IconMarkdown,
   IconTypography,
   IconTable,
+  IconPalette,
 } from "@tabler/icons-react";
 
 /**
@@ -77,4 +78,5 @@ export const SVGS = {
   markdown: <IconMarkdown size={20} />,
   text: <IconTypography size={20} />,
   table: <IconTable size={20} />,
+  palette: <IconPalette size={20} />,
 };
