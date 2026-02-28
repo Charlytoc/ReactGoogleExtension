@@ -16,8 +16,8 @@ import {
   toolify,
   TTool,
 } from "../../../utils/ai";
-import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 import { useStore } from "../../../managers/store";
+import { AIInput } from "../../../components/AIInput/AIInput";
 import { useShallow } from "zustand/shallow";
 import { Message } from "../../../components/Chat/Chat";
 import toast from "react-hot-toast";
@@ -52,6 +52,7 @@ const Prompter = ({
     isOpen: false,
     userMessage: "",
   });
+  const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMessages((prev) => {
@@ -79,7 +80,7 @@ const Prompter = ({
     await createStreamingResponseWithFunctions(
       {
         messages: newMessages.map(convertToMessage),
-        model: "gpt-4o-mini",
+        model: "gpt-5.2",
         temperature: 0.4,
         apiKey: auth.openaiApiKey,
         max_completion_tokens: 16000,
@@ -103,51 +104,38 @@ const Prompter = ({
     );
     setState((prev) => ({ ...prev, isGenerating: false }));
   };
+
+  useEffect(() => {
+    if (!chatContainer) return;
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }, [messages, chatContainer]);
+
   return (
     <>
       <Button
-        title={t("continueWithAI")}
+        title={state.isOpen ? t("close") : t("continueWithAI")}
         className={`w-100 justify-center padding-5 ${
           state.isGenerating ? "bg-active" : ""
         }`}
-        onClick={() => setState({ ...state, isOpen: true })}
-        svg={SVGS.ai}
+        onClick={() => setState((prev) => ({ ...prev, isOpen: !prev.isOpen }))}
+        svg={state.isOpen ? SVGS.close : SVGS.ai}
       />
       {state.isOpen && (
-        <div className="prompter-container bg-gradient flex-column gap-10 ">
-          {messages.map((message, index) => {
-            if (message.role === "system") return null;
-            return <Message key={index} message={message} />;
-          })}
+        <div className="prompter-container bg-gradient">
+          <div className="prompter-chat-messages" ref={setChatContainer}>
+            {messages.map((message, index) => {
+              if (message.role === "system") return null;
+              return <Message key={index} message={message} />;
+            })}
+          </div>
 
-          <LabeledInput
-            autoFocus
-            label={t("userMessage")}
-            type="text"
-            name="userMessage"
-            value={state.userMessage}
-            onChange={(value) =>
-              setState({
-                ...state,
-                userMessage: value,
-              })
-            }
-          />
-
-          <div className="flex-row gap-5">
-            <Button
-              title={t("generate")}
-              onClick={handleGenerate}
-              svg={SVGS.ai}
-              text={state.isGenerating ? t("generating") : t("execute")}
-              className="w-100 justify-center padding-5 "
-            />
-            <Button
-              title={t("close")}
-              text={t("close")}
-              className="w-100 justify-center padding-5 "
-              onClick={() => setState({ ...state, isOpen: false })}
-              svg={SVGS.close}
+          <div className="prompter-chat-input-area">
+            <AIInput
+              value={state.userMessage}
+              onChange={(value) => setState({ ...state, userMessage: value })}
+              onSubmit={handleGenerate}
+              isLoading={state.isGenerating}
+              autoFocus
             />
           </div>
         </div>
@@ -173,7 +161,7 @@ export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
 
   if (!id) return <div>No id</div>;
@@ -333,6 +321,18 @@ export default function NoteDetail() {
     }
   );
 
+  const handleBlockChange = (
+    range: { start: number; end: number },
+    newMarkdown: string
+  ) => {
+    const normalizedMarkdown = newMarkdown.replace(/\r\n/g, "\n");
+    const content = note.content || "";
+    const updatedContent = `${content.slice(0, range.start)}${normalizedMarkdown}${content.slice(range.end)}`;
+    if (updatedContent !== note.content) {
+      setNote({ ...note, content: updatedContent });
+    }
+  };
+
   return (
     <div className=" padding-10">
       <Section
@@ -380,14 +380,15 @@ ${JSON.stringify(note)}
 - Use the right tool depending on the task in hand.
 - Provide useful insights about the note and the changes you are making.
 - Ask for clarification if needed.
+- When generating content that includes diagrams, flowcharts, sequences, or graphs, use Mermaid syntax inside a mermaid code block (\`\`\`mermaid ... \`\`\`). Mermaid diagrams are fully supported and rendered in this note.
   
                     `}
               functions={[updateNoteContent, updateColorTool, updateTitleTool]}
             />
             <Button
-              title={isEditing ? t("close") : t("edit")}
-              onClick={() => setIsEditing(!isEditing)}
-              svg={isEditing ? SVGS.close : SVGS.edit}
+              title={isMarkdownMode ? t("text") : t("markdown")}
+              onClick={() => setIsMarkdownMode(!isMarkdownMode)}
+              svg={isMarkdownMode ? SVGS.text : SVGS.markdown}
             />
             <Button
               title={t("customization")}
@@ -404,19 +405,23 @@ ${JSON.stringify(note)}
         }
       >
         <div className="w-100 padding-bottom-50">
-          {isEditing ? (
+          {isMarkdownMode ? (
             <div className="flex-column gap-5">
               <Textarea
                 defaultValue={note.content || ""}
                 onChange={(value) => setNote({ ...note, content: value })}
                 name="content"
                 placeholder={t("writeYourNoteHere")}
-                isMarkdown
-                maxHeight="75vh"
+                maxHeight="none"
+                containerClassName="note-raw-textarea"
               />
             </div>
           ) : (
-            <StyledMarkdown markdown={note.content || ""} />
+            <StyledMarkdown
+              markdown={note.content || ""}
+              editableBlocks
+              onBlockChange={handleBlockChange}
+            />
           )}
         </div>
         {isCustomizeOpen && (
@@ -482,7 +487,7 @@ ${JSON.stringify(note)}
               <p className="flex-row gap-5 align-center">
                 {note.backgroundType === "gradient" && (
                   <>
-                    <span>Color 1: </span>
+                    <span>{t("color1")}: </span>
                     <input
                       type="color"
                       value={note.color}
@@ -490,7 +495,7 @@ ${JSON.stringify(note)}
                         setNote({ ...note, color: e.target.value })
                       }
                     />
-                    <span>Color 2: </span>
+                    <span>{t("color2")}: </span>
                     <input
                       type="color"
                       value={note.color2}
@@ -502,7 +507,7 @@ ${JSON.stringify(note)}
                 )}
                 {note.backgroundType === "image" && (
                   <div className="flex-column gap-5 align-center justify-center">
-                    <span>Image: </span>
+                    <span>{t("image")}: </span>
                     <input
                       type="file"
                       onChange={(e) => {
@@ -512,7 +517,7 @@ ${JSON.stringify(note)}
                         }
                       }}
                     />
-                    <span>Opacity: </span>
+                    <span>{t("opacity")}: </span>
                     <input
                       type="range"
                       min="0"
@@ -534,7 +539,7 @@ ${JSON.stringify(note)}
                 )}
                 {note.backgroundType === "solid" && (
                   <>
-                    <span>Color: </span>
+                    <span>{t("color")}: </span>
                     <input
                       type="color"
                       value={note.color}

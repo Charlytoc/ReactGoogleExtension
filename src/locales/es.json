@@ -188,5 +188,19 @@
     "bookmark": "Marcador",
     "pinned": "Fijados",
     "pin-bookmark": "Fijar marcador",
-    "unpin-bookmark": "Desfijar marcador"
+    "unpin-bookmark": "Desfijar marcador",
+    "text": "Texto",
+    "markdown": "Markdown",
+    "writeYourNoteHere": "Escribe tu nota aqui",
+    "color1": "Color 1",
+    "color2": "Color 2",
+    "opacity": "Opacidad",
+    "copyCode": "Copiar codigo",
+    "codeCopied": "Codigo copiado",
+    "editAsText": "Editar como texto",
+    "editWithAI": "Editar con IA",
+    "collapse": "Contraer",
+    "instruction": "Instruccion",
+    "applyingAI": "Aplicando...",
+    "apply": "Aplicar"
 }

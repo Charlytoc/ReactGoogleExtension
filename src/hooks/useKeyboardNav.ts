@@ -2,20 +2,25 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { cacheLocation } from "../utils/lib";
 
-const KEY_MAP: Record<string, string> = {
-  b: "/snapties",
-  c: "/chat",
-  n: "/notes",
-  f: "/formatters",
-  t: "/tasks",
+type TShortcut = {
+  key: string;
+  path: string;
+  requireShift?: boolean;
 };
 
-const isEditableTarget = (el: Element | null): boolean => {
-  if (!el) return false;
-  const tag = el.tagName.toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select") return true;
-  if ((el as HTMLElement).isContentEditable) return true;
-  return false;
+const SHORTCUTS: TShortcut[] = [
+  { key: "b", path: "/snapties" },
+  { key: "m", path: "/chat" },
+  { key: "n", path: "/notes" },
+  { key: "f", path: "/formatters" },
+  { key: "j", path: "/tasks" },
+];
+
+const matchesShortcut = (e: KeyboardEvent, shortcut: TShortcut) => {
+  const keyMatches = e.key.toLowerCase() === shortcut.key.toLowerCase();
+  if (!keyMatches) return false;
+  if (Boolean(shortcut.requireShift) !== e.shiftKey) return false;
+  return true;
 };
 
 export const useKeyboardNav = () => {
@@ -23,14 +28,18 @@ export const useKeyboardNav = () => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-      if (isEditableTarget(document.activeElement)) return;
+      // Use explicit shortcuts (Ctrl/Cmd + key) so typing in inputs never
+      // accidentally triggers navigation.
+      const hasMainModifier = e.ctrlKey || e.metaKey;
+      if (!hasMainModifier || e.altKey) return;
 
-      const path = KEY_MAP[e.key.toLowerCase()];
-      if (!path) return;
+      const shortcut = SHORTCUTS.find((s) => matchesShortcut(e, s));
+      if (!shortcut) return;
 
-      cacheLocation(path);
-      navigate(path);
+      e.preventDefault();
+      e.stopPropagation();
+      cacheLocation(shortcut.path);
+      navigate(shortcut.path);
     };
 
     window.addEventListener("keydown", handler);

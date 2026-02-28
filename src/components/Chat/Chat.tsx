@@ -31,6 +31,8 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
 import { Select } from "../Select/Select";
+import { TNote, TTask } from "../../types";
+import { AIInput } from "../AIInput/AIInput";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
   const messages: TMessage[] = [
@@ -308,6 +310,98 @@ export const Chat = () => {
     }
   );
 
+  const createCreateTool = toolify(
+    async (args: { title: string; content: string }) => {
+      try {
+        const notes: TNote[] = (await ChromeStorageManager.get("notes")) || [];
+        const note: TNote = {
+          id: generateRandomId("note"),
+          title: (args.title || "").trim() || "Untitled note",
+          content: args.content || "",
+          color: "var(--bg-color)",
+          backgroundType: "solid",
+          color2: "var(--bg-color-secondary)",
+          tags: [],
+          archived: false,
+          createdAt: new Date().toISOString(),
+          imageURL: "",
+        };
+        await ChromeStorageManager.add("notes", [...notes, note]);
+        return JSON.stringify({
+          success: true,
+          message: "Note created successfully",
+          noteId: note.id,
+          title: note.title,
+          link: `note:${note.id}`,
+          markdownLink: `[${note.title || "Open note"}](note:${note.id})`,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          success: false,
+          message: "Failed to create note",
+          error: String(error),
+        });
+      }
+    },
+    "createCreate",
+    "Create a new note. Use this only when the user asks to create/save a note from the current conversation.",
+    {
+      title: {
+        type: "string",
+        description: "Title of the note",
+      },
+      content: {
+        type: "string",
+        description: "Main content/body of the note",
+      },
+    }
+  );
+
+  const createTaskTool = toolify(
+    async (args: { title: string; description: string }) => {
+      try {
+        const tasks: TTask[] = (await ChromeStorageManager.get("tasks")) || [];
+        const task: TTask = {
+          id: generateRandomId("task"),
+          title: (args.title || "").trim() || "New task",
+          description: args.description || "",
+          priority: "medium",
+          status: "TODO",
+          createdAt: new Date().toISOString(),
+          motivationText: "",
+          estimatedTimeUnit: "minutes",
+        };
+        await ChromeStorageManager.add("tasks", [...tasks, task]);
+        return JSON.stringify({
+          success: true,
+          message: "Task created successfully",
+          taskId: task.id,
+          title: task.title,
+          link: `task:${task.id}`,
+          markdownLink: `[${task.title || "Open task"}](task:${task.id})`,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          success: false,
+          message: "Failed to create task",
+          error: String(error),
+        });
+      }
+    },
+    "create_task",
+    "Create a new task. Use this only when the user asks to create/save a task from the current conversation.",
+    {
+      title: {
+        type: "string",
+        description: "Title of the task",
+      },
+      description: {
+        type: "string",
+        description: "Task details/description",
+      },
+    }
+  );
+
   const handleSendMessage = async () => {
     if (!input) return;
 
@@ -319,7 +413,7 @@ export const Chat = () => {
     } catch (error) {
       console.log("error trying to get url", error);
     }
-    const systemPrompt = `${aiConfig.systemPrompt}\n${url ? `Current URL: ${url}` : ""}`;
+    const systemPrompt = `${aiConfig.systemPrompt}\n${url ? `Current URL: ${url}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer.`;
     const message: TMessage = {
       role: "user",
       content: input,
@@ -348,6 +442,8 @@ export const Chat = () => {
           clickElementBySelectorTool.schema,
           fillElementBySelectorTool.schema,
           getEditableElements.schema,
+          createCreateTool.schema,
+          createTaskTool.schema,
         ],
         functionMap: createToolsMap([
           getWebsiteContent,
@@ -355,6 +451,8 @@ export const Chat = () => {
           clickElementBySelectorTool,
           fillElementBySelectorTool,
           getEditableElements,
+          createCreateTool,
+          createTaskTool,
         ]),
         apiKey,
       },
@@ -523,42 +621,18 @@ export const Chat = () => {
             })}
           </div>
           <section className="flex-row gap-10 w-100 padding-5 ">
-            <Textarea
-              label={t("commandOrPrompt")}
-              name="command"
-              className="w-100"
-              autoFocus
-              defaultValue={input}
-              onChange={(value) => {
-                setInput(value);
-              }}
-              onKeyUp={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-            />
+            <div className="w-100">
+              <AIInput
+                value={input}
+                onChange={setInput}
+                onSubmit={handleSendMessage}
+                placeholder={t("commandOrPrompt")}
+                autoFocus
+                multiline
+              />
+            </div>
 
             <div className="flex-column gap-5 floating-buttons">
-              <Button
-                // text={t("send")}
-                title={t("send")}
-                className=" padding-5 align-center justify-center active-on-hover"
-                svg={SVGS.send}
-                onClick={handleSendMessage}
-              />
-              <Button
-                className=" padding-5 align-center justify-center active-on-hover"
-                svg={SVGS.ai}
-                // text={t("summarizeWebsite")}
-                title={t("summarizeWebsite")}
-                onClick={() => {
-                  setInput(
-                    "Summarize the current website and provide a list of the main points. /send"
-                  );
-                }}
-              />
             </div>
           </section>
         </div>

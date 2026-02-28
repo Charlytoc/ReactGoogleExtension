@@ -188,5 +188,19 @@
     "bookmark": "Bookmark",
     "pinned": "Pinned",
     "pin-bookmark": "Pin bookmark",
-    "unpin-bookmark": "Unpin bookmark"
+    "unpin-bookmark": "Unpin bookmark",
+    "text": "Text",
+    "markdown": "Markdown",
+    "writeYourNoteHere": "Write your note here",
+    "color1": "Color 1",
+    "color2": "Color 2",
+    "opacity": "Opacity",
+    "copyCode": "Copy code",
+    "codeCopied": "Code copied",
+    "editAsText": "Edit as text",
+    "editWithAI": "Edit with AI",
+    "collapse": "Collapse",
+    "instruction": "Instruction",
+    "applyingAI": "Applying...",
+    "apply": "Apply"
 }

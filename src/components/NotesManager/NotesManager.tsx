@@ -72,7 +72,7 @@ export const NotesManager = () => {
       createdAt: new Date().toISOString(),
       tags: [],
       archived: false,
-      backgroundType: "gradient",
+      backgroundType: "solid",
       color2: cssVariableValue2,
       imageURL: "",
     };
@@ -170,10 +170,21 @@ export const NotesManager = () => {
       }
     >
       <div className="notes-container">
+        <section className="notes-toolbar">
+          <LabeledInput
+            className="w-100"
+            label={t("filter-by-name")}
+            placeholder={t("search")}
+            type="text"
+            name="contains"
+            value={filters.contains}
+            onChange={(value) => setFilters({ ...filters, contains: value })}
+          />
+        </section>
         {showFilters && (
           <NoteFilters filters={filters} setFilters={setFilters} tags={tags} />
         )}
-        <div className="grid grid-cols-2 gap-10">
+        <div className="grid grid-cols-2 gap-10 notes-grid">
           {applyFilters(notes).map((note) => (
             <Note
               {...note}
@@ -209,14 +220,6 @@ const NoteFilters = ({
   return (
     <div className="flex-column gap-5 ">
       <section className="flex-row gap-10 align-center">
-        <LabeledInput
-          label={t("contains")}
-          type="text"
-          name="contains"
-          value={filters.contains}
-          onChange={(value) => setFilters({ ...filters, contains: value })}
-        />
-
         <div className="flex-row gap-10 align-center">
           <Select
             options={[

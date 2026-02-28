@@ -10,6 +10,7 @@ type TTextareaProps = {
   name?: string;
   onChange?: (value: string) => void;
   className?: string;
+  containerClassName?: string;
   label?: string;
   placeholder?: string;
   maxHeight?: string;
@@ -52,6 +53,7 @@ export const Textarea = ({
   name = "textarea",
   onChange = () => {},
   className,
+  containerClassName = "",
   label,
   placeholder,
   maxHeight = "200px",
@@ -81,7 +83,7 @@ export const Textarea = ({
   }, [mode]);
 
   return (
-    <div className="labeled-textarea w-100">
+    <div className={`labeled-textarea w-100 ${containerClassName}`}>
       <label>{label} </label>
       {isMarkdown && (
         <div>

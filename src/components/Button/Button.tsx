@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Tooltip } from "@mantine/core";
 import "./Button.css";
 
 type TConfirmation = {
@@ -35,19 +36,25 @@ export const Button = ({
   };
 
   // Extract className from native props and merge
-  const { className: nativeClassName, ...restNativeProps } = nativeButtonProps;
+  const { className: nativeClassName, title: nativeTitle, ...restNativeProps } =
+    nativeButtonProps;
   const mergedClassName = `button ${nativeClassName || ""} ${
     confirmations.length === 0 || timesClicked === 0
       ? ""
       : confirmations[timesClicked - 1]?.className
   }`;
 
-  return (
+  const buttonNode = (
     <button
       {...restNativeProps}
       type={restNativeProps.type || "button"}
       className={mergedClassName}
       onClick={handleClick}
+      aria-label={
+        typeof nativeTitle === "string"
+          ? nativeTitle
+          : (restNativeProps["aria-label"] as string | undefined)
+      }
     >
       {/* {usesAI && <span className="text-mini float-right">AI</span>} */}
       {(confirmations.length > 0 && timesClicked > 0
@@ -69,4 +76,14 @@ export const Button = ({
       )}
     </button>
   );
+
+  if (typeof nativeTitle === "string" && nativeTitle.trim().length > 0) {
+    return (
+      <Tooltip label={nativeTitle} withArrow openDelay={250}>
+        {buttonNode}
+      </Tooltip>
+    );
+  }
+
+  return buttonNode;
 };
