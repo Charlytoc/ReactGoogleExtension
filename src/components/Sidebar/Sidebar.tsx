@@ -17,15 +17,41 @@ type NavItem = {
   icon: React.ReactNode;
   label: string;
   path: string;
+  shortcut?: string;
 };
 
 const topItems: NavItem[] = [
   { icon: <IconHome size={18} />, label: "Home", path: "/" },
-  { icon: <IconMessageCircle size={18} />, label: "Chat", path: "/chat" },
-  { icon: <IconNote size={18} />, label: "Notes", path: "/notes" },
-  { icon: <IconListCheck size={18} />, label: "Tasks", path: "/tasks" },
-  { icon: <IconBookmark size={18} />, label: "Bookmarks", path: "/snapties" },
-  { icon: <IconCode size={18} />, label: "Formatters", path: "/formatters" },
+  {
+    icon: <IconMessageCircle size={18} />,
+    label: "Chat",
+    path: "/chat",
+    shortcut: "Ctrl/Cmd + M",
+  },
+  {
+    icon: <IconNote size={18} />,
+    label: "Notes",
+    path: "/notes",
+    shortcut: "Ctrl/Cmd + N",
+  },
+  {
+    icon: <IconListCheck size={18} />,
+    label: "Tasks",
+    path: "/tasks",
+    shortcut: "Ctrl/Cmd + J",
+  },
+  {
+    icon: <IconBookmark size={18} />,
+    label: "Bookmarks",
+    path: "/snapties",
+    shortcut: "Ctrl/Cmd + B",
+  },
+  {
+    icon: <IconCode size={18} />,
+    label: "Formatters",
+    path: "/formatters",
+    shortcut: "Ctrl/Cmd + F",
+  },
   { icon: <IconCalendar size={18} />, label: "Calendar", path: "/calendar" },
 ];
 
@@ -52,7 +78,12 @@ export const Sidebar = () => {
   };
 
   const renderItem = (item: NavItem) => (
-    <Tooltip key={item.path} label={item.label} position="right" withArrow>
+    <Tooltip
+      key={item.path}
+      label={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
+      position="right"
+      withArrow
+    >
       <ActionIcon
         variant={isActive(item.path) ? "light" : "subtle"}
         color={isActive(item.path) ? "violet" : "gray"}

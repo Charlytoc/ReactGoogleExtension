@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
-import { TBackgroundType, TMessage, TNote } from "../../../types";
+import { TAttachment, TBackgroundType, TMessage, TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
-import { buildBackground, cacheLocation } from "../../../utils/lib";
+import { buildBackground, cacheLocation, generateRandomId } from "../../../utils/lib";
 // import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
 // import { NoteEditor } from "../../../components/Note/Note";
@@ -13,6 +13,7 @@ import {
   convertToMessage,
   createStreamingResponseWithFunctions,
   createToolsMap,
+  generateImage,
   toolify,
   TTool,
 } from "../../../utils/ai";
@@ -157,12 +158,15 @@ const BROWSER_FONTS = [
   { label: "Impact", value: "Impact, sans-serif" },
 ];
 
+type TImageSizeOption = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
+
 export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const auth = useStore(useShallow((state) => state.config.auth));
 
   if (!id) return <div>No id</div>;
   const [note, setNote] = useState<TNote>({
@@ -294,6 +298,107 @@ export default function NoteDetail() {
     reader.readAsDataURL(file);
   };
 
+  const saveAttachment = async (attachment: TAttachment) => {
+    const attachments: TAttachment[] =
+      (await ChromeStorageManager.get("attachments")) || [];
+    await ChromeStorageManager.add("attachments", [...attachments, attachment]);
+  };
+
+  const appendAttachmentToNote = (attachmentId: string, altText: string) => {
+    const markdownImage = `\n\n![${altText}](attachment:${attachmentId})\n`;
+    setNote((prev) => ({
+      ...prev,
+      content: `${prev.content || ""}${markdownImage}`,
+    }));
+  };
+
+  const normalizeImageSize = (size: string): TImageSizeOption => {
+    const allowedSizes: TImageSizeOption[] = [
+      "1024x1024",
+      "1024x1536",
+      "1536x1024",
+      "auto",
+    ];
+    return allowedSizes.includes(size as TImageSizeOption)
+      ? (size as TImageSizeOption)
+      : "1024x1024";
+  };
+
+  const generateAndAttachImageToNote = async (
+    instruction: string,
+    altText: string,
+    size: string
+  ) => {
+    if (!instruction.trim()) {
+      return "No instruction provided";
+    }
+    if (!auth.openaiApiKey) {
+      return "No API key found";
+    }
+
+    try {
+      const generatedImage = await generateImage({
+        prompt: instruction.trim(),
+        apiKey: auth.openaiApiKey,
+        model: "gpt-image-1.5",
+        quality: "medium",
+        size: normalizeImageSize(size),
+        outputFormat: "jpeg",
+        outputCompression: 60,
+      });
+
+      const attachmentId = generateRandomId("attachment");
+      const attachment: TAttachment = {
+        id: attachmentId,
+        type: "image",
+        name: `ai-image-${new Date().toISOString()}`,
+        dataUrl: `data:${generatedImage.mimeType};base64,${generatedImage.b64}`,
+        mimeType: generatedImage.mimeType,
+        sourceNoteId: note.id,
+        createdAt: new Date().toISOString(),
+      };
+      await saveAttachment(attachment);
+      appendAttachmentToNote(attachmentId, altText || "generated image");
+      toast.success(t("imageAttachedToNote"));
+      return JSON.stringify({
+        success: true,
+        attachmentId,
+        markdown: `![${altText || "generated image"}](attachment:${attachmentId})`,
+      });
+    } catch (error) {
+      console.error("Error generating note image attachment", error);
+      return "Could not generate image";
+    }
+  };
+
+  const appendGeneratedImageToNoteTool = toolify(
+    async (args: { instruction: string; altText: string; size: string }) => {
+      return await generateAndAttachImageToNote(
+        args.instruction,
+        args.altText,
+        args.size
+      );
+    },
+    "appendGeneratedImageToNote",
+    "Generate an image attachment and append it inside the note content as markdown. Use this when the user asks for a visual/image in the note. You should provide a detailed generation instruction based on user intent.",
+    {
+      instruction: {
+        type: "string",
+        description:
+          "Detailed image generation instruction. Expand the user's intent into a richer prompt with style/composition details.",
+      },
+      altText: {
+        type: "string",
+        description: "Short alt text for the markdown image label.",
+      },
+      size: {
+        type: "string",
+        description:
+          "Image size/aspect ratio. Must be one of: 1024x1024 (square), 1024x1536 (portrait), 1536x1024 (landscape), auto.",
+      },
+    }
+  );
+
   const deleteCurrentNote = async () => {
     const newNotes = notes.filter((n) => n.id !== id);
     setNotes(newNotes);
@@ -381,9 +486,16 @@ ${JSON.stringify(note)}
 - Provide useful insights about the note and the changes you are making.
 - Ask for clarification if needed.
 - When generating content that includes diagrams, flowcharts, sequences, or graphs, use Mermaid syntax inside a mermaid code block (\`\`\`mermaid ... \`\`\`). Mermaid diagrams are fully supported and rendered in this note.
+- If the user asks for an image/visual inside the note, use appendGeneratedImageToNote. Do not ask the user to write a detailed generation prompt; craft it yourself from intent.
+- Choose image size based on user intent: portrait for vertical compositions, landscape for wide scenes, square for icons/avatars.
   
                     `}
-              functions={[updateNoteContent, updateColorTool, updateTitleTool]}
+              functions={[
+                updateNoteContent,
+                updateColorTool,
+                updateTitleTool,
+                appendGeneratedImageToNoteTool,
+              ]}
             />
             <Button
               title={isMarkdownMode ? t("text") : t("markdown")}

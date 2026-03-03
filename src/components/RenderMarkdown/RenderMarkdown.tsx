@@ -13,6 +13,8 @@ import { useStore } from "../../managers/store";
 import { AIInput } from "../AIInput/AIInput";
 import { useLocation, useNavigate } from "react-router";
 import { cacheLocation } from "../../utils/lib";
+import { ChromeStorageManager } from "../../managers/Storage";
+import { TAttachment } from "../../types";
 
 let mermaidInitialized = false;
 const ensureMermaidInitialized = () => {
@@ -31,11 +33,25 @@ const markdownUrlTransform = (url: string) => {
     lowered.startsWith("note:") ||
     lowered.startsWith("notes:") ||
     lowered.startsWith("task:") ||
-    lowered.startsWith("tasks:")
+    lowered.startsWith("tasks:") ||
+    lowered.startsWith("attachment:") ||
+    lowered.startsWith("attachments:")
   ) {
     return normalized;
   }
   return defaultUrlTransform(normalized);
+};
+
+const getAttachmentIdFromReference = (value: string) => {
+  const normalized = (value || "").trim();
+  const lowered = normalized.toLowerCase();
+  if (lowered.startsWith("attachment:")) {
+    return normalized.slice("attachment:".length).trim();
+  }
+  if (lowered.startsWith("attachments:")) {
+    return normalized.slice("attachments:".length).trim();
+  }
+  return "";
 };
 
 type TOffsets = {
@@ -357,9 +373,11 @@ const ListItemEditAsText = ({
 const CustomAnchor = ({
   href,
   children,
+  attachmentDataUrls = {},
 }: {
   href: string;
   children: ReactNode;
+  attachmentDataUrls?: Record<string, string>;
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -411,6 +429,15 @@ const CustomAnchor = ({
           e.stopPropagation();
         }}
       >
+        {children}
+      </a>
+    );
+  }
+
+  const attachmentId = getAttachmentIdFromReference(href);
+  if (attachmentId && attachmentDataUrls[attachmentId]) {
+    return (
+      <a href={attachmentDataUrls[attachmentId]} target="_blank" rel="noopener noreferrer">
         {children}
       </a>
     );
@@ -578,6 +605,50 @@ export const RenderMarkdown = ({
   editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
 }) => {
+  const [attachmentDataUrls, setAttachmentDataUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const attachmentReferences = Array.from(
+      markdown.matchAll(/attachments?:([A-Za-z0-9_-]+)/gi)
+    );
+    const attachmentIds = Array.from(
+      new Set(attachmentReferences.map((match) => match[1]).filter(Boolean))
+    );
+
+    if (attachmentIds.length === 0) {
+      setAttachmentDataUrls({});
+      return;
+    }
+
+    let mounted = true;
+    const hydrateAttachments = async () => {
+      try {
+        const attachments: TAttachment[] =
+          (await ChromeStorageManager.get("attachments")) || [];
+        if (!mounted) return;
+
+        const nextMap: Record<string, string> = {};
+        attachmentIds.forEach((attachmentId) => {
+          const attachment = attachments.find((item) => item.id === attachmentId);
+          if (attachment?.dataUrl) {
+            nextMap[attachmentId] = attachment.dataUrl;
+          }
+        });
+        setAttachmentDataUrls(nextMap);
+      } catch (error) {
+        console.error("Could not read attachments from storage", error);
+        if (mounted) {
+          setAttachmentDataUrls({});
+        }
+      }
+    };
+
+    hydrateAttachments();
+    return () => {
+      mounted = false;
+    };
+  }, [markdown]);
+
   return (
     <Markdown
       skipHtml={true}
@@ -585,9 +656,29 @@ export const RenderMarkdown = ({
       components={{
         a: (props) => {
           return (
-            <CustomAnchor href={props.href || ""}>
+            <CustomAnchor
+              href={props.href || ""}
+              attachmentDataUrls={attachmentDataUrls}
+            >
               {props.children}
             </CustomAnchor>
+          );
+        },
+        img: (props) => {
+          const src = props.src || "";
+          const attachmentId = getAttachmentIdFromReference(src);
+          const resolvedSrc = attachmentId ? attachmentDataUrls[attachmentId] : src;
+
+          if (!resolvedSrc) {
+            return null;
+          }
+
+          return (
+            <img
+              src={resolvedSrc}
+              alt={props.alt || "attachment"}
+              style={{ maxWidth: "100%", borderRadius: "8px" }}
+            />
           );
         },
         pre: (props) => {

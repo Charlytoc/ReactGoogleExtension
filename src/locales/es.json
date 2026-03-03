@@ -201,6 +201,18 @@
     "editWithAI": "Editar con IA",
     "collapse": "Contraer",
     "instruction": "Instruccion",
+    "noApiKeyError": "No se encontro API key",
+    "generateImage": "Generar imagen",
+    "imagePrompt": "Prompt de imagen",
+    "describeImageToGenerate": "Describe la imagen que quieres generar",
+    "pleaseAddImagePrompt": "Agrega un prompt de imagen",
+    "imagesInNote": "Imagenes en la nota",
+    "describeImageToInsert": "Describe la imagen para insertar en la nota",
+    "generateAndInsertImage": "Generar e insertar imagen",
+    "uploadAndInsertImage": "Subir e insertar imagen",
+    "imageAttachedToNote": "Imagen adjuntada a la nota",
+    "couldNotAttachImage": "No se pudo adjuntar la imagen",
+    "couldNotGenerateImage": "No se pudo generar la imagen",
     "applyingAI": "Aplicando...",
     "apply": "Aplicar"
 }

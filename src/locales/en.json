@@ -201,6 +201,18 @@
     "editWithAI": "Edit with AI",
     "collapse": "Collapse",
     "instruction": "Instruction",
+    "noApiKeyError": "No API key found",
+    "generateImage": "Generate image",
+    "imagePrompt": "Image prompt",
+    "describeImageToGenerate": "Describe the image you want to generate",
+    "pleaseAddImagePrompt": "Please add an image prompt",
+    "imagesInNote": "Images in note",
+    "describeImageToInsert": "Describe the image to insert into the note",
+    "generateAndInsertImage": "Generate and insert image",
+    "uploadAndInsertImage": "Upload and insert image",
+    "imageAttachedToNote": "Image attached to note",
+    "couldNotAttachImage": "Could not attach image",
+    "couldNotGenerateImage": "Could not generate image",
     "applyingAI": "Applying...",
     "apply": "Apply"
 }

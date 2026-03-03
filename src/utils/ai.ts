@@ -33,6 +33,29 @@ type TToolArguments = {
   description: string;
 };
 
+const hasFunctionCallPayload = (
+  toolCall: unknown
+): toolCall is { id: string; function: { name: string; arguments: string } } => {
+  return (
+    typeof toolCall === "object" &&
+    toolCall !== null &&
+    "function" in toolCall &&
+    typeof (toolCall as any).function?.name === "string" &&
+    typeof (toolCall as any).function?.arguments === "string"
+  );
+};
+
+const hasFunctionToolSchema = (
+  tool: ChatCompletionTool
+): tool is ChatCompletionTool & { function: { name: string } } => {
+  return (
+    typeof tool === "object" &&
+    tool !== null &&
+    "function" in tool &&
+    typeof (tool as any).function?.name === "string"
+  );
+};
+
 export const toolify = <T extends (args: any) => any>(
   fn: T,
   name: string,
@@ -194,6 +217,66 @@ export const createSpeech = async (request: TSpeechRequest, apiKey: string) => {
   return buffer;
 };
 
+type TImageOutputFormat = "png" | "jpeg" | "webp";
+type TImageSize = "1024x1024" | "1536x1024" | "1024x1536" | "auto";
+type TImageQuality = "low" | "medium" | "high" | "auto";
+type TImageBackground = "transparent" | "opaque" | "auto";
+
+type TGenerateImageRequest = {
+  prompt: string;
+  apiKey: string;
+  model?: "gpt-image-1.5" | "gpt-image-1" | "gpt-image-1-mini";
+  size?: TImageSize;
+  quality?: TImageQuality;
+  background?: TImageBackground;
+  outputFormat?: TImageOutputFormat;
+  outputCompression?: number;
+};
+
+export const generateImage = async ({
+  prompt,
+  apiKey,
+  model = "gpt-image-1.5",
+  size = "1024x1024",
+  quality = "medium",
+  background = "auto",
+  outputFormat = "jpeg",
+  outputCompression = 60,
+}: TGenerateImageRequest): Promise<{
+  b64: string;
+  mimeType: string;
+  revisedPrompt?: string;
+}> => {
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+  const response = await openai.images.generate({
+    model,
+    prompt,
+    size,
+    quality,
+    background,
+    output_format: outputFormat,
+    output_compression: outputCompression,
+  });
+
+  const firstImage = response.data?.[0];
+  if (!firstImage?.b64_json) {
+    throw new Error("No image returned by the API");
+  }
+
+  const mimeType =
+    outputFormat === "png"
+      ? "image/png"
+      : outputFormat === "webp"
+      ? "image/webp"
+      : "image/jpeg";
+
+  return {
+    b64: firstImage.b64_json,
+    mimeType,
+    revisedPrompt: (firstImage as any).revised_prompt,
+  };
+};
+
 export const createCompletionWithFunctions = async (
   request: TCompletionRequest,
   callback: (completion: ChatCompletion) => void,
@@ -221,6 +304,9 @@ export const createCompletionWithFunctions = async (
 
   if (toolCalls && toolCalls.length > 0) {
     for (const toolCall of toolCalls) {
+      if (!hasFunctionCallPayload(toolCall)) {
+        continue;
+      }
       const functionName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments);
 
@@ -346,7 +432,9 @@ export const convertToMessage = (m: TMessage): ChatCompletionMessageParam => {
 };
 
 export const createToolsMap = (functions: TTool[]) => {
-  let toolNames = functions.map((tool) => tool.schema.function.name);
+  let toolNames = functions.map((tool) =>
+    hasFunctionToolSchema(tool.schema) ? tool.schema.function.name : ""
+  );
   let toolFunctions = functions.map((tool) => tool.function);
 
   let functionMap: Record<
@@ -355,6 +443,7 @@ export const createToolsMap = (functions: TTool[]) => {
   > = {};
 
   for (let i = 0; i < toolNames.length; i++) {
+    if (!toolNames[i]) continue;
     functionMap[toolNames[i]] = toolFunctions[i];
   }
 

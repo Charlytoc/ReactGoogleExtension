@@ -15,7 +15,13 @@ export const cacheLocation = async (
 };
 
 export const generateRandomId = (
-  type: "note" | "task" | "conversation" | "snaptie" | "formatter"
+  type:
+    | "note"
+    | "task"
+    | "conversation"
+    | "snaptie"
+    | "formatter"
+    | "attachment"
 ) => {
   const timestamp = Date.now();
   const randomString = Math.random().toString(36).substring(2, 8);

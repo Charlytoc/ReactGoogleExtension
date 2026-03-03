@@ -1,5 +1,17 @@
 export type TBackgroundType = "gradient" | "solid" | "none" | "image";
 
+export type TAttachmentType = "image" | "file";
+
+export type TAttachment = {
+  id: string;
+  type: TAttachmentType;
+  name: string;
+  dataUrl: string;
+  mimeType?: string;
+  sourceNoteId?: string;
+  createdAt: string;
+};
+
 export type TNote = {
   id: string;
   title?: string;
