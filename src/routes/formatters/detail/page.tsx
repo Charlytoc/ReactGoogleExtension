@@ -239,10 +239,6 @@ export default function FormatterDetail() {
   return (
     <Section
       className="bg-gradient"
-      close={() => {
-        navigate("/formatters");
-        cacheLocation("/formatters");
-      }}
       headerLeft={<h3 className="font-mono">{t("edit")}</h3>}
       headerRight={
         <div className="flex-row gap-5">

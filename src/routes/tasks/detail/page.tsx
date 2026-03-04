@@ -40,7 +40,6 @@ export default function TaskDetail() {
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{task?.title || ""}</h3>}
-      close={onFinish}
     >
       {task && <TaskVisualizer task={task} onFinish={onFinish} />}
     </Section>

@@ -86,10 +86,6 @@ export const Formatters = () => {
   return (
     <Section
       className="bg-gradient"
-      close={() => {
-        cacheLocation("/index.html");
-        navigate("/index.html");
-      }}
       headerLeft={<h3 className="font-mono">{t("formatters")}</h3>}
       headerRight={
         <Button

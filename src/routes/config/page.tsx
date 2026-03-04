@@ -1,9 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "../../components/Button/Button";
-import { useNavigate } from "react-router";
 import { SVGS } from "../../assets/svgs.tsx";
 import { ChromeStorageManager } from "../../managers/Storage.ts";
-import { cacheLocation } from "../../utils/lib.ts";
 import { useEffect, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
@@ -112,7 +110,6 @@ export default function Config() {
   });
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
-  const navigate = useNavigate();
 
   const handleLanguageChange = (value: string) => {
     i18n.changeLanguage(value);
@@ -155,10 +152,6 @@ export default function Config() {
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("settings")}</h3>}
-      close={() => {
-        cacheLocation("/index.html");
-        navigate("/index.html");
-      }}
     >
       <div className="flex-column gap-10">
         <div className="flex-column ">

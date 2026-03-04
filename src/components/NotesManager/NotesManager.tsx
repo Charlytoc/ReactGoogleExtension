@@ -150,10 +150,6 @@ export const NotesManager = () => {
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("notes")}</h3>}
-      close={() => {
-        cacheLocation("/index.html");
-        navigate("/index.html");
-      }}
       headerRight={
         <>
           <Button

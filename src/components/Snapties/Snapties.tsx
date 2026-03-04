@@ -29,10 +29,35 @@ export const Snapties = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [navigationMode, setNavigationMode] = useState<
-    "search" | "categories" | "snapties"
+    "search" | "pinned" | "categories" | "snapties"
   >("search");
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const moveFromSearchInputToMainNavigation = (searchInput: HTMLInputElement) => {
+    searchInput.blur();
+    setSelectedIndex(0);
+
+    // Use rendered DOM as source of truth so input-down and categories-up
+    // follow the exact same pinned availability.
+    const pinnedElements = document.querySelectorAll("[data-pinned-index]");
+    const hasPinned = pinnedElements.length > 0;
+    setNavigationMode(hasPinned ? "pinned" : "categories");
+
+    setTimeout(() => {
+      const selector = hasPinned ? "[data-pinned-index]" : "[data-category-index]";
+      const elements = document.querySelectorAll(selector);
+      const firstElement = elements[0] as HTMLElement;
+      if (firstElement) {
+        firstElement.focus();
+        firstElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }, 0);
+  };
 
   useEffect(() => {
     getSnapties();
@@ -66,25 +91,7 @@ export const Snapties = () => {
         // Check if we're in the search input
         if (e.target instanceof HTMLInputElement && e.target.name === "name-filter") {
           if (e.key === "ArrowDown") {
-            // Move from search input to first category
-            const searchInput = e.target;
-            searchInput.blur(); // Remove focus from input
-            setSelectedIndex(0);
-            setNavigationMode("categories");
-
-            // Focus the first category element
-            setTimeout(() => {
-              const categoryElements = document.querySelectorAll("[data-category-index]");
-              const firstCategory = categoryElements[0] as HTMLElement;
-              if (firstCategory) {
-                firstCategory.focus();
-                firstCategory.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                  inline: "center",
-                });
-              }
-            }, 0);
+            moveFromSearchInputToMainNavigation(e.target);
           }
           return;
         }
@@ -92,6 +99,9 @@ export const Snapties = () => {
         if (selectedCategory || isSearching) {
           // Navigation in snapties view
           handleSnaptiesNavigation(e.key);
+        } else if (navigationMode === "pinned") {
+          // Navigation in pinned view
+          handlePinnedNavigation(e.key);
         } else {
           // Navigation in categories view
           handleCategoriesNavigation(e.key);
@@ -107,7 +117,11 @@ export const Snapties = () => {
       }
 
       // Don't handle if the event is coming from a snaptie card (it has its own handler)
-      if (e.target instanceof HTMLElement && e.target.hasAttribute('data-snaptie-index')) {
+      if (
+        e.target instanceof HTMLElement &&
+        (e.target.hasAttribute("data-snaptie-index") ||
+          e.target.hasAttribute("data-pinned-index"))
+      ) {
         return; // Let the snaptie card handle it
       }
 
@@ -127,7 +141,11 @@ export const Snapties = () => {
     const handleSpaceKey = (e: KeyboardEvent) => {
 
       // Don't handle if the event is coming from a snaptie card (it has its own handler)
-      if (e.target instanceof HTMLElement && e.target.hasAttribute('data-snaptie-index')) {
+      if (
+        e.target instanceof HTMLElement &&
+        (e.target.hasAttribute("data-snaptie-index") ||
+          e.target.hasAttribute("data-pinned-index"))
+      ) {
         return; // Let the snaptie card handle it
       }
 
@@ -284,6 +302,24 @@ export const Snapties = () => {
       case "ArrowUp":
         // If we're in the first row (index 0, 1, 2) and press up, focus the search field
         if (selectedIndex <= 2) {
+          if (pinnedSnapties.length > 0) {
+            const targetPinnedIndex = Math.min(selectedIndex, pinnedSnapties.length - 1);
+            setSelectedIndex(targetPinnedIndex);
+            setNavigationMode("pinned");
+            setTimeout(() => {
+              const pinnedElements = document.querySelectorAll("[data-pinned-index]");
+              const pinnedElement = pinnedElements[targetPinnedIndex] as HTMLElement;
+              if (pinnedElement) {
+                pinnedElement.focus();
+                pinnedElement.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                  inline: "center",
+                });
+              }
+            }, 0);
+            return;
+          }
           const searchInput = document.querySelector('input[name="name-filter"]') as HTMLInputElement;
           if (searchInput) {
             searchInput.focus();
@@ -316,6 +352,84 @@ export const Snapties = () => {
     }, 0);
   };
 
+  const handlePinnedNavigation = (key: string) => {
+    if (pinnedSnapties.length === 0) return;
+
+    let newIndex = selectedIndex;
+    const selectedColumn = Math.max(selectedIndex, 0) % 3;
+
+    switch (key) {
+      case "ArrowRight":
+        newIndex = Math.min(selectedIndex + 1, pinnedSnapties.length - 1);
+        break;
+      case "ArrowLeft":
+        newIndex = Math.max(selectedIndex - 1, 0);
+        break;
+      case "ArrowDown": {
+        const nextPinnedIndex = selectedIndex + 3;
+        if (nextPinnedIndex < pinnedSnapties.length) {
+          newIndex = nextPinnedIndex;
+          break;
+        }
+
+        const categories = Object.keys(categoriesToShow);
+        if (categories.length > 0) {
+          // Keep same visual column when moving from pinned grid to categories.
+          const targetCategoryIndex = Math.min(selectedColumn, categories.length - 1);
+          setSelectedIndex(targetCategoryIndex);
+          setNavigationMode("categories");
+          setTimeout(() => {
+            const categoryElements = document.querySelectorAll("[data-category-index]");
+            const categoryElement = categoryElements[targetCategoryIndex] as HTMLElement;
+            if (categoryElement) {
+              categoryElement.focus();
+              categoryElement.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+                inline: "center",
+              });
+            }
+          }, 0);
+          return;
+        }
+        break;
+      }
+      case "ArrowUp": {
+        const previousPinnedIndex = selectedIndex - 3;
+        if (previousPinnedIndex >= 0) {
+          newIndex = previousPinnedIndex;
+          break;
+        }
+
+        const searchInput = document.querySelector(
+          'input[name="name-filter"]'
+        ) as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          setSelectedIndex(-1);
+          setNavigationMode("search");
+          return;
+        }
+        break;
+      }
+    }
+
+    setSelectedIndex(newIndex);
+    setNavigationMode("pinned");
+    setTimeout(() => {
+      const pinnedElements = document.querySelectorAll("[data-pinned-index]");
+      const selectedElement = pinnedElements[newIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.focus();
+        selectedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }, 0);
+  };
+
   const handleSnaptiesNavigation = (key: string) => {
     const currentSnapties = selectedCategory ? filteredSnapties : searchResults;
     if (currentSnapties.length === 0) return;
@@ -330,10 +444,10 @@ export const Snapties = () => {
         newIndex = Math.max(selectedIndex - 1, 0);
         break;
       case "ArrowDown":
-        newIndex = Math.min(selectedIndex + 4, currentSnapties.length - 1);
+        newIndex = Math.min(selectedIndex + 3, currentSnapties.length - 1);
         break;
       case "ArrowUp":
-        newIndex = Math.max(selectedIndex - 4, 0);
+        newIndex = Math.max(selectedIndex - 3, 0);
         break;
     }
 
@@ -470,10 +584,6 @@ export const Snapties = () => {
   return (
     <Section
       className="bg-gradient"
-      close={() => {
-        cacheLocation("/index.html");
-        navigate("/index.html");
-      }}
       headerLeft={<h3 className="font-mono">{t("bookmarks")}</h3>}
       headerRight={
         <Button
@@ -491,12 +601,10 @@ export const Snapties = () => {
               className="padding-5"
               onClick={handleBackToCategories}
               svg={<ArrowLeft size={20} />}
-              text={t("back-to-categories")}
+              title={`${t("back-to-categories")} (${t("press-q-to-go-back")})`}
+              aria-label={`${t("back-to-categories")}. ${t("press-q-to-go-back")}`}
             />
             <h4 className="font-mono">{t("search-results")}</h4>
-            <span className="text-sm text-gray-600 ml-auto">
-              {t("press-q-to-go-back")}
-            </span>
           </div>
           <div className="text-sm text-gray-600 text-center padding-10">
             {t("use-arrow-keys-to-navigate")}
@@ -584,6 +692,10 @@ export const Snapties = () => {
               placeholder={t("search")}
               onKeyDown={(e) => {
                 e.stopPropagation();
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  moveFromSearchInputToMainNavigation(e.currentTarget);
+                }
               }}
               value={nameFilter}
               onChange={(e) => {
@@ -641,9 +753,15 @@ export const Snapties = () => {
                     snaptie={snaptie}
                     deleteSnaptie={deleteSnaptie}
                     onTogglePin={togglePin}
-                    isSelected={false}
-                    onFocus={() => {}}
+                    isSelected={
+                      navigationMode === "pinned" && selectedIndex === index
+                    }
+                    onFocus={() => {
+                      setSelectedIndex(index);
+                      setNavigationMode("pinned");
+                    }}
                     index={index}
+                    pinnedIndex={index}
                   />
                 ))}
               </div>
@@ -698,6 +816,7 @@ const SnaptieCard = ({
   isSelected,
   onFocus,
   index,
+  pinnedIndex,
 }: {
   snaptie: TSnaptie;
   deleteSnaptie: (id: string) => void;
@@ -705,6 +824,7 @@ const SnaptieCard = ({
   isSelected?: boolean;
   onFocus?: () => void;
   index?: number;
+  pinnedIndex?: number;
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -716,6 +836,15 @@ const SnaptieCard = ({
 
   const openLink = () => {
     window.open(snaptie.content, "_blank");
+  };
+
+  const triggerDeleteButton = (container: HTMLElement) => {
+    const deleteButton = container.querySelector(
+      '[data-snaptie-delete-trigger="true"]'
+    ) as HTMLButtonElement | null;
+    if (deleteButton) {
+      deleteButton.click();
+    }
   };
 
   return (
@@ -739,11 +868,17 @@ const SnaptieCard = ({
         } else if (e.key === " ") {
           e.preventDefault();
           pasteSnaptie();
+        } else if (e.key === "Delete" || e.key === "Backspace") {
+          // Reuse the existing trash button confirmation flow.
+          e.preventDefault();
+          e.stopPropagation();
+          triggerDeleteButton(e.currentTarget);
         }
       }}
       tabIndex={0}
       role="button"
       data-snaptie-index={index}
+      data-pinned-index={pinnedIndex}
       aria-label={`${snaptie.title} - ${snaptie.category} category. ${snaptie.isUrl ? 'Press Enter to open link, Space to copy. Click to copy content.' : 'Press Enter or Space to copy content. Click to copy content.'}`}
     >
       <div className="snaptie-bg" onClick={pasteSnaptie}></div>
@@ -770,6 +905,7 @@ const SnaptieCard = ({
         )}
         <Button
           tabIndex={0}
+          data-snaptie-delete-trigger="true"
           svg={<Trash2 size={20} />}
           confirmations={[
             { text: t("sure?"), className: "bg-danger", svg: undefined },

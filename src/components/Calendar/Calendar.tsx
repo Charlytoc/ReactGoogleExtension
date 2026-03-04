@@ -25,7 +25,6 @@ type TNotesByDate = Record<number, TNote[]>;
 const Calendar = () => {
   const today = new Date();
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -98,10 +97,6 @@ const Calendar = () => {
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("calendar")}</h3>}
-      close={() => {
-        navigate("/index.html");
-        cacheLocation("/index.html", "/calendar");
-      }}
     >
       <div className="gap-5 padding-5">
         <div className="flex-row gap-5 justify-between">

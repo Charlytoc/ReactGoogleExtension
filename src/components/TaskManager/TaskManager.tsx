@@ -136,10 +136,6 @@ export const TaskManager = () => {
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("taskManager")}</h3>}
-      close={() => {
-        cacheLocation("/index.html", "lastPage");
-        navigate("/index.html");
-      }}
       headerRight={
         <>
           <Button

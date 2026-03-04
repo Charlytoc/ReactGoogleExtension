@@ -16,7 +16,6 @@ import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
 import {
-  cacheLocation,
   clickElementBySelector,
   extractClickableElements,
   extractEditableElements,
@@ -24,7 +23,6 @@ import {
   fillElementBySelector,
   generateRandomId,
 } from "../../utils/lib";
-import { useNavigate } from "react-router";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel } from "../../types";
 import { useTranslation } from "react-i18next";
@@ -107,7 +105,6 @@ export const Chat = () => {
   const [error, setError] = useState<string>("");
   const [attachments, setAttachments] = useState<TAttachment[]>([]);
   const autoScroll = true;
-  const navigate = useNavigate();
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -538,10 +535,6 @@ export const Chat = () => {
   return (
     <Section
       className="bg-gradient"
-      close={() => {
-        navigate("/index.html");
-        cacheLocation("/index.html", "/chat");
-      }}
       headerLeft={<h3 className="font-mono">{t("AI")}</h3>}
       headerRight={
         <>

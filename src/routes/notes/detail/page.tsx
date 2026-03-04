@@ -452,7 +452,6 @@ export default function NoteDetail() {
         }}
         close={async () => {
           const prevPage = await ChromeStorageManager.get("prevPage");
-
           cacheLocation(prevPage, "lastPage");
           navigate(prevPage);
         }}
