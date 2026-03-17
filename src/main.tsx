@@ -21,6 +21,15 @@ import { MantineProvider } from "@mantine/core";
 import { theme } from "./theme";
 import { AppLayout } from "./components/AppLayout/AppLayout.tsx";
 
+const isChromeExtension =
+  typeof chrome !== "undefined" &&
+  typeof chrome.storage !== "undefined" &&
+  typeof chrome.storage.local !== "undefined";
+
+if (!isChromeExtension) {
+  document.body.classList.add("browser");
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="dark">

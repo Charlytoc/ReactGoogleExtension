@@ -214,5 +214,15 @@
     "couldNotAttachImage": "No se pudo adjuntar la imagen",
     "couldNotGenerateImage": "No se pudo generar la imagen",
     "applyingAI": "Aplicando...",
-    "apply": "Aplicar"
+    "apply": "Aplicar",
+    "savedPrompts": "Prompts guardados",
+    "newPrompt": "Nuevo prompt",
+    "promptName": "Nombre del prompt",
+    "promptContent": "Contenido del prompt (usa {{variable}} para variables)",
+    "noSavedPrompts": "No hay prompts guardados",
+    "detectedVariables": "Variables detectadas",
+    "variables": "Variables",
+    "use": "Usar",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
 }

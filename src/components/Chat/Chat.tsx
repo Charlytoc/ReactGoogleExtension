@@ -31,6 +31,8 @@ import { Section } from "../Section/Section";
 import { Select } from "../Select/Select";
 import { TNote, TTask } from "../../types";
 import { AIInput } from "../AIInput/AIInput";
+import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Paper, Select as MantineSelect, Slider, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconCheck, IconChevronLeft } from "@tabler/icons-react";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
   const messages: TMessage[] = [
@@ -68,7 +70,29 @@ type TAttachment = {
   name: string;
 };
 
-type TChatTab = "history" | "config" | "chat";
+type TChatTab = "history" | "config" | "chat" | "prompts";
+
+type TPrompt = {
+  id: string;
+  name: string;
+  content: string;
+  pinned?: boolean;
+};
+
+const extractVariables = (content: string): string[] => {
+  const matches = content.match(/\{\{([^}]+)\}\}/g);
+  if (!matches) return [];
+  return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
+};
+
+const fillVariables = (
+  content: string,
+  values: Record<string, string>
+): string =>
+  content.replace(
+    /\{\{([^}]+)\}\}/g,
+    (_, key) => values[key.trim()] ?? `{{${key}}}`
+  );
 
 const appendSystemPrompt = (
   systemPrompt: string,
@@ -104,6 +128,16 @@ export const Chat = () => {
   const [conversations, setConversations] = useState<TConversation[]>([]);
   const [error, setError] = useState<string>("");
   const [attachments, setAttachments] = useState<TAttachment[]>([]);
+  const [prompts, setPrompts] = useState<TPrompt[]>([]);
+  const [promptPicker, setPromptPicker] = useState<{
+    open: boolean;
+    selected: TPrompt | null;
+    variableValues: Record<string, string>;
+  }>({ open: false, selected: null, variableValues: {} });
+  const [pinnedFiller, setPinnedFiller] = useState<{
+    prompt: TPrompt;
+    values: Record<string, string>;
+  } | null>(null);
   const autoScroll = true;
   const { t } = useTranslation();
 
@@ -111,7 +145,18 @@ export const Chat = () => {
     getApiKey();
     getConversations();
     getAiConfig();
+    loadPrompts();
   }, []);
+
+  const loadPrompts = async () => {
+    const stored = await ChromeStorageManager.get("savedPrompts");
+    if (Array.isArray(stored)) setPrompts(stored);
+  };
+
+  const savePrompts = async (next: TPrompt[]) => {
+    setPrompts(next);
+    await ChromeStorageManager.add("savedPrompts", next);
+  };
 
   useEffect(() => {
     if (input.includes("/send")) {
@@ -202,7 +247,7 @@ export const Chat = () => {
     const conversations: TConversation[] = await ChromeStorageManager.get(
       "conversations"
     );
-    if (!conversations) {
+    if (!Array.isArray(conversations)) {
       setConversations([]);
       createNewConversation();
       return;
@@ -563,6 +608,12 @@ export const Chat = () => {
           />
 
           <Button
+            className={`padding-5 ${activeTab === "prompts" ? "bg-active" : ""}`}
+            onClick={() => setActiveTab("prompts")}
+            svg={SVGS.pin}
+            title={t("savedPrompts")}
+          />
+          <Button
             className={`padding-5 ${activeTab === "config" ? "bg-active" : ""}`}
             onClick={() => setActiveTab("config")}
             svg={SVGS.gear}
@@ -571,6 +622,13 @@ export const Chat = () => {
         </>
       }
     >
+      {activeTab === "prompts" && (
+        <PromptsPanel
+          prompts={prompts}
+          savePrompts={savePrompts}
+          close={() => setActiveTab("chat")}
+        />
+      )}
       {activeTab === "history" && (
         <History
           conversations={conversations}
@@ -613,7 +671,100 @@ export const Chat = () => {
               );
             })}
           </div>
+          {promptPicker.open && (
+            <Paper withBorder p="xs" style={{ maxHeight: "40vh", overflowY: "auto" }}>
+              <Stack gap="xs">
+                {prompts.length === 0 ? (
+                  <Text size="sm" c="dimmed">{t("noSavedPrompts")}</Text>
+                ) : prompts.map((p) => (
+                  <Paper
+                    key={p.id}
+                    withBorder
+                    p="xs"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      const vars = extractVariables(p.content);
+                      if (vars.length === 0) {
+                        setInput(p.content);
+                        setPromptPicker({ open: false, selected: null, variableValues: {} });
+                      } else {
+                        const initial: Record<string, string> = {};
+                        vars.forEach((v) => (initial[v] = ""));
+                        setPromptPicker({ open: true, selected: p, variableValues: initial });
+                      }
+                    }}
+                  >
+                    <Text size="sm" fw={500}>{p.name}</Text>
+                    <Text size="xs" c="dimmed" truncate="end">{p.content}</Text>
+                  </Paper>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+
+          <VariableFillerModal
+            prompt={promptPicker.selected}
+            values={promptPicker.variableValues}
+            onChangeValues={(values) => setPromptPicker((prev) => ({ ...prev, variableValues: values }))}
+            onUse={(filled) => {
+              setInput(filled);
+              setPromptPicker({ open: false, selected: null, variableValues: {} });
+            }}
+            onClose={() => setPromptPicker((prev) => ({ ...prev, selected: null, variableValues: {} }))}
+          />
+
+          <VariableFillerModal
+            prompt={pinnedFiller?.prompt ?? null}
+            values={pinnedFiller?.values ?? {}}
+            onChangeValues={(values) => setPinnedFiller((prev) => prev && ({ ...prev, values }))}
+            onUse={(filled) => {
+              setInput(filled);
+              setPinnedFiller(null);
+            }}
+            onClose={() => setPinnedFiller(null)}
+          />
+
+          {prompts.filter((p) => p.pinned).length > 0 && (
+            <Group gap="xs" px="xs">
+              {prompts.filter((p) => p.pinned).map((p) => {
+                const initials = p.name
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0].toUpperCase())
+                  .join("");
+                return (
+                  <Tooltip key={p.id} label={p.name} withArrow>
+                    <ActionIcon
+                      variant="default"
+                      size="md"
+                      style={{ fontWeight: 600, fontSize: "0.7rem", letterSpacing: "0.05em" }}
+                      onClick={() => {
+                        const vars = extractVariables(p.content);
+                        if (vars.length === 0) {
+                          setInput(p.content);
+                        } else {
+                          const initial: Record<string, string> = {};
+                          vars.forEach((v) => (initial[v] = ""));
+                          setPinnedFiller({ prompt: p, values: initial });
+                        }
+                      }}
+                    >
+                      {initials}
+                    </ActionIcon>
+                  </Tooltip>
+                );
+              })}
+            </Group>
+          )}
+
           <section className="flex-row gap-10 w-100 padding-5 ">
+            <Button
+              className={`padding-5 ${promptPicker.open ? "bg-active" : ""}`}
+              svg={SVGS.pin}
+              title={t("savedPrompts")}
+              onClick={() => setPromptPicker((prev) => ({ ...prev, open: !prev.open, selected: null }))}
+            />
             <div className="w-100">
               <AIInput
                 value={input}
@@ -683,72 +834,63 @@ const AIConfig = ({
       headerLeft={<h3 className="font-mono">{t("chatConfig")}</h3>}
       close={close}
     >
-      <div className="flex-column gap-10">
-        <Textarea
-          label={t("systemPrompt")}
-          // placeholder={t("systemPrompt")}
-          className="w-100  padding-5 rounded"
-          defaultValue={_aiConfig.systemPrompt}
-          onChange={(value) => {
-            setAiConfig({ ..._aiConfig, systemPrompt: value });
-          }}
-        />
-        <div className="flex-row gap-5 align-center ">
-          <h4>{t("model")}</h4>
-          <Select
-            name="model"
-            options={models.map((model) => ({
-              label: model.name,
-              value: model.slug,
-            }))}
-            defaultValue={_aiConfig.model.slug}
+      <Stack p="md" gap="lg">
+        <Stack gap="xs">
+          <Title order={5}>{t("systemPrompt")}</Title>
+          <MantineTextarea
+            variant="filled"
+            defaultValue={_aiConfig.systemPrompt}
+            autosize
+            minRows={4}
+            maxRows={10}
+            onChange={(e) => setAiConfig({ ..._aiConfig, systemPrompt: e.target.value })}
+          />
+        </Stack>
+
+        <Divider />
+
+        <Stack gap="xs">
+          <Title order={5}>{t("model")}</Title>
+          <MantineSelect
+            variant="filled"
+            data={models.map((m) => ({ label: m.name, value: m.slug }))}
+            value={_aiConfig.model.slug}
             onChange={(value) => {
               const model = models.find((m) => m.slug === value);
-              if (model) {
-                setAiConfig({ ..._aiConfig, model: model });
-              }
+              if (model) setAiConfig({ ..._aiConfig, model });
             }}
+            searchable
           />
-          {/* <Select
-            name="reasoningTag"
-            options={[
-              { label: "thinking", value: "thinking" },
-              { label: "reasoning", value: "reasoning" },
-              { label: "thinking_process", value: "thinking_process" },
-            ]}
-            defaultValue={_aiConfig.reasoningTag || "thinking"}
-            onChange={(value) => {
-              setAiConfig({
-                ..._aiConfig,
-                reasoningTag: value as TReasoningTag,
-              });
-            }}
-          /> */}
-        </div>
-        <h3>{t("conversationsConfig")}</h3>
-        <div className="flex-row gap-10">
-          <input
-            className="checkbox"
-            type="checkbox"
-            name="autoSave-conversations"
+        </Stack>
+
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Title order={5}>Temperature</Title>
+            <Text size="sm" c="dimmed">{(_aiConfig.temperature ?? 0.5).toFixed(1)}</Text>
+          </Group>
+          <Slider
+            min={0} max={2} step={0.1}
+            value={_aiConfig.temperature ?? 0.5}
+            onChange={(v) => setAiConfig({ ..._aiConfig, temperature: v })}
+            marks={[{ value: 0, label: "0" }, { value: 1, label: "1" }, { value: 2, label: "2" }]}
+          />
+        </Stack>
+
+        <Divider />
+
+        <Stack gap="xs">
+          <Title order={5}>{t("conversationsConfig")}</Title>
+          <Switch
+            label={t("autoSaveConversations")}
             checked={_aiConfig.autoSaveConversations}
-            onChange={(e) => {
-              setAiConfig({
-                ..._aiConfig,
-                autoSaveConversations: e.target.checked,
-              });
-            }}
+            onChange={(e) => setAiConfig({ ..._aiConfig, autoSaveConversations: e.target.checked })}
           />
-          <span>{t("autoSaveConversations")}</span>
-        </div>
-        <Button
-          className="w-100 padding-5 justify-center active-on-hover"
-          text={t("finishConfig")}
-          title={t("finishConfig")}
-          svg={SVGS.save}
-          onClick={finishConfig}
-        />
-      </div>
+        </Stack>
+
+        <MantineButton fullWidth leftSection={SVGS.save} onClick={finishConfig}>
+          {t("finishConfig")}
+        </MantineButton>
+      </Stack>
     </Section>
   );
 };
@@ -825,6 +967,163 @@ const History = ({
         </div>
       ))}
     </Section>
+  );
+};
+
+const PromptsPanel = ({
+  prompts,
+  savePrompts,
+  close,
+}: {
+  prompts: TPrompt[];
+  savePrompts: (prompts: TPrompt[]) => void;
+  close: () => void;
+}) => {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState<TPrompt | null>(null);
+  const [form, setForm] = useState<{ name: string; content: string }>({ name: "", content: "" });
+
+  const startNew = () => {
+    setEditing({ id: generateRandomId("prompt"), name: "", content: "" });
+    setForm({ name: "", content: "" });
+  };
+
+  const startEdit = (p: TPrompt) => {
+    setEditing(p);
+    setForm({ name: p.name, content: p.content });
+  };
+
+  const commitEdit = () => {
+    if (!editing) return;
+    const updated = { ...editing, ...form };
+    const exists = prompts.find((p) => p.id === updated.id);
+    savePrompts(exists ? prompts.map((p) => (p.id === updated.id ? updated : p)) : [...prompts, updated]);
+    setEditing(null);
+  };
+
+  const deletePrompt = (id: string) => savePrompts(prompts.filter((p) => p.id !== id));
+
+  const variables = editing ? extractVariables(form.content) : [];
+
+  return (
+    <Section
+      className="bg-gradient"
+      headerLeft={<h3 className="font-mono">{t("savedPrompts")}</h3>}
+      headerRight={
+        <Button className="padding-5" svg={SVGS.plus} title={t("newPrompt")} onClick={startNew} />
+      }
+      close={close}
+    >
+      <div className="flex-column gap-10 padding-10">
+        {editing ? (
+          <div className="flex-column gap-10">
+            <input
+              className="input rounded padding-5"
+              placeholder={t("promptName")}
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              autoFocus
+            />
+            <textarea
+              className="input rounded padding-5"
+              placeholder={t("promptContent")}
+              rows={6}
+              value={form.content}
+              onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+              style={{ resize: "vertical", fontFamily: "inherit", color: "var(--font-color)", background: "transparent" }}
+            />
+            {variables.length > 0 && (
+              <p className="text-mini color-gray">
+                {t("detectedVariables")}: {variables.map((v) => <span key={v} className="tag" style={{ marginRight: 4 }}>{`{{${v}}}`}</span>)}
+              </p>
+            )}
+            <div className="flex-row gap-5">
+              <Button className="w-100 justify-center padding-5 active-on-hover" svg={SVGS.save} text={t("save")} onClick={commitEdit} />
+              <Button className="padding-5" svg={SVGS.close} onClick={() => setEditing(null)} />
+            </div>
+          </div>
+        ) : prompts.length === 0 ? (
+          <p className="color-gray text-mini">{t("noSavedPrompts")}</p>
+        ) : (
+          prompts.map((p) => (
+            <div key={p.id} className="flex-column gap-5 border-gray rounded-10 padding-10">
+              <div className="flex-row align-center justify-between">
+                <h4>{p.name}</h4>
+                <div className="flex-row gap-5">
+                  <Button
+                    className={`padding-5 ${p.pinned ? "bg-active" : ""}`}
+                    svg={SVGS.pin}
+                    title={p.pinned ? t("unpin") : t("pin")}
+                    onClick={() => savePrompts(prompts.map((x) => x.id === p.id ? { ...x, pinned: !x.pinned } : x))}
+                  />
+                  <Button className="padding-5" svg={SVGS.edit} onClick={() => startEdit(p)} />
+                  <Button
+                    className="padding-5"
+                    svg={SVGS.trash}
+                    confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
+                    onClick={() => deletePrompt(p.id)}
+                  />
+                </div>
+              </div>
+              <p className="text-mini color-gray" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{p.content}</p>
+              {extractVariables(p.content).length > 0 && (
+                <p className="text-mini color-gray">{t("variables")}: {extractVariables(p.content).join(", ")}</p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </Section>
+  );
+};
+
+const VariableFillerModal = ({
+  prompt,
+  values,
+  onChangeValues,
+  onUse,
+  onClose,
+}: {
+  prompt: TPrompt | null;
+  values: Record<string, string>;
+  onChangeValues: (values: Record<string, string>) => void;
+  onUse: (filled: string) => void;
+  onClose: () => void;
+}) => {
+  const { t } = useTranslation();
+  if (!prompt) return null;
+  return (
+    <Modal
+      opened={!!prompt}
+      onClose={onClose}
+      title={<Text fw={600}>{prompt.name}</Text>}
+      centered
+      size="md"
+    >
+      <Stack gap="sm">
+        {Object.keys(values).map((varName, i) => (
+          <TextInput
+            key={varName}
+            label={varName}
+            variant="filled"
+            autoFocus={i === 0}
+            value={values[varName]}
+            onChange={(e) => onChangeValues({ ...values, [varName]: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onUse(fillVariables(prompt.content, values));
+            }}
+          />
+        ))}
+        <MantineButton
+          fullWidth
+          mt="xs"
+          leftSection={<IconCheck size={14} />}
+          onClick={() => onUse(fillVariables(prompt.content, values))}
+        >
+          {t("use")}
+        </MantineButton>
+      </Stack>
+    </Modal>
   );
 };
 

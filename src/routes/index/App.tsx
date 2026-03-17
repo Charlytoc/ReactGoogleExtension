@@ -35,6 +35,10 @@ function App() {
       "colorPreferences"
     );
     const openaiApiKey = await ChromeStorageManager.get("openaiApiKey");
+    if (openaiApiKey) {
+      setConfig({ auth: { openaiApiKey } });
+    }
+
     if (colorPreferences) {
       document.documentElement.style.setProperty(
         "--active-color",
@@ -56,12 +60,7 @@ function App() {
         "--bg-color-secondary",
         colorPreferences.backgroundColorSecondary
       );
-      setConfig({
-        theme: colorPreferences,
-        auth: {
-          openaiApiKey,
-        },
-      });
+      setConfig({ theme: colorPreferences });
     }
   };
 

@@ -1,5 +1,17 @@
-.note {
-  width: 180px;
-  text-align: center;
-  word-wrap: break-word;
+.note-card {
+  width: 100%;
+  transition: box-shadow 0.2s ease;
+}
+
+.note-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.note-card-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.note-card:hover .note-card-actions {
+  opacity: 1;
 }

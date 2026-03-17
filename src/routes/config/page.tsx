@@ -122,7 +122,7 @@ export default function Config() {
 
   const getStored = async () => {
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
-    setApiKey(apiKey);
+    setApiKey(apiKey ?? "");
     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
     if (colorPreferences) {
       setColors(colorPreferences);
@@ -302,6 +302,7 @@ export default function Config() {
         onClick={() => {
           ChromeStorageManager.add("colorPreferences", colors);
           ChromeStorageManager.add("openaiApiKey", apiKey);
+          setConfig({ auth: { openaiApiKey: apiKey } });
           toast.success(t("settingsSaved"));
         }}
       />

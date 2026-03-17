@@ -17,6 +17,7 @@ type TTextareaProps = {
   isMarkdown?: boolean;
   onKeyUp?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   autoFocus?: boolean;
+  fillAvailableHeight?: boolean;
 };
 
 const MarkdownEditor = ({
@@ -60,12 +61,13 @@ export const Textarea = ({
   isMarkdown = false,
   onKeyUp = () => {},
   autoFocus = false,
+  fillAvailableHeight = false,
 }: TTextareaProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<"markdown" | "plain">("plain");
 
   useEffect(() => {
-    
+    if (fillAvailableHeight) return;
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
@@ -76,11 +78,12 @@ export const Textarea = ({
   }, [defaultValue]);
 
   useEffect(() => {
+    if (fillAvailableHeight) return;
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [mode]);
+  }, [mode, fillAvailableHeight]);
 
   return (
     <div className={`labeled-textarea w-100 ${containerClassName}`}>
@@ -113,10 +116,12 @@ export const Textarea = ({
               overflowY: "auto",
               resize: "none",
               scrollbarWidth: "none",
-              minHeight: "100px",
-              maxHeight: maxHeight,
+              minHeight: fillAvailableHeight ? "100%" : "100px",
+              maxHeight: fillAvailableHeight ? "100%" : maxHeight,
+              height: fillAvailableHeight ? "100%" : undefined,
             }}
             onInput={() => {
+              if (fillAvailableHeight) return;
               if (textareaRef.current) {
                 textareaRef.current.style.height = "auto";
                 textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;

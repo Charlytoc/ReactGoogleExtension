@@ -180,7 +180,7 @@ export const NotesManager = () => {
         {showFilters && (
           <NoteFilters filters={filters} setFilters={setFilters} tags={tags} />
         )}
-        <div className="grid grid-cols-2 gap-10 notes-grid">
+        <div className="flex-column gap-10 notes-grid">
           {applyFilters(notes).map((note) => (
             <Note
               {...note}

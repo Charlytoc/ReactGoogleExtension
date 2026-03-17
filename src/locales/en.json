@@ -214,5 +214,15 @@
     "couldNotAttachImage": "Could not attach image",
     "couldNotGenerateImage": "Could not generate image",
     "applyingAI": "Applying...",
-    "apply": "Apply"
+    "apply": "Apply",
+    "savedPrompts": "Saved Prompts",
+    "newPrompt": "New Prompt",
+    "promptName": "Prompt name",
+    "promptContent": "Prompt content (use {{variable}} for variables)",
+    "noSavedPrompts": "No saved prompts yet",
+    "detectedVariables": "Detected variables",
+    "variables": "Variables",
+    "use": "Use",
+    "pin": "Pin",
+    "unpin": "Unpin"
 }

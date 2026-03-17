@@ -1,6 +1,7 @@
 import { SVGS } from "../../assets/svgs";
 import { TNote } from "../../types";
 import { Button } from "../Button/Button";
+import { ActionIcon, Card, Group, Text } from "@mantine/core";
 import "./Note.css";
 
 import { useNavigate } from "react-router";
@@ -55,7 +56,7 @@ export const Note = ({
   };
 
   return (
-    <div
+    <Card
       style={{
         background: buildBackground(
           color,
@@ -63,39 +64,47 @@ export const Note = ({
           backgroundType || "gradient",
           imageURL
         ),
+        cursor: "pointer",
+        position: "relative",
       }}
-      className="padding-10 rounded w-100"
+      radius="md"
+      p="md"
+      onClick={() => {
+        cacheLocation(`/notes/${id}`, "/notes");
+        navigate(`/notes/${id}`);
+      }}
+      className="note-card"
     >
-      <h4>{title?.slice(0, 20) || t("untitled")}</h4>
-      <div className="flex-row gap-10 justify-center ">
+      <Text fw={600} size="sm" c="white" truncate>
+        {title || t("untitled")}
+      </Text>
+
+      <Group
+        gap="xs"
+        justify="flex-end"
+        mt="xs"
+        className="note-card-actions"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
-          className="w-100 justify-center padding-5"
           svg={SVGS.trash}
-          text={""}
           onClick={deleteNote}
           confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
         />
-        <Button
-          className="w-100 justify-center padding-5 contrast-on-hover"
-          svg={SVGS.expand}
-          // text={t("expand")}
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
           onClick={() => {
             cacheLocation(`/notes/${id}`, "/notes");
             navigate(`/notes/${id}`);
           }}
-        />
-        {!id && (
-          <Button
-            className="w-100 justify-center padding-5"
-            svg={SVGS.check}
-            onClick={() => {
-              notify(t("generatingNoteId"), "info");
-              generateId();
-            }}
-          />
-        )}
-      </div>
-    </div>
+          aria-label={t("expand")}
+        >
+          {SVGS.expand}
+        </ActionIcon>
+      </Group>
+    </Card>
   );
 };
 

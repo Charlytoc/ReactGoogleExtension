@@ -127,6 +127,7 @@ export const LabeledInput = ({
       <input
         autoFocus={autoFocus}
         ref={inputRef}
+        id={name}
         type={type}
         name={name}
         placeholder={placeholder}

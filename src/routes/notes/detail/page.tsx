@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
 import { TAttachment, TBackgroundType, TMessage, TNote } from "../../../types";
@@ -26,84 +26,118 @@ import toast from "react-hot-toast";
 import { Select } from "../../../components/Select/Select";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
+import {
+  IconArrowLeft,
+  IconLetterT,
+  IconMarkdown,
+  IconPalette,
+  IconSparkles,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useSidebarActions } from "../../../components/AppLayout/SidebarActionsContext";
 
 const Prompter = ({
   systemPrompt,
   functions,
+  isOpen,
+  onOpenChange,
+  showTrigger = true,
 }: // onComplete,
 {
   systemPrompt: string;
   // apiKey: string;
   functions: TTool[];
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  showTrigger?: boolean;
   // onComplete: (response: string) => void;
 }) => {
   const { t } = useTranslation();
   const auth = useStore(useShallow((state) => state.config.auth));
+  const [isOpenInternal, setIsOpenInternal] = useState(false);
+  const resolvedIsOpen = isOpen ?? isOpenInternal;
+  const setIsOpen = onOpenChange ?? setIsOpenInternal;
   const [messages, setMessages] = useState<TMessage[]>([
     { role: "system", content: systemPrompt },
   ]);
   const [state, setState] = useState<{
     isGenerating: boolean;
-    isOpen: boolean;
     response: string;
     userMessage: string;
   }>({
     isGenerating: false,
     response: "",
-    isOpen: false,
     userMessage: "",
   });
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
+  const generationLockRef = useRef(false);
 
   useEffect(() => {
     setMessages((prev) => {
-      let newMessages = [...prev];
-      const systemMessage = newMessages.find((m) => m.role === "system");
-      if (systemMessage) {
-        systemMessage.content = systemPrompt;
-      } else {
-        newMessages.unshift({ role: "system", content: systemPrompt });
+      const systemMessageIndex = prev.findIndex((m) => m.role === "system");
+      if (systemMessageIndex === -1) {
+        return [{ role: "system", content: systemPrompt }, ...prev];
       }
-      return newMessages;
+      return prev.map((message, index) =>
+        index === systemMessageIndex
+          ? { ...message, content: systemPrompt }
+          : message
+      );
     });
   }, [systemPrompt]);
 
   const handleGenerate = async () => {
-    setState({ ...state, isGenerating: true });
+    if (generationLockRef.current) return;
+    const trimmedMessage = state.userMessage.trim();
+    if (!trimmedMessage) return;
+    if (!auth.openaiApiKey) {
+      toast.error("Missing OpenAI API key");
+      return;
+    }
 
-    const userMessage: TMessage = { role: "user", content: state.userMessage };
+    generationLockRef.current = true;
+    setState((prev) => ({ ...prev, isGenerating: true, userMessage: "" }));
+
+    const userMessage: TMessage = { role: "user", content: trimmedMessage };
     const assistantMessage: TMessage = { role: "assistant", content: "" };
     const newMessages = [...messages, userMessage, assistantMessage];
-
-    setState((prev) => ({ ...prev, userMessage: "" }));
     setMessages(newMessages);
 
-    await createStreamingResponseWithFunctions(
-      {
-        messages: newMessages.map(convertToMessage),
-        model: "gpt-5.2",
-        temperature: 0.4,
-        apiKey: auth.openaiApiKey,
-        max_completion_tokens: 16000,
-        response_format: { type: "text" },
-        tools: functions.map((tool) => tool.schema),
-        functionMap: createToolsMap(functions),
-      },
-      (chunk) => {
-        const text = chunk.choices[0].delta.content;
-        if (text) {
-          setMessages((prev) => {
-            let newMessages = [...prev];
-            const lastAssistantMessage = newMessages.pop();
-
-            if (!lastAssistantMessage) return newMessages;
-            lastAssistantMessage.content += text;
-            return [...newMessages, lastAssistantMessage];
-          });
+    try {
+      await createStreamingResponseWithFunctions(
+        {
+          messages: newMessages.map(convertToMessage),
+          model: "gpt-5.2",
+          temperature: 0.4,
+          apiKey: auth.openaiApiKey,
+          max_completion_tokens: 16000,
+          response_format: { type: "text" },
+          tools: functions.map((tool) => tool.schema),
+          functionMap: createToolsMap(functions),
+        },
+        (chunk) => {
+          const text = chunk.choices[0].delta.content;
+          if (text) {
+            setMessages((prev) => {
+              const lastAssistantMessage = prev[prev.length - 1];
+              if (!lastAssistantMessage || lastAssistantMessage.role !== "assistant") {
+                return prev;
+              }
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastAssistantMessage,
+                  content: `${lastAssistantMessage.content || ""}${text}`,
+                },
+              ];
+            });
+          }
         }
-      }
-    );
-    setState((prev) => ({ ...prev, isGenerating: false }));
+      );
+    } finally {
+      generationLockRef.current = false;
+      setState((prev) => ({ ...prev, isGenerating: false }));
+    }
   };
 
   useEffect(() => {
@@ -113,33 +147,41 @@ const Prompter = ({
 
   return (
     <>
-      <Button
-        title={state.isOpen ? t("close") : t("continueWithAI")}
-        className={`w-100 justify-center padding-5 ${
-          state.isGenerating ? "bg-active" : ""
-        }`}
-        onClick={() => setState((prev) => ({ ...prev, isOpen: !prev.isOpen }))}
-        svg={state.isOpen ? SVGS.close : SVGS.ai}
-      />
-      {state.isOpen && (
-        <div className="prompter-container bg-gradient">
-          <div className="prompter-chat-messages" ref={setChatContainer}>
-            {messages.map((message, index) => {
-              if (message.role === "system") return null;
-              return <Message key={index} message={message} />;
-            })}
-          </div>
+      {showTrigger && (
+        <Button
+          title={resolvedIsOpen ? t("close") : t("continueWithAI")}
+          className={`w-100 justify-center padding-5 ${
+            state.isGenerating ? "bg-active" : ""
+          }`}
+          onClick={() => setIsOpen(!resolvedIsOpen)}
+          svg={resolvedIsOpen ? SVGS.close : SVGS.ai}
+        />
+      )}
+      {resolvedIsOpen && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 999 }}
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="prompter-container bg-gradient">
+            <div className="prompter-chat-messages" ref={setChatContainer}>
+              {messages.map((message, index) => {
+                if (message.role === "system") return null;
+                return <Message key={index} message={message} />;
+              })}
+            </div>
 
-          <div className="prompter-chat-input-area">
-            <AIInput
-              value={state.userMessage}
-              onChange={(value) => setState({ ...state, userMessage: value })}
-              onSubmit={handleGenerate}
-              isLoading={state.isGenerating}
-              autoFocus
-            />
+            <div className="prompter-chat-input-area">
+              <AIInput
+                value={state.userMessage}
+                onChange={(value) => setState({ ...state, userMessage: value })}
+                onSubmit={handleGenerate}
+                isLoading={state.isGenerating}
+                autoFocus
+              />
+            </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );
@@ -163,9 +205,13 @@ type TImageSizeOption = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 export default function NoteDetail() {
   const { id } = useParams();
   const { t } = useTranslation();
+  const { setActions } = useSidebarActions();
   const [notes, setNotes] = useState<TNote[]>([]);
+  const isLoaded = useRef(false);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const [isPrompterOpen, setIsPrompterOpen] = useState(false);
+  const [isBlockEditMode, setIsBlockEditMode] = useState(false);
   const auth = useStore(useShallow((state) => state.config.auth));
 
   if (!id) return <div>No id</div>;
@@ -198,18 +244,24 @@ export default function NoteDetail() {
 
   const getNote = async () => {
     const notes: TNote[] = await ChromeStorageManager.get("notes");
-    // Use the index to get the note
+    if (!Array.isArray(notes)) {
+      cacheLocation("/notes");
+      navigate("/notes");
+      return;
+    }
     const note = notes.find((note) => note.id === id);
     if (!note) {
       cacheLocation("/notes");
       navigate("/notes");
     } else {
-      setNote(note);
       setNotes(notes);
+      setNote(note);
+      isLoaded.current = true;
     }
   };
 
   const saveNote = async () => {
+    if (!isLoaded.current) return;
     // let notes = await ChromeStorageManager.get("notes");
     let newNotes = [...notes];
     if (!note) return;
@@ -399,14 +451,20 @@ export default function NoteDetail() {
     }
   );
 
-  const deleteCurrentNote = async () => {
+  const deleteCurrentNote = useCallback(async () => {
     const newNotes = notes.filter((n) => n.id !== id);
     setNotes(newNotes);
     await ChromeStorageManager.add("notes", newNotes);
     const prevPage = (await ChromeStorageManager.get("prevPage")) || "/notes";
     cacheLocation(prevPage, "lastPage");
     navigate(prevPage);
-  };
+  }, [id, navigate, notes]);
+
+  const goBack = useCallback(async () => {
+    const prevPage = (await ChromeStorageManager.get("prevPage")) || "/notes";
+    cacheLocation(prevPage, "lastPage");
+    navigate(prevPage);
+  }, [navigate]);
 
   const updateNoteContent = toolify(
     (newContent: { newContent: string }) => {
@@ -438,6 +496,55 @@ export default function NoteDetail() {
     }
   };
 
+  useEffect(() => {
+    setActions([
+      {
+        id: "note-back",
+        label: "Back",
+        icon: <IconArrowLeft size={18} />,
+        onClick: () => {
+          void goBack();
+        },
+      },
+      {
+        id: "note-ai",
+        label: isPrompterOpen ? t("close") : t("continueWithAI"),
+        icon: <IconSparkles size={18} />,
+        onClick: () => setIsPrompterOpen((prev) => !prev),
+        isActive: isPrompterOpen,
+      },
+      {
+        id: "note-markdown",
+        label: isMarkdownMode
+          ? `${t("text")} -> ${t("markdown")}`
+          : `${t("markdown")} -> ${t("text")}`,
+        icon: isMarkdownMode ? <IconLetterT size={18} /> : <IconMarkdown size={18} />,
+        onClick: () => setIsMarkdownMode((prev) => !prev),
+        isActive: isMarkdownMode,
+      },
+      {
+        id: "note-customization",
+        label: t("customization"),
+        icon: <IconPalette size={18} />,
+        onClick: () => setIsCustomizeOpen(true),
+        isActive: isCustomizeOpen,
+      },
+      {
+        id: "note-delete",
+        label: t("delete"),
+        icon: <IconTrash size={18} />,
+        onClick: () => {
+          if (window.confirm(t("sure?"))) {
+            void deleteCurrentNote();
+          }
+        },
+        color: "red",
+      },
+    ]);
+
+    return () => setActions([]);
+  }, [deleteCurrentNote, goBack, isCustomizeOpen, isMarkdownMode, isPrompterOpen, setActions, t]);
+
   return (
     <div className=" padding-10">
       <Section
@@ -450,26 +557,28 @@ export default function NoteDetail() {
           ),
           fontFamily: note.font || "Arial",
         }}
-        close={async () => {
-          const prevPage = await ChromeStorageManager.get("prevPage");
-          cacheLocation(prevPage, "lastPage");
-          navigate(prevPage);
-        }}
-        headerLeft={
+        headerCenter={
           <h3
             autoFocus={!note.title}
             contentEditable
             onBlur={(e) => setNote({ ...note, title: e.target.innerText })}
             suppressContentEditableWarning
             className={`padding-5 ${note.title ? "" : "bg-active"}`}
+            style={{
+              textAlign: "center",
+              minWidth: "120px",
+              margin: 0,
+            }}
           >
             {note?.title || ""}
           </h3>
         }
-        headerRight={
-          <div className="flex-row gap-5">
-            <Prompter
-              systemPrompt={`
+      >
+        <Prompter
+          showTrigger={false}
+          isOpen={isPrompterOpen}
+          onOpenChange={setIsPrompterOpen}
+          systemPrompt={`
 ## SYSTEM
 
 You are a powerful note taking assistant.
@@ -488,51 +597,53 @@ ${JSON.stringify(note)}
 - If the user asks for an image/visual inside the note, use appendGeneratedImageToNote. Do not ask the user to write a detailed generation prompt; craft it yourself from intent.
 - Choose image size based on user intent: portrait for vertical compositions, landscape for wide scenes, square for icons/avatars.
   
-                    `}
-              functions={[
-                updateNoteContent,
-                updateColorTool,
-                updateTitleTool,
-                appendGeneratedImageToNoteTool,
-              ]}
-            />
-            <Button
-              title={isMarkdownMode ? t("text") : t("markdown")}
-              onClick={() => setIsMarkdownMode(!isMarkdownMode)}
-              svg={isMarkdownMode ? SVGS.text : SVGS.markdown}
-            />
-            <Button
-              title={t("customization")}
-              onClick={() => setIsCustomizeOpen(true)}
-              svg={SVGS.palette}
-            />
-            <Button
-              title={t("delete")}
-              svg={SVGS.trash}
-              onClick={deleteCurrentNote}
-              confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
-            />
-          </div>
-        }
-      >
-        <div className="w-100 padding-bottom-50">
+          `}
+          functions={[
+            updateNoteContent,
+            updateColorTool,
+            updateTitleTool,
+            appendGeneratedImageToNoteTool,
+          ]}
+        />
+        <div className="w-100 h-100">
           {isMarkdownMode ? (
-            <div className="flex-column gap-5">
+            <div className="flex-column gap-5 h-100">
               <Textarea
                 defaultValue={note.content || ""}
                 onChange={(value) => setNote({ ...note, content: value })}
                 name="content"
                 placeholder={t("writeYourNoteHere")}
                 maxHeight="none"
-                containerClassName="note-raw-textarea"
+                fillAvailableHeight
+                containerClassName="note-raw-textarea h-100"
               />
             </div>
           ) : (
-            <StyledMarkdown
-              markdown={note.content || ""}
-              editableBlocks
-              onBlockChange={handleBlockChange}
-            />
+            <div className="flex-column gap-10">
+              <div className="flex-row align-center gap-5">
+                <Button
+                  className={`padding-5 ${isBlockEditMode ? "bg-active" : ""}`}
+                  title={
+                    isBlockEditMode
+                      ? "Block edit enabled (Shift + click a block)"
+                      : "Enable block edit mode"
+                  }
+                  text={isBlockEditMode ? "Editing blocks" : "Edit blocks"}
+                  svg={isBlockEditMode ? SVGS.check : SVGS.edit}
+                  onClick={() => setIsBlockEditMode((prev) => !prev)}
+                />
+                {isBlockEditMode && (
+                  <small style={{ color: "var(--font-color-secondary)" }}>
+                    Shift + click any paragraph, heading, list item, or code block.
+                  </small>
+                )}
+              </div>
+              <StyledMarkdown
+                markdown={note.content || ""}
+                editableBlocks={isBlockEditMode}
+                onBlockChange={handleBlockChange}
+              />
+            </div>
           )}
         </div>
         {isCustomizeOpen && (

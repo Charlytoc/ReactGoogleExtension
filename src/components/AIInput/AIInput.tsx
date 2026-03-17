@@ -40,6 +40,7 @@ export const AIInput = ({
       color="gray"
       onClick={onSubmit}
       loading={isLoading}
+      disabled={isLoading}
       title={t("generate")}
     >
       {SVGS.ai}
@@ -49,6 +50,7 @@ export const AIInput = ({
   const sharedProps = {
     placeholder: placeholder ?? t("userMessage"),
     value,
+    variant: "filled" as const,
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
       onChange(e.target.value),
     onKeyDown: handleKeyDown,

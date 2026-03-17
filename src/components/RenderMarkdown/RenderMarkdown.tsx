@@ -106,6 +106,12 @@ const MarkdownBlockEditorModal = ({
     if (!aiInstruction.trim()) return;
     setIsApplying(true);
     try {
+      const effectiveApiKey =
+        apiKey || ((await ChromeStorageManager.get("openaiApiKey")) ?? "");
+      if (!effectiveApiKey) {
+        toast.error("Missing OpenAI API key");
+        return;
+      }
       const result = await createCompletion(
         {
           messages: [
@@ -122,7 +128,7 @@ const MarkdownBlockEditorModal = ({
           temperature: 0.4,
           max_completion_tokens: 2000,
           response_format: { type: "text" },
-          apiKey,
+          apiKey: effectiveApiKey,
         },
         () => {}
       );
