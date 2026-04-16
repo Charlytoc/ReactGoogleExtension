@@ -45,7 +45,7 @@ Required for injecting scripts and reading page content on any website.
 | `auto-complete`      | Ctrl+Shift+V       | Cmd+Shift+V       | AI auto-complete active input |
 | `open-automator`     | Ctrl+Shift+Y       | Cmd+Shift+Y       | Open/focus extension popup    |
 | `translate-selection`| Ctrl+Shift+L       | Cmd+Shift+L       | Translate selected text       |
-| `check-grammar`      | Ctrl+Shift+G       | Cmd+Shift+G       | Fix grammar of selected text  |
+| `check-grammar`      | Ctrl+Shift+K       | Cmd+Shift+K       | Fix grammar of selected text  |
 
 These are defined in `manifest.json` under `"commands"` and handled in `background.js` via `chrome.commands.onCommand.addListener()`.
 
@@ -58,7 +58,7 @@ Created on `chrome.runtime.onInstalled`:
 | Menu Item            | Context      | Action                              |
 | -------------------- | ------------ | ----------------------------------- |
 | "Auto Complete"      | `all`        | AI-fills the focused input          |
-| "Translate to English"| `selection` | Translates selected text to English |
+| "Translate (EN↔ES)" | `selection`  | Toggles EN↔ES (other → EN) per prompt in `background.ts` |
 | "Fix Grammar"        | `selection`  | Fixes grammar of selected text      |
 
 ---
@@ -75,7 +75,8 @@ The background script is configured as an ES module service worker (`"type": "mo
 2. **Command handling**: Listens for keyboard shortcuts
 3. **Script injection**: Uses `chrome.scripting.executeScript()` to run AI functions in the active tab
 4. **Message passing**: Acts as a bridge for AI completions
-   - Content scripts send `{ action: "generateCompletion", ... }` → background fetches OpenAI → sends response back
+   - Injected tools send `{ action: "extensionToolCompletion", command, payload }` → background loads optional prompt overrides from `chrome.storage.local` (`commandPromptOverrides`), builds messages, fetches OpenAI → sends completion string back
+   - Other callers may still use `{ action: "generateCompletion", ... }` → same OpenAI path
    - Also handles `{ action: "notify", ... }` for showing notifications
 5. **Alarm management**: Listens for `chrome.alarms.onAlarm` to show task reminders
 6. **Notification click handling**: When a "copyable" notification is clicked, copies text to clipboard via the active tab
@@ -86,7 +87,11 @@ The background script is configured as an ES module service worker (`"type": "mo
 Messages sent between content/popup and background:
 
 ```javascript
-// Request AI completion
+// Injected tools (grammar / translate / auto-complete)
+{ action: "extensionToolCompletion", command: "check-grammar" | "translate-selection" | "auto-complete", payload }
+// → Response: string (completion text) or null (error)
+
+// Direct completion (legacy / other)
 { action: "generateCompletion", model, messages, max_completion_tokens, temperature, response_format }
 // → Response: string (completion text) or null (error)
 
@@ -108,6 +113,10 @@ chrome.scripting.executeScript({
 ```
 
 The injected functions (`autoComplete`, `translateSelection`, `checkGrammar`) read the DOM, then communicate back via `chrome.runtime.sendMessage()`.
+
+### AI prompts
+
+Default system prompts live in `src/commandPrompts.ts` (`DEFAULT_PROMPTS` and the autocomplete template with `{{PAGE_INNER_TEXT}}`, `{{ACTIVE_ELEMENT_OUTER_HTML}}`, `{{CURRENT_INPUT_VALUE}}` placeholders). The background resolves each command with `resolvePrompt()` against `chrome.storage.local` key **`commandPromptOverrides`** (only keys the user changed in Settings). Injected page code sends `extensionToolCompletion` with payload only; the service worker assembles `messages` and calls `createCompletion()`.
 
 ---
 

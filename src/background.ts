@@ -10,6 +10,12 @@
  */
 
 import type { TTask } from "./types";
+import {
+  COMMAND_PROMPT_STORAGE_KEY,
+  type ExtensionCommandId,
+  fillAutocompleteTemplate,
+  resolvePrompt,
+} from "./commandPrompts";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +46,31 @@ interface NotifyMessage {
   copyable?: boolean;
 }
 
-type ExtensionMessage = GenerateCompletionMessage | NotifyMessage;
+type ExtensionToolCompletionMessage =
+  | {
+      action: "extensionToolCompletion";
+      command: "check-grammar";
+      payload: { selectedText: string };
+    }
+  | {
+      action: "extensionToolCompletion";
+      command: "translate-selection";
+      payload: { selectedText: string };
+    }
+  | {
+      action: "extensionToolCompletion";
+      command: "auto-complete";
+      payload: {
+        pageInnerText: string;
+        activeOuterHTML: string;
+        currentInputValue: string;
+      };
+    };
+
+type ExtensionMessage =
+  | GenerateCompletionMessage
+  | NotifyMessage
+  | ExtensionToolCompletionMessage;
 
 // ─── Chrome Storage Manager ─────────────────────────────────────────────────
 
@@ -289,47 +319,13 @@ function autoComplete(): void {
   if (activeElem) {
     chrome.runtime.sendMessage(
       {
-        action: "generateCompletion",
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are an useful assistant working for a Google Extension. Your task is to assist the user filling inputs with the text that best match the user intent. You will get the page context so you can figure out what the user intent is. You will also get the active element to give you more context.
-                    
-                    
-                    This is the page context: ---
-                    ${innerText}
-                    ---
-                    
-                    This is the active element: ---
-                    ${activeElem.outerHTML}
-                    ---
-
-                    The current text of the input is: ---
-                    ${activeElem.value}
-                    ---
-
-                    Return only the next text of the input, no other text or comment are allowed.
-                    If the input already have text, you must continue writting the text, otherwise you should return the complete text to fill the input.
-
-                    Examples:
-                    Input: "Hello, how ar"
-                    Output: "Hello, how are you?"
-
-                    Input: "What is the capital of Fr"
-                    Output: "What is the capital of France?"
-                    
-
-                    `,
-          },
-          {
-            role: "user",
-            content: "Fill the element please.",
-          },
-        ],
-        max_completion_tokens: 500,
-        temperature: 0.5,
-        response_format: { type: "text" },
+        action: "extensionToolCompletion",
+        command: "auto-complete",
+        payload: {
+          pageInnerText: innerText,
+          activeOuterHTML: activeElem.outerHTML,
+          currentInputValue: activeElem.value ?? "",
+        },
       },
       (fillWith: string | null) => {
         if (fillWith) {
@@ -386,22 +382,9 @@ function translateSelection(): void {
 
   chrome.runtime.sendMessage(
     {
-      action: "generateCompletion",
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a translator that toggles between English and Spanish. If the given text is in Spanish, translate it to English. If the given text is in English, translate it to Spanish. If it is in any other language, translate it to English. Return ONLY the translated text, nothing else. No quotes, no explanations, no notes. Preserve the original formatting (line breaks, punctuation, etc.).",
-        },
-        {
-          role: "user",
-          content: selectedText,
-        },
-      ],
-      max_completion_tokens: 1000,
-      temperature: 0.3,
-      response_format: { type: "text" },
+      action: "extensionToolCompletion",
+      command: "translate-selection",
+      payload: { selectedText },
     },
     (translated: string | null) => {
       if (!translated) return;
@@ -485,22 +468,9 @@ function checkGrammar(): void {
 
   chrome.runtime.sendMessage(
     {
-      action: "generateCompletion",
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a grammar and spelling corrector. Fix the grammar, spelling, and punctuation of the given text. Keep the SAME language as the original — do NOT translate. Return ONLY the corrected text, nothing else. No quotes, no explanations, no notes. Preserve the original meaning and tone. If the text is already correct, return it unchanged.",
-        },
-        {
-          role: "user",
-          content: selectedText,
-        },
-      ],
-      max_completion_tokens: 1000,
-      temperature: 0.2,
-      response_format: { type: "text" },
+      action: "extensionToolCompletion",
+      command: "check-grammar",
+      payload: { selectedText },
     },
     (corrected: string | null) => {
       if (!corrected) return;
@@ -591,6 +561,83 @@ chrome.runtime.onMessage.addListener(
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void
   ): boolean | undefined => {
+    if (request.action === "extensionToolCompletion") {
+      const toolRequest = request as ExtensionToolCompletionMessage;
+      (async () => {
+        try {
+          const overrides =
+            (await ChromeStorageManager.get<
+              Partial<Record<ExtensionCommandId, string>>
+            >(COMMAND_PROMPT_STORAGE_KEY)) ?? {};
+
+          let completionRequest: CompletionRequest;
+
+          if (toolRequest.command === "check-grammar") {
+            completionRequest = {
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: resolvePrompt("check-grammar", overrides),
+                },
+                {
+                  role: "user",
+                  content: toolRequest.payload.selectedText,
+                },
+              ],
+              temperature: 0.2,
+              max_completion_tokens: 1000,
+              response_format: { type: "text" },
+            };
+          } else if (toolRequest.command === "translate-selection") {
+            completionRequest = {
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: resolvePrompt("translate-selection", overrides),
+                },
+                {
+                  role: "user",
+                  content: toolRequest.payload.selectedText,
+                },
+              ],
+              temperature: 0.3,
+              max_completion_tokens: 1000,
+              response_format: { type: "text" },
+            };
+          } else {
+            const system = fillAutocompleteTemplate(
+              resolvePrompt("auto-complete", overrides),
+              toolRequest.payload
+            );
+            completionRequest = {
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: system },
+                { role: "user", content: "Fill the element please." },
+              ],
+              temperature: 0.5,
+              max_completion_tokens: 500,
+              response_format: { type: "text" },
+            };
+          }
+
+          const fillWith = await createCompletion(completionRequest);
+          sendResponse(fillWith);
+        } catch (error) {
+          console.error("Error generating completion:", error);
+          sendResponse(null);
+          notify(
+            "Error",
+            "Error generating completion: " +
+              (error instanceof Error ? error.message : String(error))
+          );
+        }
+      })();
+      return true;
+    }
+
     if (request.action === "generateCompletion") {
       (async () => {
         try {

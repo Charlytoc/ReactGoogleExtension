@@ -1,18 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Outlet } from "react-router";
 import { Sidebar } from "../Sidebar/Sidebar";
 import { useKeyboardNav } from "../../hooks/useKeyboardNav";
-import {
-  SidebarAction,
-  SidebarActionsContext,
-} from "./SidebarActionsContext";
 import { useStore } from "../../managers/store";
 import { ChromeStorageManager } from "../../managers/Storage";
 import "./AppLayout.css";
 
 export const AppLayout = () => {
   useKeyboardNav();
-  const [sidebarActions, setSidebarActions] = useState<SidebarAction[]>([]);
   const setConfig = useStore((state) => state.setConfig);
 
   useEffect(() => {
@@ -26,15 +21,11 @@ export const AppLayout = () => {
   }, [setConfig]);
 
   return (
-    <SidebarActionsContext.Provider
-      value={{ actions: sidebarActions, setActions: setSidebarActions }}
-    >
-      <div className="app-layout">
-        <Sidebar actions={sidebarActions} />
-        <div className="app-layout-content">
-          <Outlet />
-        </div>
+    <div className="app-layout">
+      <Sidebar />
+      <div className="app-layout-content">
+        <Outlet />
       </div>
-    </SidebarActionsContext.Provider>
+    </div>
   );
 };

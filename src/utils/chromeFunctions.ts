@@ -6,6 +6,7 @@ const createRandomId = () => {
 };
 
 export const notify = (title: string, message: string) => {
+  if (typeof chrome === "undefined" || !chrome.runtime) return;
   const root = chrome.runtime.getURL("icons/icon.png");
   chrome.notifications.create(createRandomId(), {
     type: "basic",

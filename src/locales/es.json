@@ -10,6 +10,7 @@
     "task": "Tarea",
     "notes": "Notas",
     "note": "Nota",
+    "untitled": "Sin titulo",
     "addNote": "Agregar Nota",
     "title": "Título",
     "content": "Contenido",
@@ -50,6 +51,7 @@
     "tools": "Herramientas",
     "conversationSaved": "Conversación guardada",
     "goBack": "Volver",
+    "help": "Ayuda",
     "showConversations": "Mostrar conversaciones",
     "saveConversation": "Guardar conversación",
     "secrets": "Secretos",
@@ -59,6 +61,12 @@
     "colors": "Colores",
     "loadConversation": "Cargar conversación",
     "deleteConversation": "Eliminar conversación",
+    "selectAll": "Seleccionar todo",
+    "clearSelection": "Quitar selección",
+    "deleteSelected": "Eliminar seleccionadas",
+    "deleteSelectedConversationsConfirm": "¿Eliminar %s conversaciones seleccionadas? No se puede deshacer.",
+    "bulkConversationsDeleted": "Se eliminaron %s conversaciones.",
+    "selectConversation": "Seleccionar conversación",
     "conversationDeleted": "Conversación eliminada: %s",
     "saveAndApply": "Guardar y aplicar",
     "save": "Guardar",
@@ -224,5 +232,30 @@
     "variables": "Variables",
     "use": "Usar",
     "pin": "Fijar",
-    "unpin": "Desfijar"
+    "unpin": "Desfijar",
+    "noteTitlePlaceholder": "Escribe el titulo de la nota aqui…",
+    "commandShortcuts": {
+        "pageTitle": "Atajos de comandos",
+        "saved": "Prompts de comandos guardados",
+        "sectionTitle": "Atajos de comandos",
+        "sectionIntro": "Estos atajos se ejecutan en la pestaña activa del navegador. Solo se guardan en el almacenamiento de la extensión los prompts que difieren del valor por defecto.",
+        "systemPromptLabel": "Prompt de sistema",
+        "resetToDefault": "Restaurar por defecto",
+        "modifiedHint": "Se guardará como reemplazo personalizado",
+        "autocomplete": {
+            "title": "Autocompletar",
+            "shortcut": "Atajo: Ctrl+Shift+V (⌘+Shift+V en Mac). También: clic derecho → Auto Complete en cualquier página.",
+            "body": "Rellena el campo enfocado usando el contexto de la página. Conserva los marcadores {{PAGE_INNER_TEXT}}, {{ACTIVE_ELEMENT_OUTER_HTML}} y {{CURRENT_INPUT_VALUE}} para que la extensión inserte datos en vivo."
+        },
+        "translate": {
+            "title": "Traducir (EN↔ES)",
+            "shortcut": "Atajo: Ctrl+Shift+L (⌘+Shift+L). También: clic derecho sobre la selección → Translate (EN↔ES).",
+            "body": "Por defecto: inglés ↔ español; otros idiomas → inglés. Puedes ajustar el prompt si quieres otro comportamiento."
+        },
+        "grammar": {
+            "title": "Corregir gramática",
+            "shortcut": "Atajo: Ctrl+Shift+K (⌘+Shift+K). También: clic derecho sobre la selección → Fix Grammar.",
+            "body": "Corrige ortografía y gramática sin cambiar el idioma del texto."
+        }
+    }
 }

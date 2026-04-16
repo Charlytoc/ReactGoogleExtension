@@ -9,6 +9,7 @@
     "tasks": "Tasks",
     "task": "Task",
     "note": "Note",
+    "untitled": "Untitled",
     "notes": "Notes",
     "addNote": "Add Note",
     "title": "Title",
@@ -50,6 +51,7 @@
     "tools": "Tools",
     "conversationSaved": "Conversation saved",
     "goBack": "Go back",
+    "help": "Help",
     "showConversations": "Show conversations",
     "saveConversation": "Save conversation",
     "secrets": "Secrets",
@@ -59,6 +61,12 @@
     "colors": "Colors",
     "loadConversation": "Load conversation",
     "deleteConversation": "Delete conversation",
+    "selectAll": "Select all",
+    "clearSelection": "Clear selection",
+    "deleteSelected": "Delete selected",
+    "deleteSelectedConversationsConfirm": "Delete %s selected conversations? This cannot be undone.",
+    "bulkConversationsDeleted": "%s conversations deleted.",
+    "selectConversation": "Select conversation",
     "conversationDeleted": "Conversation deleted: %s",
     "saveAndApply": "Save and apply",
     "save": "Save",
@@ -224,5 +232,30 @@
     "variables": "Variables",
     "use": "Use",
     "pin": "Pin",
-    "unpin": "Unpin"
+    "unpin": "Unpin",
+    "noteTitlePlaceholder": "Type your note title here…",
+    "commandShortcuts": {
+        "pageTitle": "Command shortcuts",
+        "saved": "Command prompts saved",
+        "sectionTitle": "Command shortcuts",
+        "sectionIntro": "These shortcuts run on the active browser tab. Only prompts that differ from the built-in default are stored in extension storage.",
+        "systemPromptLabel": "System prompt",
+        "resetToDefault": "Reset to default",
+        "modifiedHint": "Will be saved as a custom override",
+        "autocomplete": {
+            "title": "Auto Complete",
+            "shortcut": "Shortcut: Ctrl+Shift+V (⌘+Shift+V on Mac). Also: right-click → Auto Complete on any page.",
+            "body": "Fills the focused input using page context. Keep the placeholders {{PAGE_INNER_TEXT}}, {{ACTIVE_ELEMENT_OUTER_HTML}}, and {{CURRENT_INPUT_VALUE}} so the extension can inject live data."
+        },
+        "translate": {
+            "title": "Translate (EN↔ES)",
+            "shortcut": "Shortcut: Ctrl+Shift+L (⌘+Shift+L). Also: right-click a selection → Translate (EN↔ES).",
+            "body": "Default: English ↔ Spanish; other languages → English. Adjust the prompt if you want different behavior."
+        },
+        "grammar": {
+            "title": "Fix grammar",
+            "shortcut": "Shortcut: Ctrl+Shift+K (⌘+Shift+K). Also: right-click a selection → Fix Grammar.",
+            "body": "Corrects spelling and grammar without changing the language of the text."
+        }
+    }
 }

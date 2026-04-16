@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   convertToMessage,
   createCompletion,
@@ -8,7 +8,6 @@ import {
   listModels,
   toolify,
 } from "../../utils/ai";
-import { Textarea } from "../Textarea/Textarea";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
 import { TMessage } from "../../types";
@@ -28,11 +27,10 @@ import { TConversation, TModel } from "../../types";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
-import { Select } from "../Select/Select";
 import { TNote, TTask } from "../../types";
 import { AIInput } from "../AIInput/AIInput";
-import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Paper, Select as MantineSelect, Slider, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconCheck, IconChevronLeft } from "@tabler/icons-react";
+import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Select as MantineSelect, Slider, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconCheck } from "@tabler/icons-react";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
   const messages: TMessage[] = [
@@ -121,7 +119,7 @@ export const Chat = () => {
   const [aiConfig, setAiConfig] = useState<TAIConfig>({
     systemPrompt: "You are a helpful assistant.",
     model: { name: "gpt-4o-mini", slug: "gpt-4o-mini", hasReasoning: false },
-    autoSaveConversations: false,
+    autoSaveConversations: true,
     setTitleAtMessage: 0,
   });
   const [activeTab, setActiveTab] = useState<TChatTab>("chat");
@@ -130,10 +128,9 @@ export const Chat = () => {
   const [attachments, setAttachments] = useState<TAttachment[]>([]);
   const [prompts, setPrompts] = useState<TPrompt[]>([]);
   const [promptPicker, setPromptPicker] = useState<{
-    open: boolean;
     selected: TPrompt | null;
     variableValues: Record<string, string>;
-  }>({ open: false, selected: null, variableValues: {} });
+  }>({ selected: null, variableValues: {} });
   const [pinnedFiller, setPinnedFiller] = useState<{
     prompt: TPrompt;
     values: Record<string, string>;
@@ -157,6 +154,21 @@ export const Chat = () => {
     setPrompts(next);
     await ChromeStorageManager.add("savedPrompts", next);
   };
+
+  const applySavedPrompt = useCallback((p: TPrompt) => {
+    const vars = extractVariables(p.content);
+    setActiveTab("chat");
+    if (vars.length === 0) {
+      setInput(p.content);
+      setPromptPicker({ selected: null, variableValues: {} });
+    } else {
+      const initial: Record<string, string> = {};
+      vars.forEach((v) => {
+        initial[v] = "";
+      });
+      setPromptPicker({ selected: p, variableValues: initial });
+    }
+  }, []);
 
   useEffect(() => {
     if (input.includes("/send")) {
@@ -215,7 +227,7 @@ export const Chat = () => {
           slug: "gpt-4o-mini",
           hasReasoning: false,
         },
-        autoSaveConversations: false,
+        autoSaveConversations: true,
         setTitleAtMessage: 0,
       };
     }
@@ -627,6 +639,7 @@ export const Chat = () => {
           prompts={prompts}
           savePrompts={savePrompts}
           close={() => setActiveTab("chat")}
+          onUsePrompt={applySavedPrompt}
         />
       )}
       {activeTab === "history" && (
@@ -671,46 +684,17 @@ export const Chat = () => {
               );
             })}
           </div>
-          {promptPicker.open && (
-            <Paper withBorder p="xs" style={{ maxHeight: "40vh", overflowY: "auto" }}>
-              <Stack gap="xs">
-                {prompts.length === 0 ? (
-                  <Text size="sm" c="dimmed">{t("noSavedPrompts")}</Text>
-                ) : prompts.map((p) => (
-                  <Paper
-                    key={p.id}
-                    withBorder
-                    p="xs"
-                    style={{ cursor: "pointer" }}
-                    onClick={() => {
-                      const vars = extractVariables(p.content);
-                      if (vars.length === 0) {
-                        setInput(p.content);
-                        setPromptPicker({ open: false, selected: null, variableValues: {} });
-                      } else {
-                        const initial: Record<string, string> = {};
-                        vars.forEach((v) => (initial[v] = ""));
-                        setPromptPicker({ open: true, selected: p, variableValues: initial });
-                      }
-                    }}
-                  >
-                    <Text size="sm" fw={500}>{p.name}</Text>
-                    <Text size="xs" c="dimmed" truncate="end">{p.content}</Text>
-                  </Paper>
-                ))}
-              </Stack>
-            </Paper>
-          )}
-
           <VariableFillerModal
             prompt={promptPicker.selected}
             values={promptPicker.variableValues}
             onChangeValues={(values) => setPromptPicker((prev) => ({ ...prev, variableValues: values }))}
             onUse={(filled) => {
               setInput(filled);
-              setPromptPicker({ open: false, selected: null, variableValues: {} });
+              setPromptPicker({ selected: null, variableValues: {} });
             }}
-            onClose={() => setPromptPicker((prev) => ({ ...prev, selected: null, variableValues: {} }))}
+            onClose={() =>
+              setPromptPicker({ selected: null, variableValues: {} })
+            }
           />
 
           <VariableFillerModal
@@ -759,12 +743,6 @@ export const Chat = () => {
           )}
 
           <section className="flex-row gap-10 w-100 padding-5 ">
-            <Button
-              className={`padding-5 ${promptPicker.open ? "bg-active" : ""}`}
-              svg={SVGS.pin}
-              title={t("savedPrompts")}
-              onClick={() => setPromptPicker((prev) => ({ ...prev, open: !prev.open, selected: null }))}
-            />
             <div className="w-100">
               <AIInput
                 value={input}
@@ -909,63 +887,160 @@ const History = ({
   close: () => void;
 }) => {
   const { t } = useTranslation();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
-  const orderByDate = (conversations: TConversation[]) => {
-    return conversations.sort((a, b) => {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
+  const sortedConversations = useMemo(
+    () =>
+      [...conversations].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      ),
+    [conversations]
+  );
+
+  const selectedCount = selectedIds.size;
+  const allSelected =
+    sortedConversations.length > 0 &&
+    selectedCount === sortedConversations.length;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(sortedConversations.map((c) => c.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    const n = selectedIds.size;
+    if (
+      !window.confirm(
+        t("deleteSelectedConversationsConfirm").replace("%s", String(n))
+      )
+    ) {
+      return;
+    }
+    const next = conversations.filter((c) => !selectedIds.has(c.id));
+    setConversations(next);
+    void ChromeStorageManager.add("conversations", next);
+    setSelectedIds(new Set());
+    toast.success(
+      t("bulkConversationsDeleted").replace("%s", String(n)),
+      { icon: "✅" }
+    );
   };
 
   return (
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("history")}</h3>}
+      headerRight={
+        <>
+          {sortedConversations.length > 0 && !allSelected ? (
+            <Button
+              className="justify-center padding-5"
+              text={t("selectAll")}
+              title={t("selectAll")}
+              onClick={selectAll}
+            />
+          ) : null}
+          {selectedCount > 0 ? (
+            <>
+              <Button
+                className="justify-center padding-5"
+                text={t("clearSelection")}
+                title={t("clearSelection")}
+                onClick={clearSelection}
+              />
+              <Button
+                className="justify-center padding-5"
+                text={t("deleteSelected")}
+                title={t("deleteSelected")}
+                svg={SVGS.trash}
+                onClick={deleteSelected}
+              />
+            </>
+          ) : null}
+        </>
+      }
       close={close}
     >
-      {orderByDate(conversations).map((conversation, index) => (
-        <div
-          key={index}
-          className=" padding-10 rounded pointer  flex-column gap-5"
-        >
-          <h3
-            contentEditable={true}
-            suppressContentEditableWarning={true}
-            onBlur={(e) => {
-              const newTitle = e.target.innerText;
-              if (!newTitle || newTitle === conversation.title) return;
+      <div className="flex-column gap-10 padding-10">
+        {sortedConversations.map((conversation) => {
+          const isSelected = selectedIds.has(conversation.id);
+          return (
+            <div
+              key={conversation.id}
+              className={`flex-row gap-10 padding-10 rounded align-start w-100 ${
+                isSelected ? "border-active" : "border-gray"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="checkbox"
+                style={{ marginTop: 6, flexShrink: 0 }}
+                checked={isSelected}
+                onChange={() => toggleSelect(conversation.id)}
+                aria-label={t("selectConversation")}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div
+                className="flex-column gap-5"
+                style={{ flex: 1, minWidth: 0 }}
+              >
+                <h3
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => {
+                    const newTitle = e.target.innerText;
+                    if (!newTitle || newTitle === conversation.title) return;
 
-              const newConversations = conversations.map((c) =>
-                c.id === conversation.id ? { ...c, title: newTitle } : c
-              );
-              setConversations(newConversations);
-              ChromeStorageManager.add("conversations", newConversations);
-              toast.success(t("conversationSaved"), {
-                icon: "✅",
-              });
-            }}
-          >
-            {conversation.title || t("untitledConversation")}
-          </h3>
-          <div className="flex-row gap-10 justify-between w-100 align-center">
-            <p>{new Date(conversation.date).toLocaleString()}</p>
-            <div className="flex-row gap-10">
-              <Button
-                className="padding-5"
-                onClick={() => deleteConversation(conversation)}
-                svg={SVGS.trash}
-                title={t("deleteConversation")}
-                confirmations={[{ text: t("sure?"), className: "bg-danger" }]}
-              />
-              <Button
-                className="padding-5"
-                onClick={() => loadConversation(conversation)}
-                svg={SVGS.expand}
-                title={t("loadConversation")}
-              />
+                    const newConversations = conversations.map((c) =>
+                      c.id === conversation.id ? { ...c, title: newTitle } : c
+                    );
+                    setConversations(newConversations);
+                    ChromeStorageManager.add("conversations", newConversations);
+                    toast.success(t("conversationSaved"), {
+                      icon: "✅",
+                    });
+                  }}
+                >
+                  {conversation.title || t("untitledConversation")}
+                </h3>
+                <div className="flex-row gap-10 justify-between w-100 align-center">
+                  <p className="text-mini color-gray" style={{ margin: 0 }}>
+                    {new Date(conversation.date).toLocaleString()}
+                  </p>
+                  <div className="flex-row gap-10">
+                    <Button
+                      className="padding-5"
+                      onClick={() => deleteConversation(conversation)}
+                      svg={SVGS.trash}
+                      title={t("deleteConversation")}
+                      confirmations={[
+                        { text: t("sure?"), className: "bg-danger" },
+                      ]}
+                    />
+                    <Button
+                      className="padding-5"
+                      onClick={() => loadConversation(conversation)}
+                      svg={SVGS.expand}
+                      title={t("loadConversation")}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </Section>
   );
 };
@@ -974,10 +1049,12 @@ const PromptsPanel = ({
   prompts,
   savePrompts,
   close,
+  onUsePrompt,
 }: {
   prompts: TPrompt[];
   savePrompts: (prompts: TPrompt[]) => void;
   close: () => void;
+  onUsePrompt: (p: TPrompt) => void;
 }) => {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<TPrompt | null>(null);
@@ -1049,7 +1126,13 @@ const PromptsPanel = ({
             <div key={p.id} className="flex-column gap-5 border-gray rounded-10 padding-10">
               <div className="flex-row align-center justify-between">
                 <h4>{p.name}</h4>
-                <div className="flex-row gap-5">
+                <div className="flex-row gap-5 align-center">
+                  <Button
+                    className="padding-5 justify-center active-on-hover"
+                    text={t("use")}
+                    title={t("use")}
+                    onClick={() => onUsePrompt(p)}
+                  />
                   <Button
                     className={`padding-5 ${p.pinned ? "bg-active" : ""}`}
                     svg={SVGS.pin}

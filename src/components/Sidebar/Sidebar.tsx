@@ -8,10 +8,10 @@ import {
   IconBookmark,
   IconCode,
   IconCalendar,
+  IconKeyboard,
   IconSettings,
 } from "@tabler/icons-react";
 import { cacheLocation } from "../../utils/lib";
-import { SidebarAction } from "../AppLayout/SidebarActionsContext";
 import "./Sidebar.css";
 
 type NavItem = {
@@ -57,14 +57,15 @@ const topItems: NavItem[] = [
 ];
 
 const bottomItems: NavItem[] = [
+  {
+    icon: <IconKeyboard size={18} />,
+    label: "Command shortcuts",
+    path: "/command-shortcuts",
+  },
   { icon: <IconSettings size={18} />, label: "Settings", path: "/config" },
 ];
 
-type SidebarProps = {
-  actions?: SidebarAction[];
-};
-
-export const Sidebar = ({ actions = [] }: SidebarProps) => {
+export const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -101,27 +102,11 @@ export const Sidebar = ({ actions = [] }: SidebarProps) => {
     </Tooltip>
   );
 
-  const renderAction = (action: SidebarAction) => (
-    <Tooltip key={action.id} label={action.label} position="right" withArrow>
-      <ActionIcon
-        variant={action.isActive ? "light" : "subtle"}
-        color={action.color || (action.isActive ? "violet" : "gray")}
-        size="lg"
-        onClick={action.onClick}
-        aria-label={action.label}
-        disabled={action.disabled}
-      >
-        {action.icon}
-      </ActionIcon>
-    </Tooltip>
-  );
-
   return (
     <nav className="sidebar">
       <Stack gap={4} align="center">
         {topItems.map(renderItem)}
       </Stack>
-      {actions.length > 0 && <Stack gap={4} align="center">{actions.map(renderAction)}</Stack>}
       <Stack gap={4} align="center">
         {bottomItems.map(renderItem)}
       </Stack>

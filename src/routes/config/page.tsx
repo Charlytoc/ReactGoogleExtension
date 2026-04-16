@@ -11,7 +11,6 @@ import { useShallow } from "zustand/shallow";
 import { useStore } from "../../managers/store.ts";
 import { TTheme } from "../../managers/storeTypes.ts";
 import { Select } from "../../components/Select/Select.tsx";
-
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
@@ -299,9 +298,9 @@ export default function Config() {
         className="w-100  padding-10 justify-center active-on-hover"
         text={t("saveAndApply")}
         svg={SVGS.save}
-        onClick={() => {
-          ChromeStorageManager.add("colorPreferences", colors);
-          ChromeStorageManager.add("openaiApiKey", apiKey);
+        onClick={async () => {
+          await ChromeStorageManager.add("colorPreferences", colors);
+          await ChromeStorageManager.add("openaiApiKey", apiKey);
           setConfig({ auth: { openaiApiKey: apiKey } });
           toast.success(t("settingsSaved"));
         }}

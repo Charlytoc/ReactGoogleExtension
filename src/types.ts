@@ -25,6 +25,7 @@ export type TNote = {
   createdAt?: string;
   imageURL?: string;
   opacity?: number;
+  coverImage?: string;
 };
 
 export type TMessage = {

@@ -208,13 +208,13 @@ These features work on any webpage via the background service worker and content
 
 ### Translate Selection (Ctrl+Shift+L / Context Menu)
 - Reads the selected text on the page
-- Translates to English using GPT-4o-mini
+- Toggles English ↔ Spanish (other languages → English) using GPT-4o-mini, per the system prompt in `src/background.ts`
 - **In editable fields**: Replaces the selection inline
 - **In non-editable areas**: Shows a notification with the translation (click to copy)
 
-### Fix Grammar (Ctrl+Shift+G / Context Menu)
+### Fix Grammar (Ctrl+Shift+K / Context Menu)
 - Reads the selected text
-- Fixes grammar, spelling, and punctuation (preserves original language)
+- Fixes grammar, spelling, and punctuation (preserves original language); prompt lives in `checkGrammar()` in `src/background.ts`
 - **In editable fields**: Replaces the selection inline
 - **In non-editable areas**: Shows a notification with the corrected text (click to copy)
 
