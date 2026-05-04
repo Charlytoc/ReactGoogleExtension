@@ -1,0 +1,16 @@
+---
+description: Run npm run build after modifying the application
+alwaysApply: true
+---
+
+# Verify with production build
+
+After you change **application code**, **build configuration**, or **dependencies** in this project, run a full production build to catch compile and type errors before finishing the task.
+
+```bash
+npm run build
+```
+
+- Run it **after** the relevant edits are in place (not before every tiny edit).
+- If the build fails, fix the reported issues and run `npm run build` again until it succeeds.
+- Skip only for changes that cannot affect the build (for example, documentation or comments with no code impact), if you are certain they are isolated.

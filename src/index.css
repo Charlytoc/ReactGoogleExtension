@@ -616,6 +616,10 @@ button:focus-visible {
   align-items: center;
 }
 
+.align-start {
+  align-items: flex-start;
+}
+
 .w-50 {
   width: 50px;
 }
@@ -747,6 +751,7 @@ input:focus,
 .checkbox {
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
   accent-color: var(--active-color);
   border-radius: 5px;
   background-color: var(--bg-color);

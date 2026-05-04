@@ -71,6 +71,27 @@ const getNodeTextFromOffsets = (source: string, node: any) => {
   return source.slice(offsets.start, offsets.end);
 };
 
+/** Updates `- [ ]` / `- [x]` on the first line of a GFM task list item slice. */
+const replaceTaskCheckboxInListItemSource = (slice: string, checked: boolean) => {
+  const normalized = slice.replace(/\r\n/g, "\n");
+  const lineBreak = normalized.indexOf("\n");
+  const firstLine = lineBreak === -1 ? normalized : normalized.slice(0, lineBreak);
+  const rest = lineBreak === -1 ? "" : normalized.slice(lineBreak);
+
+  let newFirst = firstLine;
+  if (checked) {
+    if (/\[ \]/.test(newFirst)) {
+      newFirst = newFirst.replace(/\[ \]/, "[x]");
+    } else {
+      newFirst = newFirst.replace(/\[\s+\]/, "[x]");
+    }
+  } else {
+    newFirst = newFirst.replace(/\[[xX]\]/, "[ ]");
+  }
+
+  return newFirst + rest;
+};
+
 type TBlockEditorMode = "preview" | "edit-text" | "edit-ai";
 
 const MarkdownBlockEditorModal = ({
@@ -467,7 +488,16 @@ const CustomAnchor = ({
   return <a href={href}>{children}</a>;
 };
 
-const Tasky = ({ node }: { children: ReactNode; node: any }) => {
+const Tasky = ({
+  node,
+  sourceMarkdown,
+  onBlockChange,
+}: {
+  children: ReactNode;
+  node: any;
+  sourceMarkdown: string;
+  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+}) => {
   const inputNode = node.children.find(
     (child: any) => child.type === "element" && child.tagName === "input"
   );
@@ -477,25 +507,42 @@ const Tasky = ({ node }: { children: ReactNode; node: any }) => {
     (child: any) => child.type === "element" && child.tagName === "p"
   );
 
-  const [isChecked, setIsChecked] = useState(false);
+  const astChecked = Boolean(inputNode?.properties?.checked);
+  const [overrideChecked, setOverrideChecked] = useState<boolean | null>(null);
+
+  const offsets = getOffsets(node);
+  const originalSlice =
+    offsets != null ? getNodeTextFromOffsets(sourceMarkdown, node) : "";
 
   useEffect(() => {
-    setIsChecked(inputNode?.properties?.checked ?? false);
-  }, [inputNode]);
+    setOverrideChecked(null);
+  }, [originalSlice]);
+
+  const isChecked = overrideChecked ?? astChecked;
 
   return (
     <li>
-      <div className="flex-row align-center gap-5">
+      <div className="flex-row align-start gap-5">
         <input
           className="checkbox"
           type="checkbox"
-          defaultChecked={isChecked}
+          checked={isChecked}
           onChange={(e) => {
-            setIsChecked(e.target.checked);
+            const next = e.target.checked;
+            setOverrideChecked(next);
+            if (onBlockChange && offsets && originalSlice) {
+              const updated = replaceTaskCheckboxInListItemSource(originalSlice, next);
+              if (updated !== originalSlice) {
+                onBlockChange(offsets, updated);
+              } else {
+                setOverrideChecked(null);
+              }
+            }
           }}
         />
         <span
           style={{
+            minWidth: 0,
             textDecorationColor: "var(--active-color)",
             textDecorationStyle: "wavy",
             textDecorationLine: isChecked ? "line-through" : "none",
@@ -701,7 +748,15 @@ export const RenderMarkdown = ({
         },
         li: (props) => {
           if (props.className === "task-list-item") {
-            return <Tasky node={props.node}>{props.children}</Tasky>;
+            return (
+              <Tasky
+                node={props.node}
+                sourceMarkdown={markdown}
+                onBlockChange={onBlockChange}
+              >
+                {props.children}
+              </Tasky>
+            );
           }
           return (
             <ListItemEditAsText
