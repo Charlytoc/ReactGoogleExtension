@@ -119,6 +119,7 @@
     "useAiMotivation": "Use AI to generate a motivational message",
     "notesConfig": "Notes configuration",
     "font-secondary": "Font secondary",
+    "font-tertiary": "Muted body text",
     "autoSaveNotes": "Auto save notes",
     "useAiSuggestions": "Use AI to generate suggestions",
     "useAiSummary": "Use AI to generate a summary",

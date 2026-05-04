@@ -1,0 +1,143 @@
+/* Command shortcuts — grouped cards, single-outline prompt editor */
+
+.command-shortcuts-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.command-shortcuts-layout__footer {
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--opaque-gray-color) 80%, transparent);
+}
+
+.command-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.command-shortcuts__intro {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--font-color-tertiary);
+}
+
+.command-shortcuts-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--opaque-gray-color);
+  background: color-mix(in srgb, var(--bg-color-secondary) 42%, transparent);
+}
+
+.command-shortcuts-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.command-shortcuts-card__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--font-color);
+}
+
+.command-shortcuts-card__shortcut {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--font-color-secondary);
+  background: color-mix(in srgb, var(--bg-color) 65%, var(--bg-color-secondary));
+  border: 1px solid var(--opaque-gray-color);
+  border-radius: 6px;
+}
+
+.command-shortcuts-card__body {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--font-color-tertiary);
+}
+
+.command-shortcuts-field {
+  position: relative;
+  margin-top: 4px;
+  padding: 12px 12px 10px;
+  border: 1px solid var(--opaque-gray-color);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 88%, var(--bg-color-secondary));
+  transition: border-color 0.15s ease;
+}
+
+.command-shortcuts-field:focus-within {
+  border-color: var(--active-color);
+}
+
+.command-shortcuts-field__label {
+  position: absolute;
+  top: -9px;
+  left: 10px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--font-color-secondary);
+  background: var(--bg-color);
+  border-radius: 4px;
+}
+
+.command-shortcuts-field__input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 2px 4px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--font-color);
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--opaque-gray-color) transparent;
+}
+
+.command-shortcuts-field__input:focus {
+  box-shadow: none;
+}
+
+.command-shortcuts-field__input::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-shortcuts-field__input::-webkit-scrollbar-thumb {
+  background: var(--opaque-gray-color);
+  border-radius: 4px;
+}
+
+.command-shortcuts-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding-top: 2px;
+}
+
+.command-shortcuts-card__hint {
+  font-size: 0.75rem;
+  color: var(--font-color-tertiary);
+}

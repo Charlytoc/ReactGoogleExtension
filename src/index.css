@@ -22,6 +22,7 @@
 
   --font-color: rgba(255, 255, 255, 0.87);
   --font-color-secondary: rgba(255, 255, 255, 0.5);
+  --font-color-tertiary: rgba(200, 210, 225, 0.88);
   --bg-color: #09090d;
   --danger-color: #f45c5c;
   --success-color: #7cff7c;
@@ -502,6 +503,7 @@ button:focus-visible {
     color: var(--font-color);
     &:focus {
       outline: none;
+      box-shadow: none;
     }
   }
 
@@ -571,6 +573,11 @@ button:focus-visible {
     border: none;
     color: var(--font-color);
     outline: none;
+  }
+
+  /* Global input:focus uses a glow ring; here the wrapper already shows focus. */
+  & input:focus {
+    box-shadow: none;
   }
 
   & button {
@@ -720,7 +727,7 @@ input:focus,
 }
 
 .color-gray {
-  color: var(--opaque-gray-color);
+  color: var(--font-color-tertiary);
 }
 
 .day-cell {

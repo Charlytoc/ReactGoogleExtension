@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
-import { TTheme } from "../../managers/storeTypes";
+import { mergeStoredTheme, type TTheme } from "../../managers/storeTypes";
 import { Section } from "../../components/Section/Section";
 import { ActionIcon, Tooltip } from "@mantine/core";
 import { IconSettings } from "@tabler/icons-react";
@@ -31,36 +31,36 @@ function App() {
   };
 
   const setStoredTheme = async () => {
-    const colorPreferences: TTheme = await ChromeStorageManager.get(
-      "colorPreferences"
-    );
+    const colorPreferences = await ChromeStorageManager.get("colorPreferences");
     const openaiApiKey = await ChromeStorageManager.get("openaiApiKey");
     if (openaiApiKey) {
       setConfig({ auth: { openaiApiKey } });
     }
 
-    if (colorPreferences) {
+    if (colorPreferences && typeof colorPreferences === "object") {
+      const theme = mergeStoredTheme(colorPreferences as Partial<TTheme>);
       document.documentElement.style.setProperty(
         "--active-color",
-        colorPreferences.activeColor
+        theme.activeColor
       );
-      document.documentElement.style.setProperty(
-        "--font-color",
-        colorPreferences.fontColor
-      );
+      document.documentElement.style.setProperty("--font-color", theme.fontColor);
       document.documentElement.style.setProperty(
         "--font-color-secondary",
-        colorPreferences.fontColorSecondary
+        theme.fontColorSecondary
+      );
+      document.documentElement.style.setProperty(
+        "--font-color-tertiary",
+        theme.fontColorTertiary
       );
       document.documentElement.style.setProperty(
         "--bg-color",
-        colorPreferences.backgroundColor
+        theme.backgroundColor
       );
       document.documentElement.style.setProperty(
         "--bg-color-secondary",
-        colorPreferences.backgroundColorSecondary
+        theme.backgroundColorSecondary
       );
-      setConfig({ theme: colorPreferences });
+      setConfig({ theme });
     }
   };
 

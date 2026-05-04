@@ -60,23 +60,26 @@ export default function CommandShortcutsPage() {
         <h3 className="font-mono">{t("commandShortcuts.pageTitle")}</h3>
       }
     >
-      <CommandShortcutsSection
-        showHeading={false}
-        prompts={commandPrompts}
-        onPromptChange={(id, value) =>
-          setCommandPrompts((prev) => ({ ...prev, [id]: value }))
-        }
-        onResetPrompt={(id) =>
-          setCommandPrompts((prev) => ({ ...prev, [id]: DEFAULT_PROMPTS[id] }))
-        }
-      />
-      <Button
-        className="w-100 padding-10 justify-center active-on-hover"
-        style={{ marginTop: 12 }}
-        text={t("save")}
-        svg={SVGS.save}
-        onClick={() => void savePrompts()}
-      />
+      <div className="command-shortcuts-layout">
+        <CommandShortcutsSection
+          showHeading={false}
+          prompts={commandPrompts}
+          onPromptChange={(id, value) =>
+            setCommandPrompts((prev) => ({ ...prev, [id]: value }))
+          }
+          onResetPrompt={(id) =>
+            setCommandPrompts((prev) => ({ ...prev, [id]: DEFAULT_PROMPTS[id] }))
+          }
+        />
+        <div className="command-shortcuts-layout__footer">
+          <Button
+            className="w-100 padding-10 justify-center active-on-hover"
+            text={t("save")}
+            svg={SVGS.save}
+            onClick={() => void savePrompts()}
+          />
+        </div>
+      </div>
     </Section>
   );
 }

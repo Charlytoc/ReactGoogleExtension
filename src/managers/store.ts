@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { TStore } from "./storeTypes";
+import { DEFAULT_THEME, type TStore } from "./storeTypes";
 
 export const useStore = create<TStore>((set, get) => ({
   config: {
@@ -10,16 +10,7 @@ export const useStore = create<TStore>((set, get) => ({
     auth: {
       openaiApiKey: "",
     },
-    theme: {
-      fontColor: "#FFFFFF",
-      backgroundColor: "#0b0c14",
-      activeColor: "#FF007F",
-      fontColorSecondary: "#B0B0B0",
-      backgroundColorSecondary: "#151e47",
-      themePreferences: "",
-      imageURL: "",
-      backgroundType: "solid",
-    },
+    theme: { ...DEFAULT_THEME },
   },
   setConfig: (newConfig) => {
     const { config } = get();

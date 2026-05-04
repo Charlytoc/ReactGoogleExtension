@@ -9,12 +9,16 @@ import toast from "react-hot-toast";
 import { createCompletion } from "../../utils/ai.ts";
 import { useShallow } from "zustand/shallow";
 import { useStore } from "../../managers/store.ts";
-import { TTheme } from "../../managers/storeTypes.ts";
+import {
+  DEFAULT_THEME,
+  mergeStoredTheme,
+  type TTheme,
+} from "../../managers/storeTypes.ts";
 import { Select } from "../../components/Select/Select.tsx";
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
-): Promise<TColors> => {
+): Promise<TTheme> => {
   const prompt = `You are tasked to create a set of colors for a website.
   The colors should be random and should be in the HSL format.
   The colors should be in the following format:
@@ -23,6 +27,7 @@ const generateRandomTheme = async (
     backgroundColor: string;
     activeColor: string;
     fontColorSecondary: string;
+    fontColorTertiary: string;
     backgroundColorSecondary: string;
   }
     
@@ -31,6 +36,7 @@ const generateRandomTheme = async (
   Keep in mind: 
   The font color should be readable over the background color.
   The font color secondary will be use for less important texts.
+  The font color tertiary is for longer muted body text (e.g. descriptions). It must stay clearly readable on the background—typically slightly dimmer than fontColor but much higher contrast than a 30% gray overlay.
   The active color should be readable over and contrast with the background color.
   The secondary background color should be readable over the background color and closer to the background color. Both colors are used to generate a gradient.
 
@@ -60,20 +66,11 @@ const generateRandomTheme = async (
   if (!response) {
     throw new Error("No response from AI");
   }
-  const colors = JSON.parse(response);
-
-  return colors;
+  const parsed = JSON.parse(response) as Partial<TTheme>;
+  return mergeStoredTheme(parsed);
 };
 
-type TColors = {
-  fontColor: string;
-  backgroundColor: string;
-  activeColor: string;
-  fontColorSecondary: string;
-  backgroundColorSecondary: string;
-};
-
-const setColorsInDocument = (colors: TColors) => {
+const setColorsInDocument = (colors: TTheme) => {
   document.documentElement.style.setProperty(
     "--active-color",
     colors.activeColor
@@ -82,6 +79,10 @@ const setColorsInDocument = (colors: TColors) => {
   document.documentElement.style.setProperty(
     "--font-color-secondary",
     colors.fontColorSecondary
+  );
+  document.documentElement.style.setProperty(
+    "--font-color-tertiary",
+    colors.fontColorTertiary
   );
   document.documentElement.style.setProperty(
     "--bg-color",
@@ -97,16 +98,7 @@ export default function Config() {
   const { i18n, t } = useTranslation();
   const [apiKey, setApiKey] = useState<string>("");
 
-  const [colors, setColors] = useState<TTheme>({
-    fontColor: "",
-    backgroundColor: "",
-    activeColor: "",
-    fontColorSecondary: "",
-    backgroundColorSecondary: "",
-    themePreferences: "",
-    backgroundType: "gradient",
-    imageURL: "",
-  });
+  const [colors, setColors] = useState<TTheme>(DEFAULT_THEME);
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
 
@@ -123,8 +115,8 @@ export default function Config() {
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
     setApiKey(apiKey ?? "");
     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
-    if (colorPreferences) {
-      setColors(colorPreferences);
+    if (colorPreferences && typeof colorPreferences === "object") {
+      setColors(mergeStoredTheme(colorPreferences as Partial<TTheme>));
     }
   };
 
@@ -133,6 +125,7 @@ export default function Config() {
       `--active-color: ${colors.activeColor};
 --font-color: ${colors.fontColor};
 --font-color-secondary: ${colors.fontColorSecondary};
+--font-color-tertiary: ${colors.fontColorTertiary};
 --bg-color: ${colors.backgroundColor};
 --bg-color-secondary: ${colors.backgroundColorSecondary};
     `
@@ -183,7 +176,7 @@ export default function Config() {
         </div>
         <div className="flex-column gap-10">
           {/* <h3 className="text-left">{t("colors")}</h3> */}
-          <div className="flex-row gap-10 justify-between">
+          <div className="flex-row gap-10 justify-between wrap">
             <div className="flex-column gap-10 align-center justify-center">
               <span className="text-left">{t("active")}</span>
               <input
@@ -219,6 +212,21 @@ export default function Config() {
                 onChange={(e) => {
                   setColors({ ...colors, fontColorSecondary: e.target.value });
                 }}
+              />
+            </div>
+            <div className="flex-column gap-10 align-center justify-center">
+              <span className="text-left">{t("font-tertiary")}</span>
+              <input
+                type="color"
+                name="fontColorTertiary"
+                value={
+                  colors.fontColorTertiary
+                    ? colors.fontColorTertiary
+                    : "#000000"
+                }
+                onChange={(e) =>
+                  setColors({ ...colors, fontColorTertiary: e.target.value })
+                }
               />
             </div>
 
