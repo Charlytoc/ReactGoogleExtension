@@ -27,37 +27,64 @@ const isChromeExtension =
   typeof chrome.storage !== "undefined" &&
   typeof chrome.storage.local !== "undefined";
 
-if (!isChromeExtension) {
-  document.body.classList.add("browser");
+const resolveExtensionShellClass = (): Promise<"extension-popup" | "extension-tab"> => {
+  return new Promise((resolve) => {
+    if (typeof chrome === "undefined" || !chrome.windows?.getCurrent) {
+      resolve("extension-popup");
+      return;
+    }
+    try {
+      chrome.windows.getCurrent((win) => {
+        if (chrome.runtime.lastError || !win) {
+          resolve("extension-popup");
+          return;
+        }
+        resolve(win.type === "popup" ? "extension-popup" : "extension-tab");
+      });
+    } catch {
+      resolve("extension-popup");
+    }
+  });
+};
+
+async function mountApp() {
+  if (!isChromeExtension) {
+    document.body.classList.add("browser");
+  } else {
+    const shell = await resolveExtensionShellClass();
+    document.body.classList.add(shell);
+  }
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <MantineProvider theme={theme} defaultColorScheme="dark">
+        <Toaster />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/index.html" element={<App />} />
+              <Route path="/" element={<App />} />
+              <Route path="/notes" element={<NotesManager />} />
+              <Route path="/notes/:id" element={<NoteDetail />} />
+              <Route path="/tasks" element={<TaskManager />} />
+              <Route path="/tasks/:id" element={<TaskDetail />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/config" element={<Config />} />
+              <Route
+                path="/command-shortcuts"
+                element={<CommandShortcutsPage />}
+              />
+              <Route path="/snapties" element={<Snapties />} />
+              <Route path="/snapties/:id" element={<SnaptieDetail />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/formatters" element={<FormattersPage />} />
+              <Route path="/formatters/:id" element={<FormatterDetail />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </MantineProvider>
+    </StrictMode>
+  );
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="dark">
-      <Toaster />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/index.html" element={<App />} />
-            <Route path="/" element={<App />} />
-            <Route path="/notes" element={<NotesManager />} />
-            <Route path="/notes/:id" element={<NoteDetail />} />
-            <Route path="/tasks" element={<TaskManager />} />
-            <Route path="/tasks/:id" element={<TaskDetail />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/config" element={<Config />} />
-            <Route
-              path="/command-shortcuts"
-              element={<CommandShortcutsPage />}
-            />
-            <Route path="/snapties" element={<Snapties />} />
-            <Route path="/snapties/:id" element={<SnaptieDetail />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/formatters" element={<FormattersPage />} />
-            <Route path="/formatters/:id" element={<FormatterDetail />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </MantineProvider>
-  </StrictMode>
-);
+void mountApp();

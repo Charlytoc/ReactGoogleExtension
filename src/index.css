@@ -66,7 +66,7 @@ body {
   height: fit-content;
 }
 
-/* React entry point */
+/* React entry point — default until a shell class is applied (see main.tsx) */
 #root {
   width: var(--extension-width);
   height: var(--extension-height);
@@ -74,15 +74,31 @@ body {
   overflow-y: auto;
 }
 
-/* Browser (non-extension) layout */
-body.browser {
+/* Web dev (vite) or extension page opened in a normal browser tab */
+body.browser,
+body.extension-tab {
   width: 100vw;
   height: 100vh;
 }
 
-body.browser #root {
+body.browser #root,
+body.extension-tab #root {
   width: 100vw;
   height: 100vh;
+  min-height: 100vh;
+}
+
+/* Extension toolbar popup — fixed chrome dimensions */
+body.extension-popup {
+  width: fit-content;
+  height: fit-content;
+}
+
+body.extension-popup #root {
+  width: var(--extension-width);
+  height: var(--extension-height);
+  scrollbar-width: none;
+  overflow-y: auto;
 }
 
 h1 {
