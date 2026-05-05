@@ -430,6 +430,17 @@ button:focus-visible {
     }
   }
 
+  & .task-list-item-body[data-checked="true"] > p:first-of-type {
+    text-decoration: line-through;
+    text-decoration-color: var(--active-color);
+    text-decoration-style: wavy;
+  }
+
+  & .task-list-item-body > ul,
+  & .task-list-item-body > ol {
+    margin-top: 8px;
+  }
+
   & table {
     width: 100%;
     border-collapse: collapse;

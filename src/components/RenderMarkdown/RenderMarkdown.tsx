@@ -65,6 +65,24 @@ const getOffsets = (node: any): TOffsets | null => {
   if (typeof start !== "number" || typeof end !== "number") return null;
   return { start, end };
 };
+
+const hasTaskListItemClassName = (className: unknown): boolean => {
+  if (className == null) return false;
+  if (Array.isArray(className)) {
+    return (className as unknown[]).flat().some((c) => String(c).split(/\s+/).includes("task-list-item"));
+  }
+  return String(className).split(/\s+/).includes("task-list-item");
+};
+
+const stringifyLiClassName = (className: unknown): string | undefined => {
+  if (className == null) return undefined;
+  if (Array.isArray(className)) {
+    const parts = (className as unknown[]).flat(Infinity).filter(Boolean).map(String);
+    return parts.length ? parts.join(" ") : undefined;
+  }
+  const s = String(className).trim();
+  return s || undefined;
+};
 const getNodeTextFromOffsets = (source: string, node: any) => {
   const offsets = getOffsets(node);
   if (!offsets) return "";
@@ -492,19 +510,17 @@ const Tasky = ({
   node,
   sourceMarkdown,
   onBlockChange,
+  children,
+  className,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   node: any;
   sourceMarkdown: string;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  className?: string;
 }) => {
   const inputNode = node.children.find(
     (child: any) => child.type === "element" && child.tagName === "input"
-  );
-
-  const textNodes = node.children.filter((child: any) => child.type === "text");
-  const pNodes = node.children.filter(
-    (child: any) => child.type === "element" && child.tagName === "p"
   );
 
   const astChecked = Boolean(inputNode?.properties?.checked);
@@ -521,7 +537,7 @@ const Tasky = ({
   const isChecked = overrideChecked ?? astChecked;
 
   return (
-    <li>
+    <li className={className}>
       <div className="flex-row align-start gap-5">
         <input
           className="checkbox"
@@ -540,20 +556,13 @@ const Tasky = ({
             }
           }}
         />
-        <span
-          style={{
-            minWidth: 0,
-            textDecorationColor: "var(--active-color)",
-            textDecorationStyle: "wavy",
-            textDecorationLine: isChecked ? "line-through" : "none",
-          }}
+        <div
+          className="task-list-item-body"
+          data-checked={isChecked ? "true" : "false"}
+          style={{ flex: 1, minWidth: 0 }}
         >
-          {pNodes.length > 0
-            ? pNodes.map((pNode: any) =>
-                pNode.children.map((child: any) => child.value).join(" ")
-              )
-            : textNodes.map((textNode: any) => textNode.value).join(" ")}
-        </span>
+          {children}
+        </div>
       </div>
     </li>
   );
@@ -707,6 +716,12 @@ export const RenderMarkdown = ({
       skipHtml={true}
       urlTransform={markdownUrlTransform}
       components={{
+        input: (props) => {
+          if (props.type === "checkbox") {
+            return null;
+          }
+          return <input {...props} />;
+        },
         a: (props) => {
           return (
             <CustomAnchor
@@ -747,9 +762,10 @@ export const RenderMarkdown = ({
           );
         },
         li: (props) => {
-          if (props.className === "task-list-item") {
+          if (hasTaskListItemClassName(props.className)) {
             return (
               <Tasky
+                className={stringifyLiClassName(props.className)}
                 node={props.node}
                 sourceMarkdown={markdown}
                 onBlockChange={onBlockChange}
