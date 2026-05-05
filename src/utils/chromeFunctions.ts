@@ -37,3 +37,21 @@ export const clearAlarm = (hash: string) => {
 export const clearAllAlarms = () => {
   chrome.alarms.clearAll();
 };
+
+/** Opens the extension UI at an in-app route in a normal browser tab (Chrome extension only). */
+export const openExtensionRouteInNewTab = (routePath: string) => {
+  const normalized = routePath.startsWith("/") ? routePath : `/${routePath}`;
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.runtime?.getURL &&
+    chrome.tabs?.create
+  ) {
+    const base = chrome.runtime.getURL("index.html");
+    const url = `${base}#${normalized}`;
+    void chrome.tabs.create({ url });
+    return;
+  }
+  if (typeof window !== "undefined") {
+    window.open(normalized, "_blank", "noopener,noreferrer");
+  }
+};

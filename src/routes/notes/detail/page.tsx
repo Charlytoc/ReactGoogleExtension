@@ -6,6 +6,7 @@ import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
 import { buildBackground, cacheLocation, generateRandomId } from "../../../utils/lib";
+import { openExtensionRouteInNewTab } from "../../../utils/chromeFunctions";
 // import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
 // import { NoteEditor } from "../../../components/Note/Note";
@@ -573,6 +574,14 @@ export default function NoteDetail() {
         }
         headerRight={
           <>
+            <Button
+              className="justify-center padding-5"
+              svg={SVGS.openExternal}
+              title={t("openNoteInTab")}
+              onClick={() => {
+                openExtensionRouteInNewTab(`/notes/${id}`);
+              }}
+            />
             <Button
               className="justify-center padding-5"
               svg={SVGS.generate}
