@@ -84,7 +84,10 @@
     "settingsSaved": "Settings saved",
     "estimatedTime": "Estimated Time",
     "snaptie": {
-        "copied": "Snaptie copied to clipboard"
+        "copied": "Snaptie copied to clipboard",
+        "addCurrentUrl": "Add current URL",
+        "noTabUrl": "Could not read the active tab URL.",
+        "extensionOnly": "This action is only available in the extension."
     },
     "use-arrow-keys-to-navigate": "Use arrow keys to navigate between items",
     "category": "Category",

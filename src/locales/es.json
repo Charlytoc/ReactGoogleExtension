@@ -84,7 +84,10 @@
     "settingsSaved": "Configuración guardada",
     "estimatedTime": "Tiempo Estimado",
     "snaptie": {
-        "copied": "Snaptie copiado al portapapeles"
+        "copied": "Snaptie copiado al portapapeles",
+        "addCurrentUrl": "Añadir URL actual",
+        "noTabUrl": "No se pudo leer la URL de la pestaña activa.",
+        "extensionOnly": "Esta acción solo está disponible en la extensión."
     },
     "use-arrow-keys-to-navigate": "Usa las teclas de dirección para navegar entre elementos",
     "category": "Categoría",

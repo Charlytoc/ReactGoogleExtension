@@ -12,6 +12,7 @@ import { Textarea } from "../../../components/Textarea/Textarea";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 import { Select } from "../../../components/Select/Select";
 import { RenderMarkdown } from "../../../components/RenderMarkdown/RenderMarkdown";
+import { getLastFocusedActiveTabInfo } from "../../../utils/chromeFunctions";
 
 export default function SnaptieDetail() {
   const formRef = useRef<HTMLFormElement>(null);
@@ -63,7 +64,31 @@ export default function SnaptieDetail() {
     cacheLocation("/snapties");
   };
 
-  console.log(snaptie, "snaptie");
+  const handleAddCurrentUrl = async () => {
+    if (typeof chrome === "undefined" || !chrome.tabs?.query) {
+      toast.error(t("snaptie.extensionOnly"));
+      return;
+    }
+    const tabInfo = await getLastFocusedActiveTabInfo();
+    if (!tabInfo?.url) {
+      toast.error(t("snaptie.noTabUrl"));
+      return;
+    }
+    if (!snaptie) return;
+    const isUrl =
+      tabInfo.url.startsWith("http://") ||
+      tabInfo.url.startsWith("https://") ||
+      tabInfo.url.startsWith("file:");
+    const shouldFillTitle = !snaptie.title?.trim() && Boolean(tabInfo.title?.trim());
+    setSnaptie({
+      ...snaptie,
+      content: tabInfo.url,
+      isUrl,
+      ...(shouldFillTitle && tabInfo.title
+        ? { title: tabInfo.title.trim().slice(0, 120) }
+        : {}),
+    });
+  };
 
   return (
     <Section
@@ -83,7 +108,6 @@ export default function SnaptieDetail() {
           />
           <Button
             onClick={() => {
-              console.log("saveSnaptie");
               formRef.current?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
             }}
             text={t("save")}
@@ -116,7 +140,19 @@ export default function SnaptieDetail() {
               </div>
             </div>
           ) : (
-            <div className="textarea-container">
+            <div className="textarea-container flex-column gap-5">
+              <div className="flex-row justify-end align-center">
+                <Button
+                  type="button"
+                  text={t("snaptie.addCurrentUrl")}
+                  title={t("snaptie.addCurrentUrl")}
+                  className="w-auto padding-5 justify-center"
+                  svg={SVGS.clip}
+                  onClick={() => {
+                    void handleAddCurrentUrl();
+                  }}
+                />
+              </div>
               <Textarea
                 label={t("content")}
                 name="content"

@@ -70,6 +70,7 @@
     "contextMenus",
     "scripting",
     "commands",
-    "tts"
+    "tts",
+    "tabs"
   ]
 }
