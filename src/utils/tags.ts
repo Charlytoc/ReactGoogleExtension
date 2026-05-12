@@ -5,6 +5,29 @@ export function normalizeTag(s: string): string {
 }
 
 /**
+ * Union of existing note tags and AI-suggested tags, normalized and deduped
+ * case-insensitively (existing order first, then new from AI).
+ */
+export function mergeNoteTags(
+  existing: string[] | undefined,
+  fromAi: string[] | undefined
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    const n = normalizeTag(raw);
+    if (!n) return;
+    const key = n.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(n);
+  };
+  for (const t of existing ?? []) push(t);
+  for (const t of fromAi ?? []) push(t);
+  return out;
+}
+
+/**
  * Parse a comma-separated tags string into unique normalized tags (order preserved).
  */
 export function parseTagsInput(value: string): string[] {

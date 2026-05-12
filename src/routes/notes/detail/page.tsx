@@ -29,10 +29,16 @@ import { TagsField } from "../../../components/TagsField/TagsField";
 import { Select } from "../../../components/Select/Select";
 import {
   collectAllTags,
+  mergeNoteTags,
   migrateFormatter,
   migrateSnaptie,
   migrateTask,
 } from "../../../utils/tags";
+import {
+  NOTE_FONT_OPTIONS,
+  clampAiNoteThemeJson,
+  formatFontCatalogForPrompt,
+} from "../../../utils/noteTheme";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
@@ -188,19 +194,6 @@ const Prompter = ({
   );
 };
 
-const BROWSER_FONTS = [
-  { label: "Arial", value: "Arial, sans-serif" },
-  { label: "Verdana", value: "Verdana, sans-serif" },
-  { label: "Georgia", value: "Georgia, serif" },
-  { label: "Times New Roman", value: '"Times New Roman", serif' },
-  { label: "Trebuchet MS", value: '"Trebuchet MS", sans-serif' },
-  { label: "Tahoma", value: "Tahoma, sans-serif" },
-  { label: "Courier New", value: '"Courier New", monospace' },
-  { label: "Comic Sans MS", value: '"Comic Sans MS", cursive' },
-  { label: "Lucida Console", value: '"Lucida Console", monospace' },
-  { label: "Impact", value: "Impact, sans-serif" },
-];
-
 type TImageSizeOption = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 
 export default function NoteDetail() {
@@ -213,7 +206,7 @@ export default function NoteDetail() {
   const [isPrompterOpen, setIsPrompterOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [coverPrompt, setCoverPrompt] = useState("");
-  const [isGeneratingCover, setIsGeneratingCover] = useState(false);
+  const [isGeneratingNoteStyle, setIsGeneratingNoteStyle] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const auth = useStore(useShallow((state) => state.config.auth));
 
@@ -405,32 +398,74 @@ export default function NoteDetail() {
       toast.error(t("noApiKey") || "No API key found");
       return;
     }
-    setIsGeneratingCover(true);
+    setIsGeneratingNoteStyle(true);
     try {
-      const refinedPrompt = await createCompletion(
+      const tagCatalog = tagSuggestions.slice(0, 250);
+      const themeSystem = `You are styling a personal note in a notes app.
+Respond with a single JSON object only (no markdown code fences) with exactly these keys:
+- "imagePrompt": string — vivid, detailed AI image generation prompt for a wide landscape cover (16:9 feel) matching the note.
+- "backgroundType": "solid" or "gradient" only.
+- "color": string — primary background as CSS hex #rrggbb.
+- "color2": string — second color #rrggbb (for gradient use a complementary second stop; for solid it can match "color" or be a subtle variant).
+- "font": string — MUST equal exactly one allowed value from the FONT_CATALOG below (copy the value string verbatim).
+- "tags": string[] — tag labels for this note. Prefer exact strings from TAG_CATALOG when they fit; otherwise propose concise new tags. The app merges these with existing note tags.
+
+Rules:
+- Use only #rrggbb hex for color and color2 (no CSS variables, no rgb()).
+- Keep tags short; avoid duplicates in the array.
+- FONT_CATALOG (label -> use this exact "value"):
+${formatFontCatalogForPrompt()}`;
+
+      const userContent = `Title: ${note.title || "Untitled"}
+
+Content (excerpt):
+${(note.content || "").slice(0, 1000)}
+
+User hint for styling/cover: ${coverPrompt.trim() || "none"}
+
+Current note tags (JSON): ${JSON.stringify(note.tags ?? [])}
+
+TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCatalog)}`;
+
+      const rawJson = await createCompletion(
         {
           model: "gpt-4o-mini",
           messages: [
-            {
-              role: "system",
-              content:
-                "You are an expert at writing prompts for AI image generation. Given a note's title, content, and an optional user hint, write a vivid, detailed image generation prompt for a wide landscape cover image that captures the essence of the note. Return only the prompt, no explanations.",
-            },
-            {
-              role: "user",
-              content: `Title: ${note.title || "Untitled"}\n\nContent: ${(note.content || "").slice(0, 1000)}\n\nUser hint: ${coverPrompt.trim() || "none"}`,
-            },
+            { role: "system", content: themeSystem },
+            { role: "user", content: userContent },
           ],
           temperature: 0.8,
-          max_completion_tokens: 300,
-          response_format: { type: "text" },
+          max_completion_tokens: 600,
+          response_format: { type: "json_object" },
           apiKey: auth.openaiApiKey,
         },
         () => {}
       );
 
+      if (!rawJson) {
+        throw new Error("Empty theme response");
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawJson);
+      } catch {
+        throw new Error("Invalid JSON from theme model");
+      }
+
+      const theme = clampAiNoteThemeJson(parsed, {
+        fallbackFont: note.font,
+        fallbackColor: note.color || "#1a1a1a",
+        fallbackColor2: note.color2 || "#2a2a2a",
+      });
+
+      const imagePrompt =
+        theme.imagePrompt ||
+        note.title?.trim() ||
+        "abstract wide landscape cover art";
+
       const generatedImage = await generateImage({
-        prompt: refinedPrompt || note.title || "abstract cover art",
+        prompt: imagePrompt,
         apiKey: auth.openaiApiKey,
         model: "gpt-image-1.5",
         quality: "medium",
@@ -438,17 +473,24 @@ export default function NoteDetail() {
         outputFormat: "jpeg",
         outputCompression: 70,
       });
+
+      const mergedTags = mergeNoteTags(note.tags, theme.tagsFromAi);
+
       setNote({
         ...note,
         coverImage: `data:${generatedImage.mimeType};base64,${generatedImage.b64}`,
-        backgroundType: note.backgroundType === "image" ? "solid" : note.backgroundType,
+        backgroundType: theme.backgroundType,
+        color: theme.color,
+        color2: theme.color2,
+        font: theme.font,
+        tags: mergedTags,
         imageURL: "",
       });
-      toast.success("Cover generated!");
+      toast.success(t("noteStyleGenerated") || "Note style updated!");
     } catch (e) {
-      toast.error("Failed to generate cover");
+      toast.error(t("failedToGenerateCover") || "Failed to generate cover");
     } finally {
-      setIsGeneratingCover(false);
+      setIsGeneratingNoteStyle(false);
     }
   };
 
@@ -894,7 +936,7 @@ ${JSON.stringify(note)}
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {isGeneratingCover && (
+              {isGeneratingNoteStyle && (
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", borderRadius: "inherit", zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px" }}>
                   <span
                     className="svg-container"
@@ -906,7 +948,9 @@ ${JSON.stringify(note)}
                   >
                     {SVGS.generate}
                   </span>
-                  <span style={{ color: "#fff", fontWeight: 600 }}>Generating cover...</span>
+                  <span style={{ color: "#fff", fontWeight: 600 }}>
+                    {t("generatingNoteStyle")}
+                  </span>
                 </div>
               )}
               <div className="flex-row justify-between align-center">
@@ -920,11 +964,8 @@ ${JSON.stringify(note)}
               </div>
               <span>{t("font")}</span>
               <Select
-                options={[
-                  ...BROWSER_FONTS,
-                  { label: "ShareTechMono", value: "ShareTechMono" },
-                ]}
-                defaultValue={note.font || "Arial"}
+                options={[...NOTE_FONT_OPTIONS]}
+                defaultValue={note.font || NOTE_FONT_OPTIONS[0].value}
                 onChange={(value: string) => setNote({ ...note, font: value })}
                 name="font"
               />
@@ -1028,7 +1069,7 @@ ${JSON.stringify(note)}
                     title={t("generate") || "Generate"}
                     svg={SVGS.generate}
                     onClick={generateCover}
-                    disabled={isGeneratingCover}
+                    disabled={isGeneratingNoteStyle}
                   />
                 </div>
                 {note.coverImage && (
@@ -1079,7 +1120,11 @@ ${JSON.stringify(note)}
                 <p><strong>Shift + click</strong> any paragraph, heading, list item, or code block to edit it inline.</p>
                 <p><strong>Markdown mode</strong> (the Md / T icon in the top bar) lets you edit the raw markdown source.</p>
                 <p><strong>AI assistant</strong> (sparkles icon) can rewrite content, generate images, change colors, and more — just describe what you want.</p>
-                <p><strong>Customization</strong> (gear icon in the top bar) lets you change the font, background, and generate an AI cover image.</p>
+                <p>
+                  <strong>Customization</strong> (gear icon in the top bar) lets you change the
+                  font, background, and run AI styling: it can set a cover image, solid or gradient
+                  colors, font, and suggest tags merged with your existing tags.
+                </p>
                 <p><strong>Cover image</strong>: type a hint and press Enter or click the sparkles button — the AI uses the note title and content to craft a detailed image prompt automatically.</p>
               </div>
             </div>
