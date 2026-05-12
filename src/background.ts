@@ -10,6 +10,7 @@
  */
 
 import type { TTask } from "./types";
+import { migrateTask } from "./utils/tags";
 import {
   COMMAND_PROMPT_STORAGE_KEY,
   type ExtensionCommandId,
@@ -218,17 +219,10 @@ chrome.notifications.onClicked.addListener(async (notificationId: string) => {
 
 // ─── Storage Helpers ────────────────────────────────────────────────────────
 
-const retrieveFromLs = async <T>(
-  key: string,
-  callback: (result: T) => void
-): Promise<void> => {
-  const result = await ChromeStorageManager.get<T>(key);
-  callback(result);
-};
-
 const updateTask = async (task: TTask): Promise<void> => {
-  const tasks = await ChromeStorageManager.get<TTask[]>("tasks");
-  if (tasks) {
+  const raw = await ChromeStorageManager.get<TTask[]>("tasks");
+  if (raw && Array.isArray(raw)) {
+    const tasks = raw.map(migrateTask);
     const taskIndex = tasks.findIndex((t) => t.id === task.id);
     if (taskIndex !== -1) {
       tasks[taskIndex] = task;
@@ -280,7 +274,10 @@ chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
     await updateTask(updatedTask);
   };
 
-  await retrieveFromLs<TTask[]>("tasks", notifyMessage);
+  const rawTasks = await ChromeStorageManager.get<TTask[]>("tasks");
+  await notifyMessage(
+    Array.isArray(rawTasks) ? rawTasks.map(migrateTask) : []
+  );
 });
 
 // ─── Context Menu Setup ─────────────────────────────────────────────────────

@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { TSnaptie } from "../../types";
 import { ChromeStorageManager } from "../../managers/Storage";
+import {
+  bucketSnaptiesByTag,
+  migrateSnaptie,
+  snaptieMatchesTextFilter,
+} from "../../utils/tags";
 import { cacheLocation, generateRandomId } from "../../utils/lib";
 import { Button } from "../Button/Button";
 import { Section } from "../Section/Section";
 import { useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { Tooltip } from "@mantine/core";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import {
   IconSearch as Search,
@@ -66,6 +72,11 @@ export const Snapties = () => {
 
   // Add keyboard shortcut for accessibility
   useEffect(() => {
+    const isInsideSnaptieCard = (target: EventTarget | null) =>
+      target instanceof Element &&
+      (target.closest("[data-snaptie-index]") != null ||
+        target.closest("[data-pinned-index]") != null);
+
     const handleKeyPress = (e: KeyboardEvent) => {
       // Only handle 'q' key when not in form and when we can go back
       if (e.key === "q" && (selectedCategory || isSearching)) {
@@ -116,13 +127,9 @@ export const Snapties = () => {
         return; // Let the form handle the submission
       }
 
-      // Don't handle if the event is coming from a snaptie card (it has its own handler)
-      if (
-        e.target instanceof HTMLElement &&
-        (e.target.hasAttribute("data-snaptie-index") ||
-          e.target.hasAttribute("data-pinned-index"))
-      ) {
-        return; // Let the snaptie card handle it
+      // Don't handle if focus is inside a snaptie card (card or its toolbar buttons)
+      if (isInsideSnaptieCard(e.target)) {
+        return;
       }
 
       if (e.key === "Enter") {
@@ -140,13 +147,8 @@ export const Snapties = () => {
 
     const handleSpaceKey = (e: KeyboardEvent) => {
 
-      // Don't handle if the event is coming from a snaptie card (it has its own handler)
-      if (
-        e.target instanceof HTMLElement &&
-        (e.target.hasAttribute("data-snaptie-index") ||
-          e.target.hasAttribute("data-pinned-index"))
-      ) {
-        return; // Let the snaptie card handle it
+      if (isInsideSnaptieCard(e.target)) {
+        return;
       }
 
       if (e.key === " ") {
@@ -186,7 +188,7 @@ export const Snapties = () => {
   const getSnapties = async () => {
     const snapties = await ChromeStorageManager.get("snapties");
     if (snapties && Array.isArray(snapties)) {
-      setSnapties(snapties);
+      setSnapties(snapties.map(migrateSnaptie));
     }
   };
 
@@ -208,7 +210,7 @@ export const Snapties = () => {
       id: generateRandomId("snaptie"),
       title: "",
       content: "",
-      category: "",
+      tags: [],
       color: cssVariableValue,
       createdAt: new Date().toISOString(),
       isUrl: false,
@@ -241,46 +243,23 @@ export const Snapties = () => {
     setSnapties(newSnapties);
   };
 
-  // Get all categories (for when no filter is applied)
+  const uncategorizedLabel = t("uncategorized");
+
+  // Get all tag buckets (for when no filter is applied)
   const allCategories =
     snapties && snapties.length > 0
-      ? snapties.reduce((acc, snaptie) => {
-        const category = snaptie.category || t("uncategorized");
-        if (!acc[category]) {
-          acc[category] = [];
-        }
-        acc[category].push(snaptie);
-        return acc;
-      }, {} as Record<string, TSnaptie[]>)
+      ? bucketSnaptiesByTag(snapties, uncategorizedLabel)
       : {};
 
-  // While typing: search all snapdeals and show categories that contain matching snapdeals
+  // While typing: search all snapdeals and show tag buckets that contain matching snapdeals
   const matchingSnapdeals = nameFilter
-    ? snapties.filter((snaptie) => {
-      const titleIncludes = snaptie.title
-        .toLowerCase()
-        .includes(nameFilter.toLowerCase());
-      const contentIncludes = snaptie.content
-        .toLowerCase()
-        .includes(nameFilter.toLowerCase());
-      const categoryIncludes = snaptie.category
-        .toLowerCase()
-        .includes(nameFilter.toLowerCase());
-      return titleIncludes || contentIncludes || categoryIncludes;
-    })
+    ? snapties.filter((snaptie) => snaptieMatchesTextFilter(snaptie, nameFilter))
     : [];
 
-  // Get categories that contain matching snapdeals (for filtered view)
+  // Buckets that contain matching snapdeals (for filtered view)
   const filteredCategories =
     matchingSnapdeals.length > 0
-      ? matchingSnapdeals.reduce((acc, snaptie) => {
-        const category = snaptie.category || t("uncategorized");
-        if (!acc[category]) {
-          acc[category] = [];
-        }
-        acc[category].push(snaptie);
-        return acc;
-      }, {} as Record<string, TSnaptie[]>)
+      ? bucketSnaptiesByTag(matchingSnapdeals, uncategorizedLabel)
       : {};
 
   const handleCategoriesNavigation = (key: string) => {
@@ -516,18 +495,9 @@ export const Snapties = () => {
   // Apply filter to selected category if there's a filter active
   const filteredSnapties = selectedCategory
     ? nameFilter
-      ? allCategories[selectedCategory]?.filter((snaptie) => {
-        const titleIncludes = snaptie.title
-          .toLowerCase()
-          .includes(nameFilter.toLowerCase());
-        const contentIncludes = snaptie.content
-          .toLowerCase()
-          .includes(nameFilter.toLowerCase());
-        const categoryIncludes = snaptie.category
-          .toLowerCase()
-          .includes(nameFilter.toLowerCase());
-        return titleIncludes || contentIncludes || categoryIncludes;
-      }) || []
+      ? allCategories[selectedCategory]?.filter((snaptie) =>
+          snaptieMatchesTextFilter(snaptie, nameFilter)
+        ) || []
       : allCategories[selectedCategory] || []
     : [];
 
@@ -838,93 +808,176 @@ const SnaptieCard = ({
     window.open(snaptie.content, "_blank");
   };
 
-  const triggerDeleteButton = (container: HTMLElement) => {
+  const armDeleteFromKeyboard = (container: HTMLElement) => {
     const deleteButton = container.querySelector(
       '[data-snaptie-delete-trigger="true"]'
     ) as HTMLButtonElement | null;
-    if (deleteButton) {
+    if (!deleteButton) return;
+    const raw = deleteButton.getAttribute("data-confirmation-step");
+    const step = raw == null ? 0 : parseInt(raw, 10);
+    if (!Number.isNaN(step) && step === 0) {
       deleteButton.click();
     }
+    deleteButton.focus();
   };
 
+  const modifierFree = (e: React.KeyboardEvent) =>
+    !e.ctrlKey && !e.metaKey && !e.altKey;
+
+  const displayTitle = snaptie.title?.trim() || t("untitled");
+  const tooltipTitle = snaptie.title?.length ? snaptie.title : t("untitled");
+
   return (
-    <div
-      style={{
-        border: "1px solid rgba(145, 145, 145, 0.303)",
-        borderLeft: `4px solid ${snaptie.color}`,
-        minWidth: 0,
+    <Tooltip
+      label={tooltipTitle}
+      position="top"
+      multiline
+      maw={360}
+      withinPortal
+      zIndex={5000}
+      events={{ hover: true, focus: true, touch: true }}
+      styles={{
+        tooltip: {
+          backgroundColor: "var(--bg-color-secondary)",
+          color: "var(--font-color)",
+          border: "1px solid rgba(145, 145, 145, 0.35)",
+          fontSize: "13px",
+          fontWeight: 600,
+          padding: "8px 12px",
+          borderRadius: "8px",
+          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.45)",
+        },
+        arrow: {
+          backgroundColor: "var(--bg-color-secondary)",
+          border: "1px solid rgba(145, 145, 145, 0.35)",
+        },
       }}
-      className={`padding-10 rounded flex-column gap-5 pointer scale-on-hover pos-relative ${isSelected ? " scale-105" : ""
-        }`}
-      onFocus={onFocus}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (snaptie.isUrl) {
-            openLink();
-          } else {
-            pasteSnaptie();
-          }
-        } else if (e.key === " ") {
-          e.preventDefault();
-          pasteSnaptie();
-        } else if (e.key === "Delete" || e.key === "Backspace") {
-          // Reuse the existing trash button confirmation flow.
-          e.preventDefault();
-          e.stopPropagation();
-          triggerDeleteButton(e.currentTarget);
-        }
-      }}
-      tabIndex={0}
-      role="button"
-      data-snaptie-index={index}
-      data-pinned-index={pinnedIndex}
-      aria-label={`${snaptie.title} - ${snaptie.category} category. ${snaptie.isUrl ? 'Press Enter to open link, Space to copy. Click to copy content.' : 'Press Enter or Space to copy content. Click to copy content.'}`}
     >
-      <div className="snaptie-bg" onClick={pasteSnaptie}></div>
-      <h4 className="text-center">{snaptie.title.slice(0, 20)}</h4>
-      <div className="flex-row gap-5 justify-center">
-        {onTogglePin && (
-          <Button
-            tabIndex={0}
-            className={snaptie.pinned ? "bg-active-100" : ""}
-            svg={snaptie.pinned ? <IconPinFilled size={20} /> : <IconPin size={20} />}
-            onClick={() => onTogglePin(snaptie.id)}
-            aria-label={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
-            title={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
-          />
-        )}
-        {snaptie.isUrl && (
-          <Button
-            className="justify-center align-center"
-            tabIndex={0}
-            svg={<ExternalLink size={20} />}
-            onClick={() => window.open(snaptie.content, "_blank")}
-            aria-label={`Open ${snaptie.title} in new tab`}
-          />
-        )}
-        <Button
-          tabIndex={0}
-          data-snaptie-delete-trigger="true"
-          svg={<Trash2 size={20} />}
-          confirmations={[
-            { text: t("sure?"), className: "bg-danger", svg: undefined },
-          ]}
-          onClick={() => deleteSnaptie(snaptie.id)}
-          aria-label={`Delete ${snaptie.title}`}
-        />
-        <Button
-          tabIndex={0}
-          className="justify-center align-center above text-center"
-          svg={<Edit3 size={20} />}
-          onClick={() => {
+      <div
+        style={{
+          border: "1px solid rgba(145, 145, 145, 0.303)",
+          borderLeft: `4px solid ${snaptie.color}`,
+          minWidth: 0,
+        }}
+        className={`padding-10 rounded flex-column gap-5 pointer scale-on-hover pos-relative ${isSelected ? " scale-105" : ""
+          }`}
+        onFocus={onFocus}
+        onKeyDown={(e) => {
+          // Let Enter/Space activate focused child buttons (delete confirm, edit, etc.)
+          if (e.key === "Enter" || e.key === " ") {
+            if (e.target !== e.currentTarget) {
+              return;
+            }
+            e.preventDefault();
+            if (e.key === "Enter") {
+              if (snaptie.isUrl) {
+                openLink();
+              } else {
+                pasteSnaptie();
+              }
+            } else {
+              pasteSnaptie();
+            }
+            return;
+          }
+
+          if (e.key === "Delete" || e.key === "Backspace") {
+            if (e.target !== e.currentTarget) {
+              return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            armDeleteFromKeyboard(e.currentTarget);
+            return;
+          }
+
+          if (!modifierFree(e)) {
+            return;
+          }
+
+          if (e.key === "e" || e.key === "E") {
+            e.preventDefault();
             navigate(`/snapties/${snaptie.id}`);
             cacheLocation(`/snapties/${snaptie.id}`);
+          } else if ((e.key === "p" || e.key === "P") && onTogglePin) {
+            e.preventDefault();
+            onTogglePin(snaptie.id);
+          } else if ((e.key === "o" || e.key === "O") && snaptie.isUrl) {
+            e.preventDefault();
+            openLink();
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        data-snaptie-index={index}
+        data-pinned-index={pinnedIndex}
+        aria-label={`${snaptie.title} - tags: ${(snaptie.tags ?? []).join(", ") || t("uncategorized")}. ${snaptie.isUrl ? "Press Enter to open link, Space to copy. Click to copy content." : "Press Enter or Space to copy content. Click to copy content."} ${[
+          onTogglePin ? t("snaptie.shortcutPin") : null,
+          snaptie.isUrl ? t("snaptie.shortcutOpen") : null,
+          t("snaptie.shortcutEdit"),
+          t("snaptie.shortcutDelete"),
+        ]
+          .filter(Boolean)
+          .join(" ")}`}
+      >
+        <div className="snaptie-bg" onClick={pasteSnaptie}></div>
+        <h4
+          className="text-center"
+          style={{
+            margin: 0,
+            width: "100%",
+            minWidth: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            lineHeight: 1.35,
           }}
-          aria-label={`Edit ${snaptie.title}`}
-        />
+        >
+          {displayTitle}
+        </h4>
+        <div className="flex-row gap-5 justify-center">
+          {onTogglePin && (
+            <Button
+              tabIndex={-1}
+              className={snaptie.pinned ? "bg-active-100" : ""}
+              svg={snaptie.pinned ? <IconPinFilled size={20} /> : <IconPin size={20} />}
+              onClick={() => onTogglePin(snaptie.id)}
+              aria-label={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
+              title={snaptie.pinned ? t("unpin-bookmark") : t("pin-bookmark")}
+            />
+          )}
+          {snaptie.isUrl && (
+            <Button
+              className="justify-center align-center"
+              tabIndex={-1}
+              svg={<ExternalLink size={20} />}
+              onClick={() => window.open(snaptie.content, "_blank")}
+              aria-label={`Open ${snaptie.title} in new tab`}
+            />
+          )}
+          <Button
+            tabIndex={-1}
+            data-snaptie-delete-trigger="true"
+            svg={<Trash2 size={20} />}
+            confirmations={[
+              { text: t("sure?"), className: "bg-danger", svg: undefined },
+            ]}
+            onClick={() => deleteSnaptie(snaptie.id)}
+            aria-label={`Delete ${snaptie.title}`}
+          />
+          <Button
+            tabIndex={-1}
+            className="justify-center align-center text-center"
+            svg={<Edit3 size={20} />}
+            onClick={() => {
+              navigate(`/snapties/${snaptie.id}`);
+              cacheLocation(`/snapties/${snaptie.id}`);
+            }}
+            aria-label={`Edit ${snaptie.title}`}
+          />
+        </div>
       </div>
-    </div>
+    </Tooltip>
   );
 };
 
@@ -959,7 +1012,7 @@ const CategoryCard = ({
       tabIndex={0}
       role="button"
       data-category-index={index}
-      aria-label={`${category} category with ${count} snapdeals`}
+      aria-label={`${category} tag with ${count} bookmarks`}
     >
       <h4 className="font-mono font-bold text-md text-center">{category}</h4>
       <div className="text-sm text-gray-400">{count} {t("bookmarks").toLowerCase()}</div>

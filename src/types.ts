@@ -53,6 +53,7 @@ export type TTask = {
   estimatedTimeUnit?: string;
   lastReminderAt?: string;
   priority: TTaskPriority;
+  tags?: string[];
 };
 
 export type TConversation = {
@@ -67,7 +68,7 @@ export type TSnaptie = {
   title: string;
   content: string;
   createdAt: string;
-  category: string;
+  tags?: string[];
   isUrl: boolean;
   color: string;
   pinned?: boolean;
@@ -112,9 +113,9 @@ export type TFormatter = {
   createdAt: string;
   updatedAt?: string;
   /**
-   * Optional category to organize formatters, similar to snapties.
+   * Optional tags to organize formatters (shared vocabulary with notes, tasks, snapties).
    */
-  category?: string;
+  tags?: string[];
   /**
    * Optional color used in the UI card.
    */

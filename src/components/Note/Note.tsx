@@ -10,6 +10,7 @@ import { cacheLocation, buildBackground } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Textarea } from "../Textarea/Textarea";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
+import { TagsField } from "../TagsField/TagsField";
 import { CommandPalette, TCommand } from "../CommandPalette/CommandPalette";
 
 import { useEffect, useRef, useState } from "react";
@@ -172,12 +173,12 @@ const containsCommand = (text: string) => {
 export const NoteEditor = ({
   note,
   setNote,
-}: // close,
-// close,
-{
+  tagSuggestions = [],
+}: {
   note: TNote;
   setNote: (note: TNote) => void;
   close: () => void;
+  tagSuggestions?: string[];
 }) => {
   const apiKeyref = useRef("");
   const [commandPaletteOpened, setCommandPaletteOpened] = useState(false);
@@ -285,7 +286,7 @@ export const NoteEditor = ({
         `}
         aiButton={true}
         value={note?.title || ""}
-        onChange={(value) => setNote({ ...note, title: value })}
+        onChange={(value: string) => setNote({ ...note, title: value })}
       />
       <Textarea
         maxHeight="75vh"
@@ -315,30 +316,13 @@ export const NoteEditor = ({
           }}
         />
       </div>
-      <div className="flex-row gap-5 align-center">
-        <LabeledInput
-          label={t("tags")}
-          type="text"
-          name="tags"
-          getAIContext={() => `
-            Generate tags for a note.
-            The tags should be related to the note.
-            This is the title of the note:
-            ${note?.title || ""}
-
-            This is the content of the note:
-            ${note?.content || ""}
-
-            This are the current tags of the note:
-            ${note?.tags?.join(",") || ""}
-
-            You should generate a single tag, this will be added to the tag list of the note.
-          `}
-          aiButton={true}
-          value={note?.tags?.join(",") || ""}
-          onChange={(value) => setNote({ ...note, tags: value.split(",") })}
-        />
-      </div>
+      <TagsField
+        label={t("tags")}
+        value={note.tags ?? []}
+        onChange={(tags) => setNote({ ...note, tags })}
+        suggestions={tagSuggestions}
+        hint={t("tags-comma-hint")}
+      />
     </div>
   );
 };

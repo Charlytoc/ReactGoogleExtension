@@ -87,7 +87,11 @@
         "copied": "Snaptie copiado al portapapeles",
         "addCurrentUrl": "Añadir URL actual",
         "noTabUrl": "No se pudo leer la URL de la pestaña activa.",
-        "extensionOnly": "Esta acción solo está disponible en la extensión."
+        "extensionOnly": "Esta acción solo está disponible en la extensión.",
+        "shortcutPin": "P: fijar o quitar fijación.",
+        "shortcutOpen": "O: abrir enlace en nueva pestaña.",
+        "shortcutEdit": "E: editar.",
+        "shortcutDelete": "Supr o Retroceso: muestra la confirmación de borrado; pulsa Intro para eliminar."
     },
     "use-arrow-keys-to-navigate": "Usa las teclas de dirección para navegar entre elementos",
     "category": "Categoría",
@@ -144,6 +148,7 @@
     "colorsPastedToClipboard": "Colores pegados al portapapeles",
     "colorsPastedToClipboardSuccess": "Colores pegados al portapapeles correctamente",
     "tags": "Etiquetas",
+    "tags-comma-hint": "Separa con comas. Las sugerencias provienen de notas, tareas, marcadores y formateadores.",
     "archived": "Archivado",
     "continueWithAI": "Continuar con AI",
     "generateColorWithAI": "Generar color con AI",
@@ -186,6 +191,7 @@
     "none": "Ninguno",
     "image": "Imagen",
     "customization": "Personalización",
+    "generateCover": "Generar imagen de portada",
     "markAsDone": "Marcar como hecho",
     "start": "Comenzar",
     "showDetails": "Mostrar detalles",

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { Section } from "../Section/Section";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
+import { migrateTask } from "../../utils/tags";
 
 const daysKeys = [
   "sunday",
@@ -37,7 +38,10 @@ const Calendar = () => {
   }, [month, year]); // Se ejecuta cuando cambian el mes o el año
 
   const getTasksByDate = async () => {
-    const tasks = await ChromeStorageManager.get("tasks");
+    const tasksRaw = await ChromeStorageManager.get("tasks");
+    const tasks: TTask[] = Array.isArray(tasksRaw)
+      ? tasksRaw.map(migrateTask)
+      : [];
     const tasksByDate: TTasksByDate = {};
     tasks.forEach((task: TTask) => {
       const taskDate = new Date(task.createdAt || "");

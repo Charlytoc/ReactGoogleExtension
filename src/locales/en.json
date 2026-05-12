@@ -87,7 +87,11 @@
         "copied": "Snaptie copied to clipboard",
         "addCurrentUrl": "Add current URL",
         "noTabUrl": "Could not read the active tab URL.",
-        "extensionOnly": "This action is only available in the extension."
+        "extensionOnly": "This action is only available in the extension.",
+        "shortcutPin": "P: pin or unpin.",
+        "shortcutOpen": "O: open link in a new tab.",
+        "shortcutEdit": "E: edit.",
+        "shortcutDelete": "Delete or Backspace: show delete confirmation; press Enter to remove."
     },
     "use-arrow-keys-to-navigate": "Use arrow keys to navigate between items",
     "category": "Category",
@@ -144,6 +148,7 @@
     "colorsPastedToClipboard": "Colors pasted to clipboard",
     "colorsPastedToClipboardSuccess": "Colors pasted to clipboard successfully",
     "tags": "Tags",
+    "tags-comma-hint": "Separate with commas. Suggestions come from notes, tasks, bookmarks, and formatters.",
     "archived": "Archived",
     "continueWithAI": "Continue with AI",
     "generateColorWithAI": "Generate color with AI",
@@ -186,6 +191,7 @@
     "none": "None",
     "image": "Image",
     "customization": "Customization",
+    "generateCover": "Generate cover image",
     "markAsDone": "Mark as done",
     "start": "Start",
     "showDetails": "Show details",

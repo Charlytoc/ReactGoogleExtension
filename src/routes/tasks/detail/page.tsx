@@ -13,19 +13,50 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 // import { notify } from "../../../utils/chromeFunctions";
 import { TaskForm } from "../../../components/TaskManager/TaskForm";
+import {
+  collectAllTags,
+  migrateFormatter,
+  migrateSnaptie,
+  migrateTask,
+  parseTagsInput,
+} from "../../../utils/tags";
 
 export default function TaskDetail() {
   const navigate = useNavigate();
   const [task, setTask] = useState<TTask | null>(null);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const { id } = useParams();
 
   useEffect(() => {
     const getTasks = async () => {
-      const tasks = await ChromeStorageManager.get("tasks");
-      if (tasks) {
-        const task = tasks.find((task: TTask) => task.id === id);
-        setTask(task);
-      }
+      const [notes, tasksRaw, snaptiesRaw, formattersRaw] = await Promise.all([
+        ChromeStorageManager.get("notes"),
+        ChromeStorageManager.get("tasks"),
+        ChromeStorageManager.get("snapties"),
+        ChromeStorageManager.get("formatters"),
+      ]);
+
+      const tasks: TTask[] = Array.isArray(tasksRaw)
+        ? tasksRaw.map(migrateTask)
+        : [];
+      const snapties = Array.isArray(snaptiesRaw)
+        ? snaptiesRaw.map(migrateSnaptie)
+        : [];
+      const formatters = Array.isArray(formattersRaw)
+        ? formattersRaw.map(migrateFormatter)
+        : [];
+
+      setTagSuggestions(
+        collectAllTags({
+          notes: Array.isArray(notes) ? notes : [],
+          tasks,
+          snapties,
+          formatters,
+        })
+      );
+
+      const found = tasks.find((t) => t.id === id);
+      setTask(found ?? null);
     };
     getTasks();
   }, [id]);
@@ -41,7 +72,13 @@ export default function TaskDetail() {
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{task?.title || ""}</h3>}
     >
-      {task && <TaskVisualizer task={task} onFinish={onFinish} />}
+      {task && (
+        <TaskVisualizer
+          task={task}
+          tagSuggestions={tagSuggestions}
+          onFinish={onFinish}
+        />
+      )}
     </Section>
   );
 }
@@ -62,9 +99,11 @@ const estimateDueTime = (
 
 const TaskVisualizer = ({
   task,
+  tagSuggestions,
   onFinish,
 }: {
   task: TTask;
+  tagSuggestions: string[];
   onFinish: () => void;
 }) => {
   const { t } = useTranslation();
@@ -92,6 +131,9 @@ const TaskVisualizer = ({
     const reminderEvery = reminderToMinutes(Number(every), unit);
     const createdAt = new Date().toISOString();
 
+    const tagsStr = (formData.get("tags") as string) || "";
+    const tags = parseTagsInput(tagsStr);
+
     const editedTask: TTask = {
       id: task.id,
       title,
@@ -105,6 +147,7 @@ const TaskVisualizer = ({
       estimatedTimeUnit,
       status,
       createdAt,
+      tags: tags.length > 0 ? tags : undefined,
     };
 
     await upsertTask(editedTask);
@@ -121,6 +164,7 @@ const TaskVisualizer = ({
       handleSubmit={handleSubmit}
       initialValues={task}
       title={t("editTask")}
+      tagSuggestions={tagSuggestions}
     />
   );
 };

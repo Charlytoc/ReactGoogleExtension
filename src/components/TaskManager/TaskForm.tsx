@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import { Button } from "../Button/Button";
 import { Select } from "../Select/Select";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { TagsField } from "../TagsField/TagsField";
 
 // const makeHumanReadableDatetime = (date: string) => {
 //   const dateObj = new Date(date);
@@ -32,14 +33,21 @@ export const TaskForm = ({
     createdAt: "",
   },
   title,
+  tagSuggestions = [],
 }: {
   closeForm: () => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
   initialValues?: TTask;
   title?: string;
+  tagSuggestions?: string[];
 }) => {
   const { t } = useTranslation();
   const formRef = useRef<HTMLFormElement>(null);
+  const [tags, setTags] = useState<string[]>(initialValues.tags ?? []);
+
+  useEffect(() => {
+    setTags(initialValues.tags ?? []);
+  }, [initialValues.id]);
 
   const getFormContext = () => {
     if (!formRef.current) return "No form found";
@@ -72,6 +80,16 @@ export const TaskForm = ({
         name="description"
         placeholder={t("description-placeholder")}
         defaultValue={initialValues.description}
+      />
+
+      <input type="hidden" name="tags" value={tags.join(", ")} />
+
+      <TagsField
+        label={t("tags")}
+        value={tags}
+        onChange={setTags}
+        suggestions={tagSuggestions}
+        hint={t("tags-comma-hint")}
       />
 
       <div className="flex-row gap-5 align-center">

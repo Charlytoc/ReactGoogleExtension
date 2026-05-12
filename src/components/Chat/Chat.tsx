@@ -22,6 +22,7 @@ import {
   fillElementBySelector,
   generateRandomId,
 } from "../../utils/lib";
+import { migrateTask } from "../../utils/tags";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel } from "../../types";
 import { useTranslation } from "react-i18next";
@@ -414,7 +415,10 @@ export const Chat = () => {
   const createTaskTool = toolify(
     async (args: { title: string; description: string }) => {
       try {
-        const tasks: TTask[] = (await ChromeStorageManager.get("tasks")) || [];
+        const tasksRaw = (await ChromeStorageManager.get("tasks")) || [];
+        const tasks: TTask[] = Array.isArray(tasksRaw)
+          ? tasksRaw.map(migrateTask)
+          : [];
         const task: TTask = {
           id: generateRandomId("task"),
           title: (args.title || "").trim() || "New task",
@@ -424,6 +428,7 @@ export const Chat = () => {
           createdAt: new Date().toISOString(),
           motivationText: "",
           estimatedTimeUnit: "minutes",
+          tags: [],
         };
         await ChromeStorageManager.add("tasks", [...tasks, task]);
         return JSON.stringify({

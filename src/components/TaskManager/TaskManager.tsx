@@ -23,6 +23,7 @@ import { Section } from "../Section/Section";
 import { TaskCard } from "./TaskCard";
 // import CircularProgress from "../CircularProgress/CircularProgress";
 // import { LabeledInput } from "../LabeledInput/LabeledInput";
+import { migrateTask } from "../../utils/tags";
 
 export const hashText = (text: string) => {
   return text.replace(/\s+/g, "-");
@@ -34,7 +35,10 @@ const dateToMilliseconds = (dateString: string) => {
 };
 
 export const upsertTask = async (task: TTask, alarm = true) => {
-  const tasks = await ChromeStorageManager.get("tasks");
+  const tasksRaw = await ChromeStorageManager.get("tasks");
+  const tasks: TTask[] | undefined = Array.isArray(tasksRaw)
+    ? tasksRaw.map(migrateTask)
+    : undefined;
   if (tasks) {
     const taskIndex = tasks.findIndex((t: TTask) => t.id === task.id);
     if (taskIndex !== -1) {
@@ -94,6 +98,7 @@ const createRandomTask = async () => {
     createdAt: new Date().toISOString(),
     estimatedTime: undefined,
     estimatedTimeUnit: "minutes",
+    tags: [],
   };
   await upsertTask(task, false);
   return task;
@@ -106,10 +111,10 @@ export const TaskManager = () => {
   const navigate = useNavigate();
 
   const getTasks = async () => {
-    const tasks = await ChromeStorageManager.get("tasks");
+    const tasksRaw = await ChromeStorageManager.get("tasks");
 
-    if (tasks) {
-      setTasks(tasks);
+    if (tasksRaw && Array.isArray(tasksRaw)) {
+      setTasks(tasksRaw.map(migrateTask));
     }
   };
 

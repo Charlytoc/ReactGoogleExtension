@@ -12,6 +12,12 @@ import { Section } from "../Section/Section";
 import toast from "react-hot-toast";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
 import { Select } from "../Select/Select";
+import {
+  collectAllTags,
+  migrateFormatter,
+  migrateSnaptie,
+  migrateTask,
+} from "../../utils/tags";
 // import { useStore } from "../../managers/store"
 
 // function hexToRgba(hex: string, alpha: number) {
@@ -98,21 +104,31 @@ export const NotesManager = () => {
   }, []);
 
   const getNotes = async () => {
-    const notes: TNote[] = await ChromeStorageManager.get("notes");
+    const [notes, tasksRaw, snaptiesRaw, formattersRaw] = await Promise.all([
+      ChromeStorageManager.get("notes"),
+      ChromeStorageManager.get("tasks"),
+      ChromeStorageManager.get("snapties"),
+      ChromeStorageManager.get("formatters"),
+    ]);
+
     if (notes) {
       allNotesRef.current = notes;
       setNotes(notes);
-      let _tags: string[] = Array.from(
-        new Set(
-          notes
-            .flatMap((note) => note.tags ?? [])
-            .filter((tag): tag is string => tag !== undefined)
-            .filter((tag) => tag.trim() !== "")
-        )
+      const tasks = Array.isArray(tasksRaw) ? tasksRaw.map(migrateTask) : [];
+      const snapties = Array.isArray(snaptiesRaw)
+        ? snaptiesRaw.map(migrateSnaptie)
+        : [];
+      const formatters = Array.isArray(formattersRaw)
+        ? formattersRaw.map(migrateFormatter)
+        : [];
+      setTags(
+        collectAllTags({
+          notes,
+          tasks,
+          snapties,
+          formatters,
+        })
       );
-
-      _tags = [...new Set(_tags)];
-      setTags(_tags);
     }
   };
 

@@ -10,15 +10,21 @@ import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
-import { Select } from "../../../components/Select/Select";
 import { RenderMarkdown } from "../../../components/RenderMarkdown/RenderMarkdown";
 import { getLastFocusedActiveTabInfo } from "../../../utils/chromeFunctions";
+import { TagsField } from "../../../components/TagsField/TagsField";
+import {
+  collectAllTags,
+  migrateFormatter,
+  migrateSnaptie,
+  migrateTask,
+} from "../../../utils/tags";
 
 export default function SnaptieDetail() {
   const formRef = useRef<HTMLFormElement>(null);
   const [snaptie, setSnaptie] = useState<TSnaptie | null>(null);
   const [usedColors, setUsedColors] = useState<string[]>([]);
-  const [usedCategories, setUsedCategories] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [isMarkdownMode, setIsMarkdownMode] = useState(false);
 
   const navigate = useNavigate();
@@ -30,31 +36,46 @@ export default function SnaptieDetail() {
   }, [id]);
 
   const getSnaptie = async () => {
-    const snapties = await ChromeStorageManager.get("snapties");
-    const snaptie = snapties.find((snaptie: TSnaptie) => snaptie.id === id);
-    setSnaptie(snaptie);
+    const [notes, tasks, snaptiesRaw, formattersRaw] = await Promise.all([
+      ChromeStorageManager.get("notes"),
+      ChromeStorageManager.get("tasks"),
+      ChromeStorageManager.get("snapties"),
+      ChromeStorageManager.get("formatters"),
+    ]);
+
+    const snapties: TSnaptie[] = Array.isArray(snaptiesRaw)
+      ? snaptiesRaw.map(migrateSnaptie)
+      : [];
+    const found = snapties.find((s) => s.id === id) ?? null;
+    setSnaptie(found);
 
     setUsedColors([
       ...new Set(
         snapties
-          .filter((snaptie: TSnaptie) => snaptie.color !== undefined)
-          .map((snaptie: TSnaptie) => snaptie.color)
+          .filter((s) => s.color !== undefined)
+          .map((s) => s.color)
       ),
     ] as string[]);
 
-    setUsedCategories([
-      ...new Set(
-        snapties
-          .filter((snaptie: TSnaptie) => snaptie.category && snaptie.category.trim() !== "")
-          .map((snaptie: TSnaptie) => snaptie.category)
-      ),
-    ] as string[]);
+    setTagSuggestions(
+      collectAllTags({
+        notes: Array.isArray(notes) ? notes : [],
+        tasks: Array.isArray(tasks) ? tasks.map(migrateTask) : [],
+        snapties,
+        formatters: Array.isArray(formattersRaw)
+          ? formattersRaw.map(migrateFormatter)
+          : [],
+      })
+    );
   };
 
   const saveSnaptie = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!snaptie) return;
-    const prevSnapties = await ChromeStorageManager.get("snapties");
+    const prevRaw = await ChromeStorageManager.get("snapties");
+    const prevSnapties: TSnaptie[] = Array.isArray(prevRaw)
+      ? prevRaw.map(migrateSnaptie)
+      : [];
     const newSnapties = prevSnapties.map((snap: TSnaptie) =>
       snap.id === id ? { ...snap, ...snaptie } : snap
     );
@@ -129,7 +150,7 @@ export default function SnaptieDetail() {
               setSnaptie({ ...snaptie, title: e });
             }}
           />
-          
+
           {isMarkdownMode ? (
             <div className="markdown-preview-container">
               <div className="markdown-preview-header">
@@ -167,21 +188,15 @@ export default function SnaptieDetail() {
             </div>
           )}
 
-          <div className="flex-column gap-5">
-            <label className="color-secondary">{t("category")}</label>
-            <Select
-              name="category"
-              options={[
-                { label: t("select-category") || "Select category", value: "" },
-                ...usedCategories.map(category => ({ label: category, value: category }))
-              ]}
-              defaultValue={snaptie?.category || ""}
-              onChange={(value) => {
-                if (!snaptie) return;
-                setSnaptie({ ...snaptie, category: value });
-              }}
+          {snaptie && (
+            <TagsField
+              label={t("tags")}
+              value={snaptie.tags ?? []}
+              onChange={(tags) => setSnaptie({ ...snaptie, tags })}
+              suggestions={tagSuggestions}
+              hint={t("tags-comma-hint")}
             />
-          </div>
+          )}
           <div className="flex-row gap-10 align-center">
             <span className="color-label">{t("color")}</span>
             <input

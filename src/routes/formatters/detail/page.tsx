@@ -7,7 +7,13 @@ import { Section } from "../../../components/Section/Section";
 import { Button } from "../../../components/Button/Button";
 import { LabeledInput } from "../../../components/LabeledInput/LabeledInput";
 import { Textarea } from "../../../components/Textarea/Textarea";
-import { Select } from "../../../components/Select/Select";
+import { TagsField } from "../../../components/TagsField/TagsField";
+import {
+  collectAllTags,
+  migrateFormatter,
+  migrateSnaptie,
+  migrateTask,
+} from "../../../utils/tags";
 import { SVGS } from "../../../assets/svgs";
 import { ChromeStorageManager } from "../../../managers/Storage";
 import { cacheLocation } from "../../../utils/lib";
@@ -29,7 +35,7 @@ const buildParamName = (input: TFormatterInput, index: number) => {
 export default function FormatterDetail() {
   const formRef = useRef<HTMLFormElement>(null);
   const [formatter, setFormatter] = useState<TFormatter | null>(null);
-  const [usedCategories, setUsedCategories] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [runResult, setRunResult] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -47,18 +53,30 @@ export default function FormatterDetail() {
   }, [id]);
 
   const getFormatter = async () => {
-    const formatters: TFormatter[] =
-      (await ChromeStorageManager.get("formatters")) || [];
+    const [notes, tasks, snaptiesRaw, formattersRaw] = await Promise.all([
+      ChromeStorageManager.get("notes"),
+      ChromeStorageManager.get("tasks"),
+      ChromeStorageManager.get("snapties"),
+      ChromeStorageManager.get("formatters"),
+    ]);
+
+    const formatters: TFormatter[] = Array.isArray(formattersRaw)
+      ? formattersRaw.map(migrateFormatter)
+      : [];
     const current = formatters.find((f) => f.id === id) || null;
     setFormatter(current);
 
-    setUsedCategories([
-      ...new Set(
-        formatters
-          .filter((f) => f.category && f.category.trim() !== "")
-          .map((f) => f.category as string)
-      ),
-    ] as string[]);
+    const snapties = Array.isArray(snaptiesRaw)
+      ? snaptiesRaw.map(migrateSnaptie)
+      : [];
+    setTagSuggestions(
+      collectAllTags({
+        notes: Array.isArray(notes) ? notes : [],
+        tasks: Array.isArray(tasks) ? tasks.map(migrateTask) : [],
+        snapties,
+        formatters,
+      })
+    );
 
     if (current) {
       const initialValues: Record<string, string> = {};
@@ -78,8 +96,10 @@ export default function FormatterDetail() {
     e.preventDefault();
     if (!formatter) return;
 
-    const prev: TFormatter[] =
-      (await ChromeStorageManager.get("formatters")) || [];
+    const prevRaw = await ChromeStorageManager.get("formatters");
+    const prev: TFormatter[] = Array.isArray(prevRaw)
+      ? prevRaw.map(migrateFormatter)
+      : [];
     const updated: TFormatter[] = prev.map((f) =>
       f.id === formatter.id ? { ...formatter, updatedAt: new Date().toISOString() } : f
     );
@@ -193,8 +213,10 @@ export default function FormatterDetail() {
 
           setFormatter(updatedFormatter);
 
-          const allFormatters: TFormatter[] =
-            (await ChromeStorageManager.get("formatters")) || [];
+          const allRaw = await ChromeStorageManager.get("formatters");
+          const allFormatters: TFormatter[] = Array.isArray(allRaw)
+            ? allRaw.map(migrateFormatter)
+            : [];
           const newFormatters = allFormatters.map((f) =>
             f.id === updatedFormatter.id ? updatedFormatter : f
           );
@@ -293,27 +315,15 @@ export default function FormatterDetail() {
 
           {mode === "edit" && (
             <>
-              <div className="flex-column gap-5">
-                <label className="color-secondary">{t("category")}</label>
-                <Select
-                  name="category"
-                  options={[
-                    {
-                      label: t("select-category") || "Select category",
-                      value: "",
-                    },
-                    ...usedCategories.map((category) => ({
-                      label: category,
-                      value: category,
-                    })),
-                  ]}
-                  defaultValue={formatter?.category || ""}
-                  onChange={(value) => {
-                    if (!formatter) return;
-                    setFormatter({ ...formatter, category: value });
-                  }}
+              {formatter && (
+                <TagsField
+                  label={t("tags")}
+                  value={formatter.tags ?? []}
+                  onChange={(tags) => setFormatter({ ...formatter, tags })}
+                  suggestions={tagSuggestions}
+                  hint={t("tags-comma-hint")}
                 />
-              </div>
+              )}
 
               <div className="flex-row gap-10 align-center">
                 <span className="color-label">{t("color")}</span>

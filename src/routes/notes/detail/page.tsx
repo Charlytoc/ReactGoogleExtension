@@ -25,7 +25,14 @@ import { useShallow } from "zustand/shallow";
 import { Message } from "../../../components/Chat/Chat";
 import toast from "react-hot-toast";
 // import { Textarea } from "../../../components/Textarea/Textarea";
+import { TagsField } from "../../../components/TagsField/TagsField";
 import { Select } from "../../../components/Select/Select";
+import {
+  collectAllTags,
+  migrateFormatter,
+  migrateSnaptie,
+  migrateTask,
+} from "../../../utils/tags";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
@@ -207,6 +214,7 @@ export default function NoteDetail() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [coverPrompt, setCoverPrompt] = useState("");
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const auth = useStore(useShallow((state) => state.config.auth));
 
   if (!id) return <div>No id</div>;
@@ -238,7 +246,13 @@ export default function NoteDetail() {
   }, [note]);
 
   const getNote = async () => {
-    const notes: TNote[] = await ChromeStorageManager.get("notes");
+    const [notes, tasksRaw, snaptiesRaw, formattersRaw] = await Promise.all([
+      ChromeStorageManager.get("notes"),
+      ChromeStorageManager.get("tasks"),
+      ChromeStorageManager.get("snapties"),
+      ChromeStorageManager.get("formatters"),
+    ]);
+
     if (!Array.isArray(notes)) {
       cacheLocation("/notes");
       navigate("/notes");
@@ -252,6 +266,21 @@ export default function NoteDetail() {
       setNotes(notes);
       setNote(note);
       isLoaded.current = true;
+      const tasks = Array.isArray(tasksRaw) ? tasksRaw.map(migrateTask) : [];
+      const snapties = Array.isArray(snaptiesRaw)
+        ? snaptiesRaw.map(migrateSnaptie)
+        : [];
+      const formatters = Array.isArray(formattersRaw)
+        ? formattersRaw.map(migrateFormatter)
+        : [];
+      setTagSuggestions(
+        collectAllTags({
+          notes,
+          tasks,
+          snapties,
+          formatters,
+        })
+      );
     }
   };
 
@@ -602,7 +631,7 @@ export default function NoteDetail() {
             />
             <Button
               className="justify-center padding-5"
-              svg={SVGS.palette}
+              svg={SVGS.gear}
               title={t("customization")}
               onClick={() => setIsCustomizeOpen(true)}
             />
@@ -896,7 +925,7 @@ ${JSON.stringify(note)}
                   { label: "ShareTechMono", value: "ShareTechMono" },
                 ]}
                 defaultValue={note.font || "Arial"}
-                onChange={(value) => setNote({ ...note, font: value })}
+                onChange={(value: string) => setNote({ ...note, font: value })}
                 name="font"
               />
               <p>
@@ -983,7 +1012,7 @@ ${JSON.stringify(note)}
                 )}
               </p>
               <div className="flex-column gap-5">
-                <h3>{t("generateCover") || "Generate Cover"}</h3>
+                <h3>{t("generateCover")}</h3>
                 <div className="flex-row gap-5 align-center">
                   <input
                     className="input"
@@ -1022,17 +1051,13 @@ ${JSON.stringify(note)}
                   }
                 />
               </div>
-              <div className="flex-row gap-5 align-center">
-                <h3>{t("tags")}</h3>
-                <input
-                  className="input"
-                  type="text"
-                  value={note.tags?.join(", ") || ""}
-                  onChange={(e) =>
-                    setNote({ ...note, tags: e.target.value.split(",") })
-                  }
-                />
-              </div>
+              <TagsField
+                label={t("tags")}
+                value={note.tags ?? []}
+                onChange={(tags) => setNote({ ...note, tags })}
+                suggestions={tagSuggestions}
+                hint={t("tags-comma-hint")}
+              />
             </div>
           </div>
         )}
@@ -1054,7 +1079,7 @@ ${JSON.stringify(note)}
                 <p><strong>Shift + click</strong> any paragraph, heading, list item, or code block to edit it inline.</p>
                 <p><strong>Markdown mode</strong> (the Md / T icon in the top bar) lets you edit the raw markdown source.</p>
                 <p><strong>AI assistant</strong> (sparkles icon) can rewrite content, generate images, change colors, and more — just describe what you want.</p>
-                <p><strong>Customization</strong> (palette icon in the top bar) lets you change the font, background, and generate an AI cover image.</p>
+                <p><strong>Customization</strong> (gear icon in the top bar) lets you change the font, background, and generate an AI cover image.</p>
                 <p><strong>Cover image</strong>: type a hint and press Enter or click the sparkles button — the AI uses the note title and content to craft a detailed image prompt automatically.</p>
               </div>
             </div>

@@ -50,6 +50,9 @@ export const Button = ({
       type={restNativeProps.type || "button"}
       className={mergedClassName}
       onClick={handleClick}
+      {...(confirmations.length > 0
+        ? { "data-confirmation-step": String(timesClicked) }
+        : {})}
       aria-label={
         typeof nativeTitle === "string"
           ? nativeTitle

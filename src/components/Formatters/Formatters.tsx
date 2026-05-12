@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { TFormatter } from "../../types";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { cacheLocation, generateRandomId } from "../../utils/lib";
+import { migrateFormatter, formatterMatchesNameFilter } from "../../utils/tags";
 import { Button } from "../Button/Button";
 import { Section } from "../Section/Section";
 import { LabeledInput } from "../LabeledInput/LabeledInput";
@@ -33,7 +34,7 @@ export const Formatters = () => {
   const getFormatters = async () => {
     const stored = await ChromeStorageManager.get("formatters");
     if (stored && Array.isArray(stored)) {
-      setFormatters(stored);
+      setFormatters(stored.map(migrateFormatter));
     }
   };
 
@@ -53,13 +54,16 @@ export const Formatters = () => {
       prompt:
         "Take the inputs and return the formatted string. Always answer with a single string and no explanations.",
       createdAt: new Date().toISOString(),
-      category: "",
+      tags: [],
       color: cssVariableValue,
     };
 
     const previous = await ChromeStorageManager.get("formatters");
     if (previous && Array.isArray(previous)) {
-      await ChromeStorageManager.add("formatters", [...previous, defaultFormatter]);
+      await ChromeStorageManager.add("formatters", [
+        ...previous.map(migrateFormatter),
+        defaultFormatter,
+      ]);
     } else {
       await ChromeStorageManager.add("formatters", [defaultFormatter]);
     }
@@ -77,10 +81,7 @@ export const Formatters = () => {
   };
 
   const filteredFormatters = nameFilter
-    ? formatters.filter((f) =>
-        f.title.toLowerCase().includes(nameFilter.toLowerCase()) ||
-        (f.category || "").toLowerCase().includes(nameFilter.toLowerCase())
-      )
+    ? formatters.filter((f) => formatterMatchesNameFilter(f, nameFilter))
     : formatters;
 
   return (
@@ -170,14 +171,21 @@ const FormatterCard = ({
       }}
     >
       <Group justify="space-between" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-          <IconCode
-            size={18}
-            style={{ flexShrink: 0, opacity: 0.5 }}
-          />
-          <Text size="sm" fw={500} truncate>
-            {formatter.title || "Untitled"}
-          </Text>
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flexDirection: "column", alignItems: "flex-start" }}>
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+            <IconCode
+              size={18}
+              style={{ flexShrink: 0, opacity: 0.5 }}
+            />
+            <Text size="sm" fw={500} truncate>
+              {formatter.title || "Untitled"}
+            </Text>
+          </Group>
+          {(formatter.tags ?? []).length > 0 && (
+            <Text size="xs" c="dimmed" truncate style={{ maxWidth: "100%", paddingLeft: 26 }}>
+              {(formatter.tags ?? []).join(" · ")}
+            </Text>
+          )}
         </Group>
 
         <ActionIcon
