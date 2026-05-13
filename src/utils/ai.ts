@@ -8,6 +8,7 @@ import {
 } from "openai/resources/chat/completions";
 
 import { TMessage, TModel } from "../types";
+import { MODEL_IMAGE_GENERATION } from "./models";
 
 
 
@@ -225,7 +226,11 @@ type TImageBackground = "transparent" | "opaque" | "auto";
 type TGenerateImageRequest = {
   prompt: string;
   apiKey: string;
-  model?: "gpt-image-1.5" | "gpt-image-1" | "gpt-image-1-mini";
+  model?:
+    | "gpt-image-2"
+    | "gpt-image-1.5"
+    | "gpt-image-1"
+    | "gpt-image-1-mini";
   size?: TImageSize;
   quality?: TImageQuality;
   background?: TImageBackground;
@@ -236,7 +241,7 @@ type TGenerateImageRequest = {
 export const generateImage = async ({
   prompt,
   apiKey,
-  model = "gpt-image-1.5",
+  model = MODEL_IMAGE_GENERATION,
   size = "1024x1024",
   quality = "medium",
   background = "auto",
@@ -458,12 +463,22 @@ const titlelify = (slug: string) => {
 };
 
 const isLLM = (slug: string) => {
-  return slug.startsWith("gpt-") || slug.startsWith("o") || slug.startsWith("chatgpt");
+  if (slug.startsWith("gpt-image")) return false;
+  return (
+    slug.startsWith("gpt-") ||
+    slug.startsWith("o") ||
+    slug.startsWith("chatgpt")
+  );
 };
 
 const isReasoningModel = (slug: string) => {
-  // If the models slug starts with o, it has reasoning or gpt-5 then is reasoning
-  return slug.startsWith("o") || slug.startsWith("gpt-5");
+  if (slug.startsWith("o")) return true;
+  // gpt-5.4-mini / nano: treat as standard chat (temperature OK in UI paths)
+  if (slug.startsWith("gpt-5.4-mini") || slug.startsWith("gpt-5.4-nano")) {
+    return false;
+  }
+  if (slug.startsWith("gpt-5")) return true;
+  return false;
 };
 
 export const listModels = async (apiKey: string) => {

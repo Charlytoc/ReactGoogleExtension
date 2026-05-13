@@ -7,6 +7,7 @@ import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
 import { createCompletion } from "../../utils/ai.ts";
+import { MODEL_CHAT_SMALL } from "../../utils/models.ts";
 import { useShallow } from "zustand/shallow";
 import { useStore } from "../../managers/store.ts";
 import {
@@ -53,7 +54,7 @@ const generateRandomTheme = async (
           content: prompt,
         },
       ],
-      model: "gpt-4o-mini",
+      model: MODEL_CHAT_SMALL,
       response_format: { type: "json_object" },
       temperature: 0.8,
       max_completion_tokens: 100,

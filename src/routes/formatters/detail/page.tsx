@@ -18,6 +18,7 @@ import { SVGS } from "../../../assets/svgs";
 import { ChromeStorageManager } from "../../../managers/Storage";
 import { cacheLocation } from "../../../utils/lib";
 import { createCompletion } from "../../../utils/ai";
+import { MODEL_CHAT_NANO } from "../../../utils/models";
 import { useStore } from "../../../managers/store";
 import { useShallow } from "zustand/shallow";
 import { TFormatter, TFormatterInput } from "../../../types";
@@ -172,7 +173,7 @@ export default function FormatterDetail() {
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent },
           ],
-          model: "gpt-4.1-nano",
+          model: MODEL_CHAT_NANO,
           temperature: 0.1,
           apiKey: auth.openaiApiKey,
           max_completion_tokens: 256,

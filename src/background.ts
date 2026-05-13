@@ -17,6 +17,7 @@ import {
   fillAutocompleteTemplate,
   resolvePrompt,
 } from "./commandPrompts";
+import { MODEL_CHAT_SMALL } from "./utils/models";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -571,7 +572,7 @@ chrome.runtime.onMessage.addListener(
 
           if (toolRequest.command === "check-grammar") {
             completionRequest = {
-              model: "gpt-4o-mini",
+              model: MODEL_CHAT_SMALL,
               messages: [
                 {
                   role: "system",
@@ -588,7 +589,7 @@ chrome.runtime.onMessage.addListener(
             };
           } else if (toolRequest.command === "translate-selection") {
             completionRequest = {
-              model: "gpt-4o-mini",
+              model: MODEL_CHAT_SMALL,
               messages: [
                 {
                   role: "system",
@@ -609,7 +610,7 @@ chrome.runtime.onMessage.addListener(
               toolRequest.payload
             );
             completionRequest = {
-              model: "gpt-4o-mini",
+              model: MODEL_CHAT_SMALL,
               messages: [
                 { role: "system", content: system },
                 { role: "user", content: "Fill the element please." },

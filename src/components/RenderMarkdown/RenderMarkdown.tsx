@@ -9,6 +9,7 @@ import { useShallow } from "zustand/shallow";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
 import { createCompletion } from "../../utils/ai";
+import { MODEL_CHAT_SMALL } from "../../utils/models";
 import { useStore } from "../../managers/store";
 import { AIInput } from "../AIInput/AIInput";
 import { useLocation, useNavigate } from "react-router";
@@ -163,7 +164,7 @@ const MarkdownBlockEditorModal = ({
               content: `Block:\n${originalMarkdown}\n\nInstruction: ${aiInstruction}`,
             },
           ],
-          model: "gpt-4o-mini",
+          model: MODEL_CHAT_SMALL,
           temperature: 0.4,
           max_completion_tokens: 2000,
           response_format: { type: "text" },

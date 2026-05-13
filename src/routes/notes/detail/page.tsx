@@ -39,6 +39,11 @@ import {
   clampAiNoteThemeJson,
   formatFontCatalogForPrompt,
 } from "../../../utils/noteTheme";
+import {
+  MODEL_CHAT_CAPABLE,
+  MODEL_CHAT_SMALL,
+  MODEL_IMAGE_GENERATION,
+} from "../../../utils/models";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
@@ -114,7 +119,7 @@ const Prompter = ({
       await createStreamingResponseWithFunctions(
         {
           messages: newMessages.map(convertToMessage),
-          model: "gpt-5.2",
+          model: MODEL_CHAT_CAPABLE,
           temperature: 0.4,
           apiKey: auth.openaiApiKey,
           max_completion_tokens: 16000,
@@ -429,7 +434,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
 
       const rawJson = await createCompletion(
         {
-          model: "gpt-4o-mini",
+          model: MODEL_CHAT_SMALL,
           messages: [
             { role: "system", content: themeSystem },
             { role: "user", content: userContent },
@@ -467,7 +472,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
       const generatedImage = await generateImage({
         prompt: imagePrompt,
         apiKey: auth.openaiApiKey,
-        model: "gpt-image-1.5",
+        model: MODEL_IMAGE_GENERATION,
         quality: "medium",
         size: "1536x1024",
         outputFormat: "jpeg",
@@ -510,7 +515,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
       const generatedImage = await generateImage({
         prompt: instruction.trim(),
         apiKey: auth.openaiApiKey,
-        model: "gpt-image-1.5",
+        model: MODEL_IMAGE_GENERATION,
         quality: "medium",
         size: normalizeImageSize(size),
         outputFormat: "jpeg",

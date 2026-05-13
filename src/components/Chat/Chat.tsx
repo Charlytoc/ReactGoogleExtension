@@ -8,6 +8,7 @@ import {
   listModels,
   toolify,
 } from "../../utils/ai";
+import { MODEL_CHAT_SMALL } from "../../utils/models";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
 import { TMessage } from "../../types";
@@ -44,7 +45,7 @@ const generateConversationTitle = async (context: string, apiKey: string) => {
   ];
   const title = await createCompletion(
     {
-      model: "gpt-4o-mini",
+      model: MODEL_CHAT_SMALL,
       messages: messages.map(convertToMessage),
       temperature: 0.5,
       max_completion_tokens: 4000,
@@ -119,7 +120,11 @@ export const Chat = () => {
   const [input, setInput] = useState<string>("");
   const [aiConfig, setAiConfig] = useState<TAIConfig>({
     systemPrompt: "You are a helpful assistant.",
-    model: { name: "gpt-4o-mini", slug: "gpt-4o-mini", hasReasoning: false },
+    model: {
+      name: "GPT-5.4 mini",
+      slug: MODEL_CHAT_SMALL,
+      hasReasoning: false,
+    },
     autoSaveConversations: true,
     setTitleAtMessage: 0,
   });
@@ -224,8 +229,8 @@ export const Chat = () => {
       aiConfig = {
         systemPrompt: `You are a helpful assistant. `,
         model: {
-          name: "gpt-4o-mini",
-          slug: "gpt-4o-mini",
+          name: "GPT-5.4 mini",
+          slug: MODEL_CHAT_SMALL,
           hasReasoning: false,
         },
         autoSaveConversations: true,

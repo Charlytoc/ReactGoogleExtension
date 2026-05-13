@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { SVGS } from "../../assets/svgs";
 import { Button } from "../Button/Button";
 import { createCompletion } from "../../utils/ai";
+import { MODEL_CHAT_SMALL } from "../../utils/models";
 import { ChromeStorageManager } from "../../managers/Storage";
 
 const FILL_PROMPT = (currentValue: string, inputData: string) => `
@@ -99,7 +100,7 @@ export const LabeledInput = ({
             content: inputRef.current?.value || "",
           },
         ],
-        model: "gpt-4o-mini",
+        model: MODEL_CHAT_SMALL,
         response_format: { type: "text" },
         temperature: 0.5,
         max_completion_tokens: 100,

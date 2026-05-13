@@ -15,6 +15,7 @@ import { CommandPalette, TCommand } from "../CommandPalette/CommandPalette";
 
 import { useEffect, useRef, useState } from "react";
 import { createCompletion } from "../../utils/ai";
+import { MODEL_CHAT_SMALL } from "../../utils/models";
 import toast from "react-hot-toast";
 import { useStore } from "../../managers/store";
 import { useShallow } from "zustand/shallow";
@@ -227,7 +228,7 @@ export const NoteEditor = ({
     await createCompletion(
       {
         messages: [{ role: "system", content: systemPrompt }],
-        model: "gpt-4o-mini",
+        model: MODEL_CHAT_SMALL,
         temperature: 0.9,
         max_completion_tokens: 100,
         response_format: { type: "text" },
