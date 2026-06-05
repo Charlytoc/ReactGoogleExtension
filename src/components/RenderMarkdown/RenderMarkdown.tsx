@@ -90,6 +90,30 @@ const getNodeTextFromOffsets = (source: string, node: any) => {
   return source.slice(offsets.start, offsets.end);
 };
 
+const findTaskCheckboxNode = (node: any): any => {
+  if (node?.type === "element" && node?.tagName === "input") {
+    return node;
+  }
+
+  if (!Array.isArray(node?.children)) {
+    return null;
+  }
+
+  for (const child of node.children) {
+    const found = findTaskCheckboxNode(child);
+    if (found) return found;
+  }
+
+  return null;
+};
+
+const getTaskCheckedFromListItemSource = (slice: string): boolean | null => {
+  const firstLine = slice.replace(/\r\n/g, "\n").split("\n")[0] || "";
+  const match = firstLine.match(/^\s*(?:[-+*]|\d+[.)])\s+\[([ xX])\]/);
+  if (!match) return null;
+  return match[1].toLowerCase() === "x";
+};
+
 /** Updates `- [ ]` / `- [x]` on the first line of a GFM task list item slice. */
 const replaceTaskCheckboxInListItemSource = (slice: string, checked: boolean) => {
   const normalized = slice.replace(/\r\n/g, "\n");
@@ -165,7 +189,6 @@ const MarkdownBlockEditorModal = ({
             },
           ],
           model: MODEL_CHAT_SMALL,
-          temperature: 0.4,
           max_completion_tokens: 2000,
           response_format: { type: "text" },
           apiKey: effectiveApiKey,
@@ -520,16 +543,14 @@ const Tasky = ({
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
   className?: string;
 }) => {
-  const inputNode = node.children.find(
-    (child: any) => child.type === "element" && child.tagName === "input"
-  );
-
-  const astChecked = Boolean(inputNode?.properties?.checked);
-  const [overrideChecked, setOverrideChecked] = useState<boolean | null>(null);
-
   const offsets = getOffsets(node);
   const originalSlice =
     offsets != null ? getNodeTextFromOffsets(sourceMarkdown, node) : "";
+  const inputNode = findTaskCheckboxNode(node);
+  const sourceChecked = getTaskCheckedFromListItemSource(originalSlice);
+  const astChecked =
+    inputNode != null ? Boolean(inputNode?.properties?.checked) : sourceChecked ?? false;
+  const [overrideChecked, setOverrideChecked] = useState<boolean | null>(null);
 
   useEffect(() => {
     setOverrideChecked(null);

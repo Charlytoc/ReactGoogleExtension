@@ -11,60 +11,32 @@ The extension integrates with the OpenAI API for all AI features. The user provi
 All AI functions are in `src/utils/ai.ts`.
 
 ### createCompletion()
-Standard chat completion (non-streaming).
+Standard Responses API call (non-streaming).
 
 ```typescript
 createCompletion(
   request: TCompletionRequest,
-  callback: (completion: ChatCompletion) => void
-): Promise<string | null>
+  callback?: (response: Response) => void
+): Promise<string>
 ```
 
+- Uses `openai.responses.create()` with `input`, `max_output_tokens`, and optional `text.format`
 - Used for: theme generation, note title generation, formatter execution
-- Returns the completion text content
-
-### createStreamingResponse()
-Streaming chat completion (token-by-token).
-
-```typescript
-createStreamingResponse(
-  request: TStreamingResponseRequest,
-  apiKey: string,
-  callback: (chunk: string) => void
-): Promise<void>
-```
-
-- Used for: Chat feature (real-time AI responses)
-- Handles reasoning models by skipping `temperature` when `model.hasReasoning` is true
-
-### createCompletionWithFunctions()
-Chat completion with OpenAI function/tool calling support.
-
-```typescript
-createCompletionWithFunctions(
-  request: TCompletionRequest,
-  callback: (completion: ChatCompletion) => void,
-  functionMap: Record<string, (args: Record<string, any>) => Promise<string>>
-): Promise<string | null>
-```
-
-- Sends initial request with tools defined
-- If AI returns tool calls, executes them via `functionMap`
-- Sends tool results back to AI for a final response
+- Returns `response.output_text`
 
 ### createStreamingResponseWithFunctions()
-Streaming completion with function calling (most advanced).
+Streaming Responses API with custom function tools.
 
 ```typescript
 createStreamingResponseWithFunctions(
   request: TCompletionRequest,
-  callback: (completion: ChatCompletionChunk) => void
+  callback: (textDelta: string) => void
 ): Promise<void>
 ```
 
-- Combines streaming + tool calling in a loop
-- Keeps calling tools until no more tool calls are returned
-- Handles streamed tool call argument accumulation
+- Used for: Chat and note AI prompter
+- Streams `response.output_text.delta` events to the callback
+- On `response.completed`, appends model output items to `input` and posts `function_call_output` items until no more tool calls
 
 ### createTranscription()
 Audio-to-text using Whisper.
@@ -113,8 +85,8 @@ toolify<T>(
 ): TTool
 ```
 
-- Generates the JSON schema required by OpenAI function calling
-- Returns `{ schema: ChatCompletionTool, function: callable }`
+- Generates the JSON schema required by Responses API function tools
+- Returns `{ schema: FunctionTool, function: callable }` (`type: "function"` with top-level `name`, `parameters`, `strict`)
 
 ### createToolsMap()
 Converts an array of `TTool` objects into a function map for use with completion functions.
@@ -132,7 +104,7 @@ The background service worker (`src/background.ts`) has its own `createCompletio
 ```javascript
 const createCompletion = async (request, callback) => {
   const apiKey = await ChromeStorageManager.get("openaiApiKey");
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -140,10 +112,9 @@ const createCompletion = async (request, callback) => {
     },
     body: JSON.stringify({
       model: request.model,
-      messages: request.messages,
-      temperature: request.temperature,
-      max_tokens: request.max_completion_tokens || 500,
-      response_format: { type: "text" },
+      input: request.messages,
+      max_output_tokens: request.max_completion_tokens || 500,
+      store: false,
     }),
   });
   // ...
@@ -158,8 +129,7 @@ This is triggered via `chrome.runtime.onMessage` with `action: "generateCompleti
 
 | Feature              | Model Used   | Function                            | Purpose                            |
 | -------------------- | ------------ | ----------------------------------- | ---------------------------------- |
-| Chat                 | User-selected| `createStreamingResponse()`         | Conversational AI                  |
-| Chat (with tools)    | User-selected| `createStreamingResponseWithFunctions()` | AI with function calling      |
+| Chat (with tools)    | User-selected| `createStreamingResponseWithFunctions()` | Conversational AI + tools   |
 | Theme generation     | gpt-4o-mini  | `createCompletion()`                | Generate color schemes from prefs  |
 | Auto-complete        | gpt-4o-mini  | Background `createCompletion()`     | Fill inputs on web pages           |
 | Translate selection  | gpt-4o-mini  | Background `createCompletion()`     | Translate text to English          |
@@ -174,22 +144,14 @@ This is triggered via `chrome.runtime.onMessage` with `action: "generateCompleti
 
 ```typescript
 type TCompletionRequest = {
-  messages: ChatCompletionMessageParam[];
+  messages: ResponseInput;  // EasyInputMessage[] and/or function_call_output items
   model: string;
-  temperature: number;
   apiKey: string;
   max_completion_tokens: number;
-  response_format: { type: "json_object" | "text" };
-  tools?: ChatCompletionTool[];
+  response_format?: { type: "json_object" | "text" };  // mapped to text.format
+  tools?: FunctionTool[];
   tool_choice?: "auto" | "none" | "required";
   functionMap?: Record<string, (args: Record<string, any>) => Promise<string>>;
-};
-
-type TStreamingResponseRequest = {
-  messages: TMessage[];
-  model: TModel;        // Full model object (name, slug, hasReasoning)
-  temperature: number;
-  max_completion_tokens: number;
 };
 ```
 
@@ -199,6 +161,5 @@ type TStreamingResponseRequest = {
 
 1. **API key is user-provided**: Never hardcode keys. The key is stored in Chrome storage and loaded at runtime.
 2. **Browser mode**: The SDK uses `dangerouslyAllowBrowser: true`. This means the API key is exposed in the browser. This is intentional since each user provides their own key.
-3. **Reasoning models**: When `model.hasReasoning` is true, `temperature` is set to `undefined` (OpenAI requirement for o-series models).
-4. **Two AI execution paths**: The popup uses the OpenAI SDK directly; the background script (`src/background.ts`) uses raw `fetch()`. They share the same API key from storage. Both are now TypeScript.
-5. **Error handling**: Errors from AI calls typically show a toast notification (`react-hot-toast`) or a Chrome notification (from background script).
+3. **Two AI execution paths**: The popup uses the OpenAI SDK directly; the background script (`src/background.ts`) uses raw `fetch()`. They share the same API key from storage. Both are now TypeScript.
+4. **Error handling**: Errors from AI calls typically show a toast notification (`react-hot-toast`) or a Chrome notification (from background script).

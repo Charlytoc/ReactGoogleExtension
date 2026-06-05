@@ -174,7 +174,6 @@ export default function FormatterDetail() {
             { role: "user", content: userContent },
           ],
           model: MODEL_CHAT_NANO,
-          temperature: 0.1,
           apiKey: auth.openaiApiKey,
           max_completion_tokens: 256,
           response_format: { type: "text" },

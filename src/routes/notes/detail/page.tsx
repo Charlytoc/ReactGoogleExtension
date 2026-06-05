@@ -120,30 +120,27 @@ const Prompter = ({
         {
           messages: newMessages.map(convertToMessage),
           model: MODEL_CHAT_CAPABLE,
-          temperature: 0.4,
           apiKey: auth.openaiApiKey,
           max_completion_tokens: 16000,
           response_format: { type: "text" },
           tools: functions.map((tool) => tool.schema),
           functionMap: createToolsMap(functions),
         },
-        (chunk) => {
-          const text = chunk.choices[0].delta.content;
-          if (text) {
-            setMessages((prev) => {
-              const lastAssistantMessage = prev[prev.length - 1];
-              if (!lastAssistantMessage || lastAssistantMessage.role !== "assistant") {
-                return prev;
-              }
-              return [
-                ...prev.slice(0, -1),
-                {
-                  ...lastAssistantMessage,
-                  content: `${lastAssistantMessage.content || ""}${text}`,
-                },
-              ];
-            });
-          }
+        (textDelta) => {
+          if (!textDelta) return;
+          setMessages((prev) => {
+            const lastAssistantMessage = prev[prev.length - 1];
+            if (!lastAssistantMessage || lastAssistantMessage.role !== "assistant") {
+              return prev;
+            }
+            return [
+              ...prev.slice(0, -1),
+              {
+                ...lastAssistantMessage,
+                content: `${lastAssistantMessage.content || ""}${textDelta}`,
+              },
+            ];
+          });
         }
       );
     } finally {
@@ -439,7 +436,6 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
             { role: "system", content: themeSystem },
             { role: "user", content: userContent },
           ],
-          temperature: 0.8,
           max_completion_tokens: 600,
           response_format: { type: "json_object" },
           apiKey: auth.openaiApiKey,

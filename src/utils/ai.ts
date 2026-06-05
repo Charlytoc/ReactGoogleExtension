@@ -1,31 +1,33 @@
 import OpenAI from "openai";
-
-import {
-  ChatCompletion,
-  ChatCompletionChunk,
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from "openai/resources/chat/completions";
+import type {
+  EasyInputMessage,
+  FunctionTool,
+  Response,
+  ResponseFunctionToolCall,
+  ResponseInput,
+  ResponseInputItem,
+  ResponseOutputItem,
+  ResponseTextConfig,
+} from "openai/resources/responses/responses";
 
 import { TMessage, TModel } from "../types";
 import { MODEL_IMAGE_GENERATION } from "./models";
 
+type TResponseFormat = { type: "json_object" | "text" };
 
-
-type TCompletionRequest = {
-  messages: ChatCompletionMessageParam[];
+export type TCompletionRequest = {
+  messages: ResponseInput;
   model: string;
-  temperature: number;
   apiKey: string;
   max_completion_tokens: number;
-  response_format: { type: "json_object" | "text" };
-  tools?: ChatCompletionTool[];
+  response_format?: TResponseFormat;
+  tools?: FunctionTool[];
   tool_choice?: "auto" | "none" | "required";
   functionMap?: Record<string, (args: Record<string, any>) => Promise<string>>;
 };
 
 export type TTool = {
-  schema: ChatCompletionTool;
+  schema: FunctionTool;
   function: (args: Record<string, any>) => Promise<string>;
 };
 
@@ -34,27 +36,25 @@ type TToolArguments = {
   description: string;
 };
 
-const hasFunctionCallPayload = (
-  toolCall: unknown
-): toolCall is { id: string; function: { name: string; arguments: string } } => {
-  return (
-    typeof toolCall === "object" &&
-    toolCall !== null &&
-    "function" in toolCall &&
-    typeof (toolCall as any).function?.name === "string" &&
-    typeof (toolCall as any).function?.arguments === "string"
-  );
+const mapResponseTextFormat = (
+  responseFormat?: TResponseFormat
+): ResponseTextConfig | undefined => {
+  if (!responseFormat || responseFormat.type === "text") {
+    return undefined;
+  }
+  return { format: { type: "json_object" } };
 };
 
 const hasFunctionToolSchema = (
-  tool: ChatCompletionTool
-): tool is ChatCompletionTool & { function: { name: string } } => {
-  return (
-    typeof tool === "object" &&
-    tool !== null &&
-    "function" in tool &&
-    typeof (tool as any).function?.name === "string"
-  );
+  tool: FunctionTool
+): tool is FunctionTool & { name: string } => {
+  return tool.type === "function" && typeof tool.name === "string";
+};
+
+const isFunctionToolCall = (
+  item: ResponseOutputItem
+): item is ResponseFunctionToolCall => {
+  return item.type === "function_call";
 };
 
 export const toolify = <T extends (args: any) => any>(
@@ -76,7 +76,7 @@ export const toolify = <T extends (args: any) => any>(
     for (const key of Object.keys(argumentsMap)) {
       required.push(key);
       properties[key] = {
-        type: typeof (fn as any)[key] === "number" ? "number" : "string",
+        type: typeof (fn as Record<string, unknown>)[key] === "number" ? "number" : "string",
         description: `${argumentsMap[key].description}`,
       };
     }
@@ -85,72 +85,145 @@ export const toolify = <T extends (args: any) => any>(
   return {
     schema: {
       type: "function",
-      function: {
-        name,
-        description,
-        parameters: {
-          type: "object",
-          properties,
-          required,
-          additionalProperties: false,
-        },
-        strict: true,
-        required: Object.keys(argumentsMap),
+      name,
+      description,
+      parameters: {
+        type: "object",
+        properties,
+        required,
+        additionalProperties: false,
       },
-    } as ChatCompletionTool,
+      strict: true,
+    },
     function: fn,
   };
 };
 
 export const createCompletion = async (
   request: TCompletionRequest,
-  callback: (completion: ChatCompletion) => void
+  callback?: (response: Response) => void
 ) => {
   const openai = new OpenAI({
     apiKey: request.apiKey,
     dangerouslyAllowBrowser: true,
   });
 
-  const completion = await openai.chat.completions.create({
+  const response = await openai.responses.create({
     model: request.model,
-    // @ts-ignore
-    messages: request.messages,
-    temperature: request.temperature,
-    max_completion_tokens: request.max_completion_tokens,
-    response_format: request.response_format,
+    input: request.messages,
+    max_output_tokens: request.max_completion_tokens,
+    text: mapResponseTextFormat(request.response_format),
+    store: false,
   });
 
-  if (typeof callback === "function") {
-    callback(completion);
-  }
-  return completion.choices[0].message.content;
+  callback?.(response);
+  return response.output_text ?? "";
 };
 
-type TStreamingResponseRequest = {
-  messages: TMessage[];
-  model: TModel;
-  temperature: number;
-  max_completion_tokens: number;
-};
-
-export const createStreamingResponse = async (
-  request: TStreamingResponseRequest,
-  apiKey: string,
-  callback: (chunk: string) => void
+export const createStreamingResponseWithFunctions = async (
+  request: TCompletionRequest,
+  callback: (textDelta: string) => void
 ) => {
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-
-  const stream = await openai.chat.completions.create({
-    model: request.model.slug,
-    // @ts-ignore
-    messages: request.messages,
-    stream: true,
-    temperature: request.model.hasReasoning ? undefined : request.temperature,
-    max_completion_tokens: request.max_completion_tokens,
+  const openai = new OpenAI({
+    apiKey: request.apiKey,
+    dangerouslyAllowBrowser: true,
   });
-  for await (const chunk of stream) {
-    callback(chunk.choices[0]?.delta?.content || "");
+
+  let input: ResponseInput = [...request.messages];
+
+  while (true) {
+    const stream = await openai.responses.create({
+      model: request.model,
+      input,
+      stream: true,
+      tools: request.tools,
+      tool_choice: request.tool_choice,
+      max_output_tokens: request.max_completion_tokens,
+      text: mapResponseTextFormat(request.response_format),
+      store: false,
+    });
+
+    let turnOutput: ResponseOutputItem[] = [];
+
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") {
+        callback(event.delta);
+      }
+      if (event.type === "response.completed") {
+        turnOutput = event.response.output;
+      }
+    }
+
+    const functionCalls = turnOutput.filter(isFunctionToolCall);
+    if (functionCalls.length === 0) {
+      break;
+    }
+
+    input = [...input, ...turnOutput];
+
+    for (const call of functionCalls) {
+      const handler = request.functionMap?.[call.name];
+      if (!handler) {
+        console.warn(`Function ${call.name} not found in functionMap`);
+        continue;
+      }
+
+      let args: Record<string, any> = {};
+      try {
+        args = JSON.parse(call.arguments || "{}") as Record<string, any>;
+      } catch (error) {
+        console.warn(`Could not parse arguments for ${call.name}`, error);
+      }
+
+      const result = await handler(args);
+      const outputItem: ResponseInputItem.FunctionCallOutput = {
+        type: "function_call_output",
+        call_id: call.call_id,
+        output: result,
+      };
+      input.push(outputItem);
+    }
   }
+};
+
+export const convertToMessage = (
+  m: TMessage
+): EasyInputMessage | ResponseInputItem.FunctionCallOutput => {
+  if (m.role === "tool") {
+    return {
+      type: "function_call_output",
+      call_id: m.tool_call_id ?? "",
+      output: m.content,
+    };
+  }
+
+  const role =
+    m.role === "system"
+      ? "system"
+      : m.role === "assistant"
+        ? "assistant"
+        : "user";
+
+  return {
+    role,
+    content: m.content,
+  };
+};
+
+export const createToolsMap = (functions: TTool[]) => {
+  const toolNames = functions.map((tool) =>
+    hasFunctionToolSchema(tool.schema) ? tool.schema.name : ""
+  );
+  const toolFunctions = functions.map((tool) => tool.function);
+
+  const functionMap: Record<string, (args: Record<string, any>) => Promise<string>> = {};
+
+  for (let i = 0; i < toolNames.length; i++) {
+    if (!toolNames[i]) continue;
+    functionMap[toolNames[i]] = toolFunctions[i];
+  }
+
+  return functionMap;
 };
 
 export const createTranscription = async (
@@ -208,7 +281,6 @@ export const createSpeech = async (request: TSpeechRequest, apiKey: string) => {
 
   const response = await openai.audio.speech.create({
     model: request.model,
-    // @ts-ignore
     voice: request.voice,
     speed: request.speed,
     input: request.text,
@@ -272,192 +344,17 @@ export const generateImage = async ({
     outputFormat === "png"
       ? "image/png"
       : outputFormat === "webp"
-      ? "image/webp"
-      : "image/jpeg";
+        ? "image/webp"
+        : "image/jpeg";
 
   return {
     b64: firstImage.b64_json,
     mimeType,
-    revisedPrompt: (firstImage as any).revised_prompt,
+    revisedPrompt: (firstImage as { revised_prompt?: string }).revised_prompt,
   };
 };
-
-export const createCompletionWithFunctions = async (
-  request: TCompletionRequest,
-  callback: (completion: ChatCompletion) => void,
-  functionMap: Record<string, (args: Record<string, any>) => Promise<string>>
-) => {
-  const openai = new OpenAI({
-    apiKey: request.apiKey,
-    dangerouslyAllowBrowser: true,
-  });
-
-  let messages = [...request.messages];
-
-  const completion = await openai.chat.completions.create({
-    model: request.model,
-    messages: messages as ChatCompletionMessageParam[],
-    tools: request.tools,
-    tool_choice: request.tool_choice,
-    temperature: request.temperature,
-    max_completion_tokens: request.max_completion_tokens,
-    response_format: request.response_format,
-  });
-
-  const toolCalls = completion.choices[0].message.tool_calls;
-  messages.push(completion.choices[0].message);
-
-  if (toolCalls && toolCalls.length > 0) {
-    for (const toolCall of toolCalls) {
-      if (!hasFunctionCallPayload(toolCall)) {
-        continue;
-      }
-      const functionName = toolCall.function.name;
-      const args = JSON.parse(toolCall.function.arguments);
-
-      if (functionMap[functionName]) {
-        const result = await functionMap[functionName](args);
-
-        if (completion.choices[0].message.content) {
-          messages.push({
-            role: "assistant",
-            content: completion.choices[0].message.content,
-          });
-        }
-
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(result),
-        });
-      } else {
-        console.warn(`Function ${functionName} not found in functionMap`);
-      }
-    }
-    const finalCompletion = await openai.chat.completions.create({
-      model: request.model,
-      // @ts-ignore
-      messages,
-      tools: request.tools,
-      tool_choice: request.tool_choice,
-      temperature: request.temperature,
-      max_completion_tokens: request.max_completion_tokens,
-      response_format: request.response_format,
-    });
-
-    if (typeof callback === "function") {
-      callback(finalCompletion);
-    }
-    return finalCompletion.choices[0].message.content;
-  }
-
-  if (typeof callback === "function") {
-    callback(completion);
-  }
-
-  return completion.choices[0].message.content;
-};
-
-export const createStreamingResponseWithFunctions = async (
-  request: TCompletionRequest,
-  callback: (completion: ChatCompletionChunk) => void
-) => {
-  const openai = new OpenAI({
-    apiKey: request.apiKey,
-    dangerouslyAllowBrowser: true,
-  });
-
-  let messages = [...request.messages];
-
-  while (true) {
-    let generatedMessage: ChatCompletionMessageParam = {
-      role: "assistant",
-      content: "",
-      tool_calls: [],
-    };
-
-    const stream = await openai.chat.completions.create({
-      model: request.model,
-      stream: true,
-      messages: messages as ChatCompletionMessageParam[],
-      tools: request.tools,
-    });
-
-    let toolCalls: Record<number, any> = {};
-
-    for await (const chunk of stream) {
-      const choice = chunk.choices[0].delta;
-
-      if (choice.content) {
-        callback(chunk);
-        generatedMessage.content += choice.content;
-      }
-
-      if (choice.tool_calls) {
-        for (const toolCall of choice.tool_calls) {
-          const index = toolCall.index;
-
-          if (!toolCalls[index]) {
-            toolCalls[index] = toolCall;
-          } else if (toolCall.function) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
-          }
-        }
-      }
-    }
-
-    if (Object.keys(toolCalls).length === 0) {
-      break; // No more function calls, exit loop
-    }
-
-    generatedMessage.tool_calls = Object.values(toolCalls);
-    messages.push(generatedMessage);
-
-    for (const toolCall of Object.values(toolCalls)) {
-      const name = toolCall.function.name;
-      const args = JSON.parse(toolCall.function.arguments);
-
-      if (request.functionMap && request.functionMap[name]) {
-        const result = await request.functionMap[name](args);
-        messages.push({
-          role: "tool",
-          content: result,
-          tool_call_id: toolCall.id,
-        });
-      }
-    }
-  }
-};
-
-export const convertToMessage = (m: TMessage): ChatCompletionMessageParam => {
-  return {
-    role: m.role as "user" | "assistant" | "system",
-    content: m.content,
-  };
-};
-
-export const createToolsMap = (functions: TTool[]) => {
-  let toolNames = functions.map((tool) =>
-    hasFunctionToolSchema(tool.schema) ? tool.schema.function.name : ""
-  );
-  let toolFunctions = functions.map((tool) => tool.function);
-
-  let functionMap: Record<
-    string,
-    (args: Record<string, any>) => Promise<string>
-  > = {};
-
-  for (let i = 0; i < toolNames.length; i++) {
-    if (!toolNames[i]) continue;
-    functionMap[toolNames[i]] = toolFunctions[i];
-  }
-
-  return functionMap;
-};
-
 
 const titlelify = (slug: string) => {
-  // replace all - with spaces
   const title = slug.replace(/-/g, " ");
   return title.charAt(0).toUpperCase() + title.slice(1);
 };
@@ -473,7 +370,6 @@ const isLLM = (slug: string) => {
 
 const isReasoningModel = (slug: string) => {
   if (slug.startsWith("o")) return true;
-  // gpt-5.4-mini / nano: treat as standard chat (temperature OK in UI paths)
   if (slug.startsWith("gpt-5.4-mini") || slug.startsWith("gpt-5.4-nano")) {
     return false;
   }
@@ -486,7 +382,7 @@ export const listModels = async (apiKey: string) => {
 
   const list = await openai.models.list();
 
-  let models: TModel[] = [];
+  const models: TModel[] = [];
 
   for await (const model of list) {
     if (model.owned_by === "system" && isLLM(model.id)) {

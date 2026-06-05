@@ -88,32 +88,27 @@ export const LabeledInput = ({
       inputRef.current?.value || "",
       allAvailableContext
     );
-    await createCompletion(
-      {
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: inputRef.current?.value || "",
-          },
-        ],
-        model: MODEL_CHAT_SMALL,
-        response_format: { type: "text" },
-        temperature: 0.5,
-        max_completion_tokens: 100,
-        apiKey,
-      },
-      (completion) => {
-        console.log(completion);
-        if (inputRef.current) {
-          inputRef.current.value = completion.choices[0].message.content || "";
-          onChange?.(inputRef.current?.value || "");
-        }
-      }
-    );
+    const content = await createCompletion({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: inputRef.current?.value || "",
+        },
+      ],
+      model: MODEL_CHAT_SMALL,
+      response_format: { type: "text" },
+      max_completion_tokens: 100,
+      apiKey,
+    });
+
+    if (inputRef.current && content) {
+      inputRef.current.value = content;
+      onChange?.(inputRef.current.value);
+    }
 
     // if (inputRef.current && response) {
     //   inputRef.current.value = response;

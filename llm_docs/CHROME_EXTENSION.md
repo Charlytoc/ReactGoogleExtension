@@ -92,7 +92,7 @@ Messages sent between content/popup and background:
 // → Response: string (completion text) or null (error)
 
 // Direct completion (legacy / other)
-{ action: "generateCompletion", model, messages, max_completion_tokens, temperature, response_format }
+{ action: "generateCompletion", model, messages, max_completion_tokens, response_format }
 // → Response: string (completion text) or null (error)
 
 // Show notification

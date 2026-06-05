@@ -225,24 +225,19 @@ export const NoteEditor = ({
     """
     </CONTEXT>
     `;
-    await createCompletion(
-      {
-        messages: [{ role: "system", content: systemPrompt }],
-        model: MODEL_CHAT_SMALL,
-        temperature: 0.9,
-        max_completion_tokens: 100,
-        response_format: { type: "text" },
-        apiKey: apiKeyref.current,
-      },
-      (completion) => {
-        const response = completion.choices[0].message.content;
-        if (!response) return;
-        const color = getColorFromString(response);
-        if (color) {
-          setNote({ ...note, color });
-        }
-      }
-    );
+    const response = await createCompletion({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: MODEL_CHAT_SMALL,
+      max_completion_tokens: 100,
+      response_format: { type: "text" },
+      apiKey: apiKeyref.current,
+    });
+
+    if (!response) return;
+    const color = getColorFromString(response);
+    if (color) {
+      setNote({ ...note, color });
+    }
   };
 
   useEffect(() => {

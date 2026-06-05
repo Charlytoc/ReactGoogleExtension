@@ -31,7 +31,7 @@ import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
 import { TNote, TTask } from "../../types";
 import { AIInput } from "../AIInput/AIInput";
-import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Select as MantineSelect, Slider, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Select as MantineSelect, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
@@ -43,19 +43,13 @@ const generateConversationTitle = async (context: string, apiKey: string) => {
     },
     { role: "user", content: context },
   ];
-  const title = await createCompletion(
-    {
-      model: MODEL_CHAT_SMALL,
-      messages: messages.map(convertToMessage),
-      temperature: 0.5,
-      max_completion_tokens: 4000,
-      response_format: { type: "text" },
-      apiKey,
-    },
-    (completion) => {
-      return completion.choices[0].message.content;
-    }
-  );
+  const title = await createCompletion({
+    model: MODEL_CHAT_SMALL,
+    messages: messages.map(convertToMessage),
+    max_completion_tokens: 4000,
+    response_format: { type: "text" },
+    apiKey,
+  });
   return title;
 };
 
@@ -497,9 +491,7 @@ export const Chat = () => {
           convertToMessage
         ),
         model: aiConfig.model.slug,
-        temperature: aiConfig.temperature || 0.5,
         max_completion_tokens: 4000,
-        response_format: { type: "json_object" },
         tools: [
           getWebsiteContent.schema,
           getClickableElements.schema,
@@ -520,7 +512,8 @@ export const Chat = () => {
         ]),
         apiKey,
       },
-      (chunk) => {
+      (textDelta) => {
+        if (!textDelta) return;
         setMessages((prevMessages) => {
           return prevMessages.map((m, index, arr) => {
             if (
@@ -529,7 +522,7 @@ export const Chat = () => {
             ) {
               return {
                 ...m,
-                content: m.content + (chunk.choices[0].delta.content || ""),
+                content: m.content + textDelta,
               };
             }
             return m;
@@ -779,7 +772,6 @@ type TAIConfig = {
   model: TModel;
   autoSaveConversations: boolean;
   setTitleAtMessage?: number;
-  temperature?: number;
   reasoningTag?: TReasoningTag;
 };
 
@@ -850,21 +842,6 @@ const AIConfig = ({
             searchable
           />
         </Stack>
-
-        <Stack gap="xs">
-          <Group justify="space-between">
-            <Title order={5}>Temperature</Title>
-            <Text size="sm" c="dimmed">{(_aiConfig.temperature ?? 0.5).toFixed(1)}</Text>
-          </Group>
-          <Slider
-            min={0} max={2} step={0.1}
-            value={_aiConfig.temperature ?? 0.5}
-            onChange={(v) => setAiConfig({ ..._aiConfig, temperature: v })}
-            marks={[{ value: 0, label: "0" }, { value: 1, label: "1" }, { value: 2, label: "2" }]}
-          />
-        </Stack>
-
-        <Divider />
 
         <Stack gap="xs">
           <Title order={5}>{t("conversationsConfig")}</Title>

@@ -2,7 +2,7 @@
  * Background service worker for the Automator Chrome extension.
  *
  * Handles: context menus, keyboard shortcuts, task alarms/notifications,
- * OpenAI API calls (via fetch), and message passing between extension parts.
+ * OpenAI Responses API calls (via fetch), and message passing between extension parts.
  *
  * NOTE: The functions `autoComplete`, `translateSelection`, and `checkGrammar`
  * are injected into web pages via chrome.scripting.executeScript(). They MUST
@@ -24,16 +24,18 @@ import { MODEL_CHAT_SMALL } from "./utils/models";
 interface CompletionRequest {
   model: string;
   messages: Array<{ role: string; content: string }>;
-  temperature: number;
   max_completion_tokens?: number;
   response_format?: { type: string };
 }
 
-interface CompletionResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
+interface ResponsesApiResponse {
+  output_text?: string;
+  output?: Array<{
+    type: string;
+    content?: Array<{
+      type: string;
+      text?: string;
+    }>;
   }>;
 }
 
@@ -124,18 +126,35 @@ const ChromeStorageManager = {
   },
 };
 
-// ─── OpenAI Completion (raw fetch, no SDK) ──────────────────────────────────
+// ─── OpenAI Responses API (raw fetch, no SDK) ───────────────────────────────
+
+const extractResponsesOutputText = (body: ResponsesApiResponse): string => {
+  if (body.output_text) {
+    return body.output_text;
+  }
+
+  for (const item of body.output ?? []) {
+    if (item.type !== "message" || !item.content) continue;
+    for (const part of item.content) {
+      if (part.type === "output_text" && part.text) {
+        return part.text;
+      }
+    }
+  }
+
+  return "";
+};
 
 const createCompletion = async (
   request: CompletionRequest,
-  callback?: (completion: CompletionResponse) => void
+  callback?: (completion: ResponsesApiResponse) => void
 ): Promise<string> => {
   const apiKey = await ChromeStorageManager.get<string>("openaiApiKey");
   if (!apiKey) {
     throw new Error("No API key found");
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -143,10 +162,9 @@ const createCompletion = async (
     },
     body: JSON.stringify({
       model: request.model,
-      messages: request.messages,
-      temperature: request.temperature,
-      max_tokens: request.max_completion_tokens || 500,
-      response_format: { type: "text" },
+      input: request.messages,
+      max_output_tokens: request.max_completion_tokens || 500,
+      store: false,
     }),
   });
 
@@ -154,13 +172,13 @@ const createCompletion = async (
     throw new Error(`OpenAI API error: ${response.statusText}`);
   }
 
-  const completion: CompletionResponse = await response.json();
+  const completion: ResponsesApiResponse = await response.json();
 
   if (typeof callback === "function") {
     callback(completion);
   }
 
-  return completion.choices[0].message.content;
+  return extractResponsesOutputText(completion);
 };
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
@@ -583,7 +601,6 @@ chrome.runtime.onMessage.addListener(
                   content: toolRequest.payload.selectedText,
                 },
               ],
-              temperature: 0.2,
               max_completion_tokens: 1000,
               response_format: { type: "text" },
             };
@@ -600,7 +617,6 @@ chrome.runtime.onMessage.addListener(
                   content: toolRequest.payload.selectedText,
                 },
               ],
-              temperature: 0.3,
               max_completion_tokens: 1000,
               response_format: { type: "text" },
             };
@@ -615,7 +631,6 @@ chrome.runtime.onMessage.addListener(
                 { role: "system", content: system },
                 { role: "user", content: "Fill the element please." },
               ],
-              temperature: 0.5,
               max_completion_tokens: 500,
               response_format: { type: "text" },
             };
