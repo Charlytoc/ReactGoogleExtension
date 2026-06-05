@@ -57,6 +57,40 @@ const isFunctionToolCall = (
   return item.type === "function_call";
 };
 
+/** Converts model output into input items safe to resend when store is false. */
+const toStatelessReplayInput = (
+  turnOutput: ResponseOutputItem[]
+): ResponseInputItem[] => {
+  const items: ResponseInputItem[] = [];
+
+  for (const item of turnOutput) {
+    if (item.type === "function_call") {
+      items.push({
+        type: "function_call",
+        call_id: item.call_id,
+        name: item.name,
+        arguments: item.arguments,
+      });
+      continue;
+    }
+
+    if (item.type === "message") {
+      const text = item.content
+        .filter((part) => part.type === "output_text")
+        .map((part) => part.text)
+        .join("");
+      if (text) {
+        items.push({ role: "assistant", content: text });
+      }
+    }
+
+    // Reasoning and other server-scoped items (rs_*, etc.) cannot be replayed
+    // when store is false — omit them from the next request input.
+  }
+
+  return items;
+};
+
 export const toolify = <T extends (args: any) => any>(
   fn: T,
   name: string,
@@ -159,7 +193,7 @@ export const createStreamingResponseWithFunctions = async (
       break;
     }
 
-    input = [...input, ...turnOutput];
+    input = [...input, ...toStatelessReplayInput(turnOutput)];
 
     for (const call of functionCalls) {
       const handler = request.functionMap?.[call.name];
