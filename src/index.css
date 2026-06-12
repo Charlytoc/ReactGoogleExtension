@@ -1293,3 +1293,21 @@ input:focus,
     height: 25px;
   }
 }
+
+/* Placeholder shown while a background AI image job is generating or failed */
+.ai-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 4px 0;
+  border: 1px dashed var(--opaque-gray-color);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.ai-image-placeholder-error {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
-import { TAttachment, TBackgroundType, TMessage, TNote } from "../../../types";
+import { TBackgroundType, TMessage, TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
@@ -12,10 +12,8 @@ import { Section } from "../../../components/Section/Section";
 // import { NoteEditor } from "../../../components/Note/Note";
 import {
   convertToMessage,
-  createCompletion,
   createStreamingResponseWithFunctions,
   createToolsMap,
-  generateImage,
   toolify,
   TTool,
 } from "../../../utils/ai";
@@ -29,21 +27,20 @@ import { TagsField } from "../../../components/TagsField/TagsField";
 import { Select } from "../../../components/Select/Select";
 import {
   collectAllTags,
-  mergeNoteTags,
   migrateFormatter,
   migrateSnaptie,
   migrateTask,
 } from "../../../utils/tags";
+import { NOTE_FONT_OPTIONS } from "../../../utils/noteTheme";
 import {
-  NOTE_FONT_OPTIONS,
-  clampAiNoteThemeJson,
-  formatFontCatalogForPrompt,
-} from "../../../utils/noteTheme";
-import {
-  MODEL_CHAT_CAPABLE,
-  MODEL_CHAT_SMALL,
-  MODEL_IMAGE_GENERATION,
-} from "../../../utils/models";
+  AI_COVER_JOBS_KEY,
+  enqueueNoteCoverJob,
+  enqueueNoteImageJob,
+  getCoverJobs,
+  isImageJobStale,
+  type TCoverJobMap,
+} from "../../../utils/imageJobs";
+import { MODEL_CHAT_CAPABLE } from "../../../utils/models";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
@@ -234,6 +231,79 @@ export default function NoteDetail() {
     getNote();
   }, [id]);
 
+  // Cover job lifecycle: restore the in-progress state when (re)opening the
+  // note, and pick up the background worker's result when the job resolves.
+  useEffect(() => {
+    let mounted = true;
+
+    const applyStoredNoteTheme = async () => {
+      const stored = (await ChromeStorageManager.get("notes")) as
+        | TNote[]
+        | undefined;
+      const storedNote = Array.isArray(stored)
+        ? stored.find((n) => n.id === id)
+        : undefined;
+      if (!storedNote || !mounted) return;
+      // Merge only the fields the cover job writes; local content edits win.
+      setNote((prev) => ({
+        ...prev,
+        coverImage: storedNote.coverImage,
+        backgroundType: storedNote.backgroundType,
+        color: storedNote.color,
+        color2: storedNote.color2,
+        font: storedNote.font,
+        tags: storedNote.tags,
+        imageURL: storedNote.imageURL,
+      }));
+    };
+
+    const syncCoverJob = async () => {
+      const jobs = await getCoverJobs();
+      if (!mounted) return;
+      const job = jobs[id];
+      setIsGeneratingNoteStyle(
+        !!job && job.status === "pending" && !isImageJobStale(job)
+      );
+    };
+
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "local" || !changes[AI_COVER_JOBS_KEY]) return;
+      const nextJobs = (changes[AI_COVER_JOBS_KEY].newValue ??
+        {}) as TCoverJobMap;
+      const prevJobs = (changes[AI_COVER_JOBS_KEY].oldValue ??
+        {}) as TCoverJobMap;
+      const job = nextJobs[id];
+      const prevJob = prevJobs[id];
+
+      if (!job && prevJob?.status === "pending") {
+        // Job deleted => success: the worker already merged the result into
+        // the stored note.
+        void applyStoredNoteTheme();
+        setIsGeneratingNoteStyle(false);
+        toast.success(t("noteStyleGenerated") || "Note style updated!");
+        return;
+      }
+      if (job?.status === "error" && prevJob?.status !== "error") {
+        setIsGeneratingNoteStyle(false);
+        toast.error(t("failedToGenerateCover") || "Failed to generate cover");
+        return;
+      }
+      if (job?.status === "pending") {
+        setIsGeneratingNoteStyle(true);
+      }
+    };
+
+    syncCoverJob();
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
+  }, [id]);
+
   useEffect(() => {
     if (note) {
       saveNote();
@@ -369,12 +439,6 @@ export default function NoteDetail() {
     reader.readAsDataURL(file);
   };
 
-  const saveAttachment = async (attachment: TAttachment) => {
-    const attachments: TAttachment[] =
-      (await ChromeStorageManager.get("attachments")) || [];
-    await ChromeStorageManager.add("attachments", [...attachments, attachment]);
-  };
-
   const appendAttachmentToNote = (attachmentId: string, altText: string) => {
     const markdownImage = `\n\n![${altText}](attachment:${attachmentId})\n`;
     setNote((prev) => ({
@@ -395,6 +459,11 @@ export default function NoteDetail() {
       : "1024x1024";
   };
 
+  /**
+   * Enqueues the full cover pipeline (theme JSON + image + note merge) in the
+   * background worker. The spinner is turned off by the cover-job listener
+   * effect when the job completes or fails — even across popup reopens.
+   */
   const generateCover = async () => {
     if (!auth.openaiApiKey) {
       toast.error(t("noApiKey") || "No API key found");
@@ -402,137 +471,76 @@ export default function NoteDetail() {
     }
     setIsGeneratingNoteStyle(true);
     try {
-      const tagCatalog = tagSuggestions.slice(0, 250);
-      const themeSystem = `You are styling a personal note in a notes app.
-Respond with a single JSON object only (no markdown code fences) with exactly these keys:
-- "imagePrompt": string — vivid, detailed AI image generation prompt for a wide landscape cover (16:9 feel) matching the note.
-- "backgroundType": "solid" or "gradient" only.
-- "color": string — primary background as CSS hex #rrggbb.
-- "color2": string — second color #rrggbb (for gradient use a complementary second stop; for solid it can match "color" or be a subtle variant).
-- "font": string — MUST equal exactly one allowed value from the FONT_CATALOG below (copy the value string verbatim).
-- "tags": string[] — tag labels for this note. Prefer exact strings from TAG_CATALOG when they fit; otherwise propose concise new tags. The app merges these with existing note tags.
-
-Rules:
-- Use only #rrggbb hex for color and color2 (no CSS variables, no rgb()).
-- Keep tags short; avoid duplicates in the array.
-- FONT_CATALOG (label -> use this exact "value"):
-${formatFontCatalogForPrompt()}`;
-
-      const userContent = `Title: ${note.title || "Untitled"}
-
-Content (excerpt):
-${(note.content || "").slice(0, 1000)}
-
-User hint for styling/cover: ${coverPrompt.trim() || "none"}
-
-Current note tags (JSON): ${JSON.stringify(note.tags ?? [])}
-
-TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCatalog)}`;
-
-      const rawJson = await createCompletion(
-        {
-          model: MODEL_CHAT_SMALL,
-          messages: [
-            { role: "system", content: themeSystem },
-            { role: "user", content: userContent },
-          ],
-          max_completion_tokens: 600,
-          response_format: { type: "json_object" },
-          apiKey: auth.openaiApiKey,
-        },
-        () => {}
-      );
-
-      if (!rawJson) {
-        throw new Error("Empty theme response");
-      }
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(rawJson);
-      } catch {
-        throw new Error("Invalid JSON from theme model");
-      }
-
-      const theme = clampAiNoteThemeJson(parsed, {
-        fallbackFont: note.font,
-        fallbackColor: note.color || "#1a1a1a",
-        fallbackColor2: note.color2 || "#2a2a2a",
+      await enqueueNoteCoverJob({
+        noteId: note.id,
+        hint: coverPrompt.trim(),
+        tagCatalog: tagSuggestions.slice(0, 250),
       });
-
-      const imagePrompt =
-        theme.imagePrompt ||
-        note.title?.trim() ||
-        "abstract wide landscape cover art";
-
-      const generatedImage = await generateImage({
-        prompt: imagePrompt,
-        apiKey: auth.openaiApiKey,
-        model: MODEL_IMAGE_GENERATION,
-        quality: "medium",
-        size: "1536x1024",
-        outputFormat: "jpeg",
-        outputCompression: 70,
-      });
-
-      const mergedTags = mergeNoteTags(note.tags, theme.tagsFromAi);
-
-      setNote({
-        ...note,
-        coverImage: `data:${generatedImage.mimeType};base64,${generatedImage.b64}`,
-        backgroundType: theme.backgroundType,
-        color: theme.color,
-        color2: theme.color2,
-        font: theme.font,
-        tags: mergedTags,
-        imageURL: "",
-      });
-      toast.success(t("noteStyleGenerated") || "Note style updated!");
-    } catch (e) {
+      toast.success(t("imageGenerationStarted"));
+    } catch (error) {
+      console.error("Error starting cover generation", error);
       toast.error(t("failedToGenerateCover") || "Failed to generate cover");
-    } finally {
       setIsGeneratingNoteStyle(false);
     }
   };
 
+  /**
+   * Context for the prompt-generation step: always the whole note, and when
+   * the generation was triggered from a specific block, that block first —
+   * marked as the focus the image belongs to.
+   */
+  const buildNoteImageContext = (blockContext?: string) => {
+    const noteContext = `Note title: ${note.title || "Untitled"}
+
+Note content (excerpt):
+${(note.content || "").slice(0, 1500)}`;
+
+    const block = blockContext?.trim();
+    if (!block) {
+      return noteContext;
+    }
+
+    return `Selected block — the image will illustrate this part of the note:
+${block}
+
+Full note for additional context:
+${noteContext}`;
+  };
+
+  /**
+   * Starts a background image generation job and immediately returns the
+   * placeholder markdown referencing the pre-assigned attachment id. The
+   * background worker saves the attachment under that id when it finishes;
+   * RenderMarkdown resolves the reference (or shows a pending placeholder)
+   * from storage.
+   */
   const createNoteImageAttachment = async (
     instruction: string,
     altText: string,
-    size: string
+    size: string,
+    context?: string
   ): Promise<{ markdown: string; attachmentId: string } | null> => {
     if (!instruction.trim() || !auth.openaiApiKey) {
       return null;
     }
 
     try {
-      const generatedImage = await generateImage({
-        prompt: instruction.trim(),
-        apiKey: auth.openaiApiKey,
-        model: MODEL_IMAGE_GENERATION,
-        quality: "medium",
-        size: normalizeImageSize(size),
-        outputFormat: "jpeg",
-        outputCompression: 60,
-      });
-
       const attachmentId = generateRandomId("attachment");
       const label = altText.trim() || "generated image";
-      const attachment: TAttachment = {
-        id: attachmentId,
-        type: "image",
-        name: `ai-image-${new Date().toISOString()}`,
-        dataUrl: `data:${generatedImage.mimeType};base64,${generatedImage.b64}`,
-        mimeType: generatedImage.mimeType,
-        sourceNoteId: note.id,
-        createdAt: new Date().toISOString(),
-      };
-      await saveAttachment(attachment);
+      await enqueueNoteImageJob({
+        attachmentId,
+        noteId: note.id,
+        prompt: instruction.trim(),
+        context: buildNoteImageContext(context),
+        altText: label,
+        size: normalizeImageSize(size),
+      });
       return {
         attachmentId,
         markdown: `![${label}](attachment:${attachmentId})`,
       };
     } catch (error) {
-      console.error("Error generating note image attachment", error);
+      console.error("Error starting note image generation", error);
       return null;
     }
   };
@@ -540,11 +548,17 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
   const handleGenerateBlockImage = async (
     instruction: string,
     altText: string,
-    size: string
+    size: string,
+    context?: string
   ) => {
-    const result = await createNoteImageAttachment(instruction, altText, size);
+    const result = await createNoteImageAttachment(
+      instruction,
+      altText,
+      size,
+      context
+    );
     if (result) {
-      toast.success(t("imageAttachedToNote"));
+      toast.success(t("imageGenerationStarted"));
     }
     return result?.markdown ?? null;
   };
@@ -571,9 +585,12 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
     }
 
     appendAttachmentToNote(result.attachmentId, altText || "generated image");
-    toast.success(t("imageAttachedToNote"));
+    toast.success(t("imageGenerationStarted"));
     return JSON.stringify({
       success: true,
+      status: "generating",
+      detail:
+        "Image generation started in the background. The markdown placeholder was already appended to the note and will display the image once ready.",
       attachmentId: result.attachmentId,
       markdown: result.markdown,
     });

@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
-import { ActionIcon, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Loader, Textarea, Tooltip } from "@mantine/core";
+import { IconDownload } from "@tabler/icons-react";
 import { useShallow } from "zustand/shallow";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
@@ -19,6 +20,40 @@ import { useLocation, useNavigate } from "react-router";
 import { cacheLocation } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { TAttachment } from "../../types";
+import {
+  AI_IMAGE_JOBS_KEY,
+  getImageJobs,
+  isImageJobStale,
+  type TImageJobMap,
+} from "../../utils/imageJobs";
+
+const downloadImageFromSrc = async (
+  src: string,
+  alt: string
+): Promise<boolean> => {
+  try {
+    const response = await fetch(src);
+    const blob = await response.blob();
+    const extension = blob.type.split("/")[1]?.split("+")[0] || "png";
+    const slug =
+      (alt || "image")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "image";
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${slug}.${extension}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error("Could not download image", error);
+    return false;
+  }
+};
 
 let mermaidInitialized = false;
 const ensureMermaidInitialized = () => {
@@ -141,7 +176,8 @@ const replaceTaskCheckboxInListItemSource = (slice: string, checked: boolean) =>
 export type TGenerateBlockImage = (
   instruction: string,
   altText: string,
-  size: string
+  size: string,
+  context?: string
 ) => Promise<string | null>;
 
 type TBlockEditorMode = "preview" | "edit-text" | "edit-ai" | "edit-image";
@@ -284,7 +320,8 @@ const MarkdownBlockEditorModal = ({
       const imageMarkdown = await onGenerateBlockImageRef.current(
         imagePrompt.trim(),
         altText,
-        "1024x1024"
+        "1024x1024",
+        originalMarkdown
       );
       if (!imageMarkdown) {
         toast.error(t("couldNotGenerateImage"));
@@ -336,7 +373,8 @@ const MarkdownBlockEditorModal = ({
             const imageMarkdown = await onGenerateBlockImageRef.current!(
               args.instruction,
               args.altText,
-              args.size
+              args.size,
+              originalMarkdown
             );
             if (!imageMarkdown) {
               return "Could not generate image.";
@@ -684,6 +722,32 @@ const BlockActionBar = ({
       toast.success(t("codeCopied"));
     });
   };
+
+  const blockImages = Array.from(
+    blockMarkdown.matchAll(/!\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)/g)
+  );
+
+  const downloadBlockImages = async () => {
+    let downloadedCount = 0;
+    for (const match of blockImages) {
+      const alt = match[1] || "image";
+      const reference = match[2];
+      const attachmentId = getAttachmentIdFromReference(reference);
+      let src = reference;
+      if (attachmentId) {
+        const attachments: TAttachment[] =
+          (await ChromeStorageManager.get("attachments")) || [];
+        src =
+          attachments.find((item) => item.id === attachmentId)?.dataUrl || "";
+      }
+      if (src && (await downloadImageFromSrc(src, alt))) {
+        downloadedCount++;
+      }
+    }
+    if (downloadedCount === 0) {
+      toast.error(t("couldNotDownloadImage"));
+    }
+  };
   return (
     <div className="markdown-block-actions">
       {confirmDelete ? (
@@ -759,6 +823,24 @@ const BlockActionBar = ({
               {SVGS.copy}
             </ActionIcon>
           </Tooltip>
+          {blockImages.length > 0 && (
+            <Tooltip
+              label={t("downloadImage")}
+              withArrow
+              openDelay={400}
+              position="top"
+            >
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="gray"
+                onClick={() => void downloadBlockImages()}
+                aria-label={t("downloadImage")}
+              >
+                <IconDownload size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <div className="markdown-block-actions-divider" />
           <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
             <ActionIcon
@@ -1192,7 +1274,9 @@ export const RenderMarkdown = ({
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
+  const { t } = useTranslation();
   const [attachmentDataUrls, setAttachmentDataUrls] = useState<Record<string, string>>({});
+  const [imageJobs, setImageJobs] = useState<TImageJobMap>({});
 
   useEffect(() => {
     const attachmentReferences = Array.from(
@@ -1204,24 +1288,69 @@ export const RenderMarkdown = ({
 
     if (attachmentIds.length === 0) {
       setAttachmentDataUrls({});
+      setImageJobs({});
       return;
     }
 
+    // Listen to storage only while some referenced attachment is missing —
+    // a background image job may still produce it. Once everything resolves
+    // there is nothing to wait for.
     let mounted = true;
+    let listening = false;
+
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "local") return;
+      if (changes.attachments || changes[AI_IMAGE_JOBS_KEY]) {
+        void hydrateAttachments();
+      }
+    };
+
+    const startListening = () => {
+      if (listening) return;
+      chrome.storage.onChanged.addListener(onStorageChanged);
+      listening = true;
+    };
+
+    const stopListening = () => {
+      if (!listening) return;
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+      listening = false;
+    };
+
     const hydrateAttachments = async () => {
       try {
-        const attachments: TAttachment[] =
-          (await ChromeStorageManager.get("attachments")) || [];
+        const [attachments, jobs] = await Promise.all([
+          ChromeStorageManager.get("attachments") as Promise<TAttachment[]>,
+          getImageJobs(),
+        ]);
         if (!mounted) return;
 
         const nextMap: Record<string, string> = {};
         attachmentIds.forEach((attachmentId) => {
-          const attachment = attachments.find((item) => item.id === attachmentId);
+          const attachment = (attachments || []).find(
+            (item) => item.id === attachmentId
+          );
           if (attachment?.dataUrl) {
             nextMap[attachmentId] = attachment.dataUrl;
           }
         });
         setAttachmentDataUrls(nextMap);
+        setImageJobs(jobs);
+
+        const hasPendingWork = attachmentIds.some(
+          (attachmentId) =>
+            !nextMap[attachmentId] &&
+            jobs[attachmentId]?.status === "pending" &&
+            !isImageJobStale(jobs[attachmentId])
+        );
+        if (hasPendingWork) {
+          startListening();
+        } else {
+          stopListening();
+        }
       } catch (error) {
         console.error("Could not read attachments from storage", error);
         if (mounted) {
@@ -1233,6 +1362,7 @@ export const RenderMarkdown = ({
     hydrateAttachments();
     return () => {
       mounted = false;
+      stopListening();
     };
   }, [markdown]);
 
@@ -1264,6 +1394,23 @@ export const RenderMarkdown = ({
           const resolvedSrc = attachmentId ? attachmentDataUrls[attachmentId] : src;
 
           if (!resolvedSrc) {
+            const job = attachmentId ? imageJobs[attachmentId] : undefined;
+            if (job?.status === "pending" && !isImageJobStale(job)) {
+              return (
+                <span className="ai-image-placeholder">
+                  <Loader size="xs" color="var(--font-color)" />
+                  {props.alt || t("generatingImage")}
+                </span>
+              );
+            }
+            if (job) {
+              return (
+                <span className="ai-image-placeholder ai-image-placeholder-error">
+                  {t("imageGenerationFailed")}
+                  {job.error ? `: ${job.error}` : ""}
+                </span>
+              );
+            }
             return null;
           }
 
