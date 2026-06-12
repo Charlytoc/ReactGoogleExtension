@@ -1,17 +1,20 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
-import { Textarea } from "@mantine/core";
+import { ActionIcon, Textarea, Tooltip } from "@mantine/core";
 import { useShallow } from "zustand/shallow";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
-import { createCompletion } from "../../utils/ai";
-import { MODEL_CHAT_SMALL } from "../../utils/models";
+import {
+  createStreamingResponseWithFunctions,
+  createToolsMap,
+  toolify,
+} from "../../utils/ai";
+import { MODEL_CHAT_CAPABLE } from "../../utils/models";
 import { useStore } from "../../managers/store";
-import { AIInput } from "../AIInput/AIInput";
 import { useLocation, useNavigate } from "react-router";
 import { cacheLocation } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
@@ -135,7 +138,85 @@ const replaceTaskCheckboxInListItemSource = (slice: string, checked: boolean) =>
   return newFirst + rest;
 };
 
-type TBlockEditorMode = "preview" | "edit-text" | "edit-ai";
+export type TGenerateBlockImage = (
+  instruction: string,
+  altText: string,
+  size: string
+) => Promise<string | null>;
+
+type TBlockEditorMode = "preview" | "edit-text" | "edit-ai" | "edit-image";
+
+const formatBlockInsertion = (
+  sourceMarkdown: string,
+  insertAt: number,
+  text: string
+): string => {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+
+  if (insertAt === 0 && sourceMarkdown.length === 0) {
+    return trimmed;
+  }
+
+  const before = sourceMarkdown.slice(0, insertAt);
+  if (before.endsWith("\n\n")) {
+    return trimmed;
+  }
+  if (before.endsWith("\n")) {
+    return `\n${trimmed}`;
+  }
+  return `\n\n${trimmed}`;
+};
+
+const modalTextareaStyles = (monospace = false) => ({
+  input: {
+    fontFamily: monospace ? "monospace" : "inherit",
+    fontSize: "0.9rem",
+    background: "transparent",
+    color: "var(--font-color)",
+    border: "1px solid var(--opaque-gray-color)",
+    borderRadius: "6px",
+  },
+});
+
+const BlockModalHeader = ({ title }: { title: string }) => (
+  <div className="markdown-editor-modal-header">
+    <h4 className="markdown-editor-modal-title">{title}</h4>
+  </div>
+);
+
+const BlockModalFooter = ({
+  primaryLabel,
+  primaryIcon,
+  onPrimary,
+  onCancel,
+  primaryDisabled = false,
+}: {
+  primaryLabel: string;
+  primaryIcon: ReactNode;
+  onPrimary: () => void;
+  onCancel: () => void;
+  primaryDisabled?: boolean;
+}) => {
+  const { t } = useTranslation();
+  return (
+    <div className="markdown-editor-modal-footer">
+      <Button
+        className="padding-5 w-auto justify-center"
+        text={primaryLabel}
+        svg={primaryIcon}
+        onClick={onPrimary}
+        disabled={primaryDisabled}
+      />
+      <Button
+        className="padding-5 w-auto justify-center"
+        text={t("back")}
+        svg={SVGS.back}
+        onClick={onCancel}
+      />
+    </div>
+  );
+};
 
 const MarkdownBlockEditorModal = ({
   opened,
@@ -145,6 +226,8 @@ const MarkdownBlockEditorModal = ({
   onSave,
   onCancel,
   onDelete,
+  onGenerateBlockImage,
+  initialMode = "preview",
 }: {
   opened: boolean;
   originalMarkdown: string;
@@ -153,18 +236,68 @@ const MarkdownBlockEditorModal = ({
   onSave: (overrideValue?: string) => void;
   onCancel: () => void;
   onDelete?: () => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
+  initialMode?: TBlockEditorMode;
 }) => {
   const { t } = useTranslation();
   const apiKey = useStore(useShallow((s) => s.config.auth.openaiApiKey));
-  const [mode, setMode] = useState<TBlockEditorMode>("preview");
+  const [mode, setMode] = useState<TBlockEditorMode>(initialMode);
   const [aiInstruction, setAiInstruction] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const onSaveRef = useRef(onSave);
+  const onGenerateBlockImageRef = useRef(onGenerateBlockImage);
+
+  onSaveRef.current = onSave;
+  onGenerateBlockImageRef.current = onGenerateBlockImage;
 
   useEffect(() => {
-    if (opened) setMode("preview");
-  }, [opened]);
+    if (opened) {
+      setMode(initialMode);
+      setAiInstruction("");
+      setImagePrompt("");
+    }
+  }, [opened, initialMode]);
 
   if (!opened) return null;
+
+  const combineWithOriginal = (imageMarkdown: string) => {
+    if (!originalMarkdown.trim()) {
+      return imageMarkdown;
+    }
+    return `${originalMarkdown.trimEnd()}\n\n${imageMarkdown}`;
+  };
+
+  const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) {
+      toast.error(t("pleaseAddImagePrompt"));
+      return;
+    }
+    if (!onGenerateBlockImageRef.current) {
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const altText = imagePrompt.trim().slice(0, 120);
+      const imageMarkdown = await onGenerateBlockImageRef.current(
+        imagePrompt.trim(),
+        altText,
+        "1024x1024"
+      );
+      if (!imageMarkdown) {
+        toast.error(t("couldNotGenerateImage"));
+        return;
+      }
+      setImagePrompt("");
+      onSaveRef.current(combineWithOriginal(imageMarkdown));
+    } catch {
+      toast.error(t("couldNotGenerateImage"));
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
 
   const handleApplyAI = async () => {
     if (!aiInstruction.trim()) return;
@@ -173,30 +306,109 @@ const MarkdownBlockEditorModal = ({
       const effectiveApiKey =
         apiKey || ((await ChromeStorageManager.get("openaiApiKey")) ?? "");
       if (!effectiveApiKey) {
-        toast.error("Missing OpenAI API key");
+        toast.error(t("noApiKeyError"));
         return;
       }
-      const result = await createCompletion(
+
+      let blockSaved = false;
+      let streamedText = "";
+
+      const saveBlockTool = toolify(
+        async (args: { content: string }) => {
+          blockSaved = true;
+          onSaveRef.current(args.content);
+          return "Block saved successfully.";
+        },
+        "saveBlock",
+        "Save the final markdown for this block. Call when editing is complete.",
+        {
+          content: {
+            type: "string",
+            description: "Complete markdown for the block, including any images.",
+          },
+        }
+      );
+
+      const tools = [saveBlockTool];
+      if (onGenerateBlockImageRef.current) {
+        const generateBlockImageTool = toolify(
+          async (args: { instruction: string; altText: string; size: string }) => {
+            const imageMarkdown = await onGenerateBlockImageRef.current!(
+              args.instruction,
+              args.altText,
+              args.size
+            );
+            if (!imageMarkdown) {
+              return "Could not generate image.";
+            }
+            return `Image markdown (embed wherever appropriate in the block):\n${imageMarkdown}`;
+          },
+          "generateBlockImage",
+          "Generate an image and return markdown to embed in the block. Place the returned markdown wherever it fits best in the final block content.",
+          {
+            instruction: {
+              type: "string",
+              description:
+                "Detailed image generation instruction based on user intent.",
+            },
+            altText: {
+              type: "string",
+              description: "Short alt text for the markdown image.",
+            },
+            size: {
+              type: "string",
+              description:
+                "Image size: 1024x1024 (square), 1024x1536 (portrait), 1536x1024 (landscape), or auto.",
+            },
+          }
+        );
+        tools.push(generateBlockImageTool);
+      }
+
+      const imageToolHint = onGenerateBlockImageRef.current
+        ? "- Use generateBlockImage when the user wants a visual; embed the returned markdown in the block where it fits best.\n"
+        : "";
+
+      await createStreamingResponseWithFunctions(
         {
           messages: [
             {
               role: "system",
-              content: `You are a markdown editor assistant. The user will give you a markdown block and an instruction. Return ONLY the updated markdown for that block, with no explanation, no code fences, and no extra commentary.`,
+              content: `You are a markdown block editor assistant editing a single block inside a note.
+You can update text, structure, and images within this block only.
+
+Current block:
+\`\`\`
+${originalMarkdown || "(empty block)"}
+\`\`\`
+
+Rules:
+${imageToolHint}- When finished, call saveBlock with the complete final markdown for the block.
+- Do not wrap the block in code fences.
+- For diagrams use mermaid code blocks when appropriate.`,
             },
             {
               role: "user",
-              content: `Block:\n${originalMarkdown}\n\nInstruction: ${aiInstruction}`,
+              content: `Instruction: ${aiInstruction}`,
             },
           ],
-          model: MODEL_CHAT_SMALL,
-          max_completion_tokens: 2000,
+          model: MODEL_CHAT_CAPABLE,
+          max_completion_tokens: 4000,
           response_format: { type: "text" },
           apiKey: effectiveApiKey,
+          tools: tools.map((tool) => tool.schema),
+          functionMap: createToolsMap(tools),
         },
-        () => {}
+        (textDelta) => {
+          if (!textDelta) return;
+          streamedText += textDelta;
+        }
       );
+
       setAiInstruction("");
-      onSave(result ?? originalMarkdown);
+      if (!blockSaved && streamedText.trim()) {
+        onSaveRef.current(streamedText.trim());
+      }
     } catch {
       toast.error("AI error");
     } finally {
@@ -218,7 +430,6 @@ const MarkdownBlockEditorModal = ({
             <div className="flex-row gap-5">
               <Button
                 className="padding-5"
-                title={t("editAsText")}
                 text={t("editAsText")}
                 svg={SVGS.edit}
                 onClick={() => {
@@ -228,11 +439,18 @@ const MarkdownBlockEditorModal = ({
               />
               <Button
                 className="padding-5"
-                title={t("editWithAI")}
                 text={t("editWithAI")}
                 svg={SVGS.ai}
                 onClick={() => setMode("edit-ai")}
               />
+              {onGenerateBlockImage && (
+                <Button
+                  className="padding-5"
+                  text={t("generateImage")}
+                  svg={SVGS.generate}
+                  onClick={() => setMode("edit-image")}
+                />
+              )}
               {onDelete && (
                 <Button
                   className="padding-5"
@@ -248,69 +466,313 @@ const MarkdownBlockEditorModal = ({
 
         {mode === "edit-text" && (
           <>
+            <BlockModalHeader title={t("editAsText")} />
             <Textarea
               autosize
+              minRows={4}
               maxRows={Math.floor((window.innerHeight * 0.8) / 24)}
               value={draftMarkdown}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   e.preventDefault();
-                  setMode("preview");
+                  onCancel();
                 }
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && e.metaKey) {
                   e.preventDefault();
                   onSave();
                 }
               }}
               autoFocus
-              styles={{
-                input: {
-                  fontFamily: "monospace",
-                  fontSize: "0.9rem",
-                  background: "transparent",
-                  color: "var(--font-color)",
-                  border: "1px solid var(--opaque-gray-color)",
-                  borderRadius: "6px",
-                },
-              }}
+              placeholder={t("writeYourNoteHere")}
+              styles={modalTextareaStyles(true)}
             />
-            <div className="flex-row gap-5">
-              <Button className="padding-5" title={t("save")} svg={SVGS.check} onClick={onSave} />
-              <Button
-                className="padding-5"
-                title={t("back")}
-                svg={SVGS.back}
-                onClick={() => setMode("preview")}
-              />
-            </div>
+            <BlockModalFooter
+              primaryLabel={t("save")}
+              primaryIcon={SVGS.check}
+              onPrimary={onSave}
+              onCancel={onCancel}
+            />
+          </>
+        )}
+
+        {mode === "edit-image" && onGenerateBlockImage && (
+          <>
+            <BlockModalHeader title={t("generateImage")} />
+            {originalMarkdown.trim() ? (
+              <div className="markdown-block-preview">
+                <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
+              </div>
+            ) : null}
+            <Textarea
+              autosize
+              minRows={3}
+              maxRows={6}
+              value={imagePrompt}
+              onChange={(e) => setImagePrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  onCancel();
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleGenerateImage();
+                }
+              }}
+              autoFocus
+              disabled={isGeneratingImage}
+              placeholder={t("describeImageToInsert")}
+              styles={modalTextareaStyles()}
+            />
+            <BlockModalFooter
+              primaryLabel={
+                isGeneratingImage ? t("applyingAI") : t("generateAndInsertImage")
+              }
+              primaryIcon={SVGS.image}
+              onPrimary={() => void handleGenerateImage()}
+              onCancel={onCancel}
+              primaryDisabled={isGeneratingImage || !imagePrompt.trim()}
+            />
           </>
         )}
 
         {mode === "edit-ai" && (
           <>
-            <div className="markdown-block-preview">
-              <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
-            </div>
-            <AIInput
+            <BlockModalHeader title={t("editWithAI")} />
+            {originalMarkdown.trim() ? (
+              <div className="markdown-block-preview">
+                <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
+              </div>
+            ) : null}
+            <Textarea
+              autosize
+              minRows={3}
+              maxRows={6}
               value={aiInstruction}
-              onChange={setAiInstruction}
-              onSubmit={handleApplyAI}
-              onEscape={() => setMode("preview")}
-              isLoading={isApplying}
-              placeholder={t("instruction")}
+              onChange={(e) => setAiInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  onCancel();
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleApplyAI();
+                }
+              }}
               autoFocus
-              multiline
+              disabled={isApplying}
+              placeholder={t("instruction")}
+              styles={modalTextareaStyles()}
             />
-            <Button
-              className="padding-5"
-              title={t("back")}
-              svg={SVGS.back}
-              onClick={() => setMode("preview")}
+            <BlockModalFooter
+              primaryLabel={isApplying ? t("applyingAI") : t("apply")}
+              primaryIcon={SVGS.ai}
+              onPrimary={() => void handleApplyAI()}
+              onCancel={onCancel}
+              primaryDisabled={isApplying || !aiInstruction.trim()}
             />
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+const MarkdownInsertZone = ({
+  sourceMarkdown,
+  insertAt,
+  onBlockChange,
+  onGenerateBlockImage,
+  variant = "between",
+}: {
+  sourceMarkdown: string;
+  insertAt: number;
+  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
+  variant?: "between" | "end";
+}) => {
+  const { t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [draftMarkdown, setDraftMarkdown] = useState("");
+
+  const openInsert = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraftMarkdown("");
+    setIsOpen(true);
+  };
+
+  const saveInsert = (overrideValue?: string) => {
+    const insertion = formatBlockInsertion(
+      sourceMarkdown,
+      insertAt,
+      overrideValue ?? draftMarkdown
+    );
+    if (!insertion) {
+      setIsOpen(false);
+      return;
+    }
+    onBlockChange?.({ start: insertAt, end: insertAt }, insertion);
+    setDraftMarkdown("");
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <div
+        className={`markdown-insert-zone${
+          variant === "end" ? " markdown-insert-zone--end" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className={`markdown-insert-zone-button${
+            variant === "end" ? " markdown-insert-zone-button--end" : ""
+          }`}
+          title={t("insertBlock")}
+          aria-label={t("insertBlock")}
+          onClick={openInsert}
+        >
+          {SVGS.plus}
+          {variant === "end" ? (
+            <span className="markdown-insert-zone-label">{t("insertBlock")}</span>
+          ) : null}
+        </button>
+      </div>
+      <MarkdownBlockEditorModal
+        opened={isOpen}
+        originalMarkdown=""
+        draftMarkdown={draftMarkdown}
+        onChange={setDraftMarkdown}
+        onSave={saveInsert}
+        onCancel={() => {
+          setIsOpen(false);
+          setDraftMarkdown("");
+        }}
+        onGenerateBlockImage={onGenerateBlockImage}
+        initialMode="edit-text"
+      />
+    </>
+  );
+};
+
+const BlockActionBar = ({
+  onEditText,
+  onEditAI,
+  onEditImage,
+  onDelete,
+  confirmDelete,
+  onCancelDelete,
+  onGenerateBlockImage,
+  blockMarkdown,
+}: {
+  onEditText: () => void;
+  onEditAI: () => void;
+  onEditImage: () => void;
+  onDelete: () => void;
+  confirmDelete: boolean;
+  onCancelDelete: () => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
+  blockMarkdown: string;
+}) => {
+  const { t } = useTranslation();
+
+  const copyBlock = () => {
+    void navigator.clipboard.writeText(blockMarkdown).then(() => {
+      toast.success(t("codeCopied"));
+    });
+  };
+  return (
+    <div className="markdown-block-actions">
+      {confirmDelete ? (
+        <>
+          <Tooltip label={t("sure?")} withArrow openDelay={150} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="red"
+              onClick={onDelete}
+              aria-label={t("sure?")}
+            >
+              {SVGS.check}
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("goBack")} withArrow openDelay={150} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              onClick={onCancelDelete}
+              aria-label={t("goBack")}
+            >
+              {SVGS.close}
+            </ActionIcon>
+          </Tooltip>
+        </>
+      ) : (
+        <>
+          <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              onClick={onEditText}
+              aria-label={t("editAsText")}
+            >
+              {SVGS.edit}
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t("editWithAI")} withArrow openDelay={400} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="grape"
+              onClick={onEditAI}
+              aria-label={t("editWithAI")}
+            >
+              {SVGS.ai}
+            </ActionIcon>
+          </Tooltip>
+          {onGenerateBlockImage && (
+            <Tooltip label={t("generateImage")} withArrow openDelay={400} position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="blue"
+                onClick={onEditImage}
+                aria-label={t("generateImage")}
+              >
+                {SVGS.image}
+              </ActionIcon>
+            </Tooltip>
+          )}
+          <Tooltip label={t("copyCode")} withArrow openDelay={400} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="gray"
+              onClick={copyBlock}
+              aria-label={t("copyCode")}
+            >
+              {SVGS.copy}
+            </ActionIcon>
+          </Tooltip>
+          <div className="markdown-block-actions-divider" />
+          <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="red"
+              onClick={onDelete}
+              aria-label={t("delete")}
+            >
+              {SVGS.trash}
+            </ActionIcon>
+          </Tooltip>
+        </>
+      )}
     </div>
   );
 };
@@ -320,18 +782,28 @@ const BlockEditAsText = ({
   node,
   editableBlocks = false,
   onBlockChange,
+  onGenerateBlockImage,
   children,
 }: {
   sourceMarkdown: string;
   node: any;
   editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
   children: ReactNode;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [initialMode, setInitialMode] = useState<TBlockEditorMode>("edit-text");
   const [draftMarkdown, setDraftMarkdown] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const offsets = getOffsets(node);
   const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
+
+  const openModal = (mode: TBlockEditorMode) => {
+    setDraftMarkdown(originalMarkdown);
+    setInitialMode(mode);
+    setIsEditing(true);
+  };
 
   const saveChanges = (overrideValue?: string) => {
     if (!offsets) return;
@@ -343,34 +815,49 @@ const BlockEditAsText = ({
     onBlockChange?.(offsets, "");
     setDraftMarkdown("");
     setIsEditing(false);
+    setConfirmDelete(false);
   };
 
   if (!editableBlocks || !offsets) {
     return <>{children}</>;
   }
 
+  const showInsertZone =
+    onBlockChange != null && offsets.end < sourceMarkdown.length;
+
   return (
     <div className="markdown-block-row">
-      <div
-        className="markdown-block-content"
-        onClick={(e) => {
-          if (!e.shiftKey) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setDraftMarkdown(originalMarkdown);
-          setIsEditing(true);
-        }}
-      >
+      <div className="markdown-block-content">
         {children}
       </div>
+      <BlockActionBar
+        onEditText={() => openModal("edit-text")}
+        onEditAI={() => openModal("edit-ai")}
+        onEditImage={() => openModal("edit-image")}
+        onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+        confirmDelete={confirmDelete}
+        onCancelDelete={() => setConfirmDelete(false)}
+        onGenerateBlockImage={onGenerateBlockImage}
+        blockMarkdown={originalMarkdown}
+      />
+      {showInsertZone && (
+        <MarkdownInsertZone
+          sourceMarkdown={sourceMarkdown}
+          insertAt={offsets.end}
+          onBlockChange={onBlockChange}
+          onGenerateBlockImage={onGenerateBlockImage}
+        />
+      )}
       <MarkdownBlockEditorModal
         opened={isEditing}
         originalMarkdown={originalMarkdown}
         draftMarkdown={draftMarkdown}
         onChange={setDraftMarkdown}
         onSave={saveChanges}
-        onCancel={() => setIsEditing(false)}
+        onCancel={() => { setIsEditing(false); setConfirmDelete(false); }}
         onDelete={deleteBlock}
+        onGenerateBlockImage={onGenerateBlockImage}
+        initialMode={initialMode}
       />
     </div>
   );
@@ -381,18 +868,28 @@ const ListItemEditAsText = ({
   node,
   editableBlocks = false,
   onBlockChange,
+  onGenerateBlockImage,
   children,
 }: {
   sourceMarkdown: string;
   node: any;
   editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
   children: ReactNode;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [initialMode, setInitialMode] = useState<TBlockEditorMode>("edit-text");
   const [draftMarkdown, setDraftMarkdown] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const offsets = getOffsets(node);
   const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
+
+  const openModal = (mode: TBlockEditorMode) => {
+    setDraftMarkdown(originalMarkdown);
+    setInitialMode(mode);
+    setIsEditing(true);
+  };
 
   const saveChanges = (overrideValue?: string) => {
     if (!offsets) return;
@@ -404,6 +901,7 @@ const ListItemEditAsText = ({
     onBlockChange?.(offsets, "");
     setDraftMarkdown("");
     setIsEditing(false);
+    setConfirmDelete(false);
   };
 
   if (!editableBlocks || !offsets) {
@@ -413,26 +911,29 @@ const ListItemEditAsText = ({
   return (
     <li>
       <div className="markdown-block-row">
-        <div
-          className="markdown-block-content"
-          onClick={(e) => {
-            if (!e.shiftKey) return;
-            e.preventDefault();
-            e.stopPropagation();
-            setDraftMarkdown(originalMarkdown);
-            setIsEditing(true);
-          }}
-        >
+        <div className="markdown-block-content">
           {children}
         </div>
+        <BlockActionBar
+          onEditText={() => openModal("edit-text")}
+          onEditAI={() => openModal("edit-ai")}
+          onEditImage={() => openModal("edit-image")}
+          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+          confirmDelete={confirmDelete}
+          onCancelDelete={() => setConfirmDelete(false)}
+          onGenerateBlockImage={onGenerateBlockImage}
+          blockMarkdown={originalMarkdown}
+        />
         <MarkdownBlockEditorModal
           opened={isEditing}
           originalMarkdown={originalMarkdown}
           draftMarkdown={draftMarkdown}
           onChange={setDraftMarkdown}
           onSave={saveChanges}
-          onCancel={() => setIsEditing(false)}
+          onCancel={() => { setIsEditing(false); setConfirmDelete(false); }}
           onDelete={deleteBlock}
+          onGenerateBlockImage={onGenerateBlockImage}
+          initialMode={initialMode}
         />
       </div>
     </li>
@@ -684,10 +1185,12 @@ export const RenderMarkdown = ({
   markdown,
   editableBlocks = false,
   onBlockChange,
+  onGenerateBlockImage,
 }: {
   markdown: string;
   editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   const [attachmentDataUrls, setAttachmentDataUrls] = useState<Record<string, string>>({});
 
@@ -734,6 +1237,7 @@ export const RenderMarkdown = ({
   }, [markdown]);
 
   return (
+    <>
     <Markdown
       skipHtml={true}
       urlTransform={markdownUrlTransform}
@@ -778,6 +1282,7 @@ export const RenderMarkdown = ({
               node={props.node}
               editableBlocks={editableBlocks}
               onBlockChange={onBlockChange}
+              onGenerateBlockImage={onGenerateBlockImage}
             >
               <CustomCode node={props.node} />
             </BlockEditAsText>
@@ -802,6 +1307,7 @@ export const RenderMarkdown = ({
               node={props.node}
               editableBlocks={editableBlocks}
               onBlockChange={onBlockChange}
+              onGenerateBlockImage={onGenerateBlockImage}
             >
               {props.children}
             </ListItemEditAsText>
@@ -814,6 +1320,7 @@ export const RenderMarkdown = ({
               node={props.node}
               editableBlocks={editableBlocks}
               onBlockChange={onBlockChange}
+              onGenerateBlockImage={onGenerateBlockImage}
             >
               <p>{props.children}</p>
             </BlockEditAsText>
@@ -825,6 +1332,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h1>{props.children}</h1>
           </BlockEditAsText>
@@ -835,6 +1343,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h2>{props.children}</h2>
           </BlockEditAsText>
@@ -845,6 +1354,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h3>{props.children}</h3>
           </BlockEditAsText>
@@ -855,6 +1365,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h4>{props.children}</h4>
           </BlockEditAsText>
@@ -865,6 +1376,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h5>{props.children}</h5>
           </BlockEditAsText>
@@ -875,6 +1387,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <h6>{props.children}</h6>
           </BlockEditAsText>
@@ -885,6 +1398,7 @@ export const RenderMarkdown = ({
             node={props.node}
             editableBlocks={editableBlocks}
             onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
           >
             <blockquote>{props.children}</blockquote>
           </BlockEditAsText>
@@ -894,5 +1408,15 @@ export const RenderMarkdown = ({
     >
       {markdown}
     </Markdown>
+    {editableBlocks && onBlockChange && (
+      <MarkdownInsertZone
+        sourceMarkdown={markdown}
+        insertAt={markdown.length}
+        onBlockChange={onBlockChange}
+        onGenerateBlockImage={onGenerateBlockImage}
+        variant="end"
+      />
+    )}
+    </>
   );
 };

@@ -36,6 +36,7 @@ import {
   IconPalette,
   IconHelp,
   IconExternalLink,
+  IconPhoto,
 } from "@tabler/icons-react";
 
 /**
@@ -83,4 +84,5 @@ export const SVGS = {
   palette: <IconPalette size={20} />,
   help: <IconHelp size={20} />,
   openExternal: <IconExternalLink size={20} />,
+  image: <IconPhoto size={20} />,
 };

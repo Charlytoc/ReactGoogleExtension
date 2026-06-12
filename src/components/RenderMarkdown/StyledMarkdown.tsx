@@ -1,9 +1,10 @@
-import { RenderMarkdown } from "./RenderMarkdown";
+import { RenderMarkdown, TGenerateBlockImage } from "./RenderMarkdown";
 
 export const StyledMarkdown = ({
   markdown,
   editableBlocks = false,
   onBlockChange,
+  onGenerateBlockImage,
 }: {
   markdown: string;
   editableBlocks?: boolean;
@@ -11,6 +12,7 @@ export const StyledMarkdown = ({
     range: { start: number; end: number },
     newMarkdown: string
   ) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   return (
     <div className="markdown-container">
@@ -18,6 +20,7 @@ export const StyledMarkdown = ({
         markdown={markdown}
         editableBlocks={editableBlocks}
         onBlockChange={onBlockChange}
+        onGenerateBlockImage={onGenerateBlockImage}
       />
     </div>
   );

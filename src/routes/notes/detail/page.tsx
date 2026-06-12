@@ -495,16 +495,13 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
     }
   };
 
-  const generateAndAttachImageToNote = async (
+  const createNoteImageAttachment = async (
     instruction: string,
     altText: string,
     size: string
-  ) => {
-    if (!instruction.trim()) {
-      return "No instruction provided";
-    }
-    if (!auth.openaiApiKey) {
-      return "No API key found";
+  ): Promise<{ markdown: string; attachmentId: string } | null> => {
+    if (!instruction.trim() || !auth.openaiApiKey) {
+      return null;
     }
 
     try {
@@ -519,6 +516,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
       });
 
       const attachmentId = generateRandomId("attachment");
+      const label = altText.trim() || "generated image";
       const attachment: TAttachment = {
         id: attachmentId,
         type: "image",
@@ -529,17 +527,56 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
         createdAt: new Date().toISOString(),
       };
       await saveAttachment(attachment);
-      appendAttachmentToNote(attachmentId, altText || "generated image");
-      toast.success(t("imageAttachedToNote"));
-      return JSON.stringify({
-        success: true,
+      return {
         attachmentId,
-        markdown: `![${altText || "generated image"}](attachment:${attachmentId})`,
-      });
+        markdown: `![${label}](attachment:${attachmentId})`,
+      };
     } catch (error) {
       console.error("Error generating note image attachment", error);
+      return null;
+    }
+  };
+
+  const handleGenerateBlockImage = async (
+    instruction: string,
+    altText: string,
+    size: string
+  ) => {
+    const result = await createNoteImageAttachment(instruction, altText, size);
+    if (result) {
+      toast.success(t("imageAttachedToNote"));
+    }
+    return result?.markdown ?? null;
+  };
+
+  const generateAndAttachImageToNote = async (
+    instruction: string,
+    altText: string,
+    size: string
+  ) => {
+    if (!instruction.trim()) {
+      return "No instruction provided";
+    }
+    if (!auth.openaiApiKey) {
+      return "No API key found";
+    }
+
+    const result = await createNoteImageAttachment(
+      instruction,
+      altText,
+      size
+    );
+    if (!result) {
       return "Could not generate image";
     }
+
+    appendAttachmentToNote(result.attachmentId, altText || "generated image");
+    toast.success(t("imageAttachedToNote"));
+    return JSON.stringify({
+      success: true,
+      attachmentId: result.attachmentId,
+      markdown: result.markdown,
+    });
   };
 
   const appendGeneratedImageToNoteTool = toolify(
@@ -652,6 +689,20 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(tagCa
               title={t("openNoteInTab")}
               onClick={() => {
                 openExtensionRouteInNewTab(`/notes/${id}`);
+              }}
+            />
+            <Button
+              className="justify-center padding-5"
+              svg={SVGS.copy}
+              title={t("copyNote")}
+              onClick={() => {
+                const title = note.title?.trim();
+                const textToCopy = title
+                  ? `# ${title}\n\n${note.content || ""}`.trimEnd()
+                  : note.content || "";
+                void navigator.clipboard.writeText(textToCopy).then(() => {
+                  toast.success(t("noteCopied"));
+                });
               }}
             />
             <Button
@@ -909,6 +960,7 @@ ${JSON.stringify(note)}
               markdown={note.content || ""}
               editableBlocks={true}
               onBlockChange={handleBlockChange}
+              onGenerateBlockImage={handleGenerateBlockImage}
             />
           )}
         </div>
