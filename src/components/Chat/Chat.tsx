@@ -9,6 +9,11 @@ import {
   toolify,
 } from "../../utils/ai";
 import { MODEL_CHAT_SMALL } from "../../utils/models";
+import {
+  createDefaultAiConfig,
+  getAiConfig as loadAiConfig,
+  saveAiConfig,
+} from "../../utils/aiConfigStorage";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
 import { TMessage } from "../../types";
@@ -25,7 +30,7 @@ import {
 } from "../../utils/lib";
 import { migrateTask } from "../../utils/tags";
 import { notify } from "../../utils/chromeFunctions";
-import { TConversation, TModel } from "../../types";
+import { TConversation, TModel, TAIConfig } from "../../types";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
@@ -112,16 +117,7 @@ export const Chat = () => {
   const [conversation, setConversation] = useState<TConversation | null>(null);
   const [apiKey, setApiKey] = useState<string>("");
   const [input, setInput] = useState<string>("");
-  const [aiConfig, setAiConfig] = useState<TAIConfig>({
-    systemPrompt: "You are a helpful assistant.",
-    model: {
-      name: "GPT-5.4 mini",
-      slug: MODEL_CHAT_SMALL,
-      hasReasoning: false,
-    },
-    autoSaveConversations: true,
-    setTitleAtMessage: 0,
-  });
+  const [aiConfig, setAiConfig] = useState<TAIConfig>(createDefaultAiConfig());
   const [activeTab, setActiveTab] = useState<TChatTab>("chat");
   const [conversations, setConversations] = useState<TConversation[]>([]);
   const [error, setError] = useState<string>("");
@@ -218,28 +214,13 @@ export const Chat = () => {
   };
 
   const getAiConfig = async () => {
-    let aiConfig: TAIConfig = await ChromeStorageManager.get("aiConfig");
-    if (!aiConfig) {
-      aiConfig = {
-        systemPrompt: `You are a helpful assistant. `,
-        model: {
-          name: "GPT-5.4 mini",
-          slug: MODEL_CHAT_SMALL,
-          hasReasoning: false,
-        },
-        autoSaveConversations: true,
-        setTitleAtMessage: 0,
-      };
-    }
-
-    setAiConfig(aiConfig);
+    const config = await loadAiConfig();
+    setAiConfig(config);
   };
 
   const updateAiConfig = async (newConfig: TAIConfig) => {
-    console.log(newConfig, "newConfig");
-
     setAiConfig(newConfig);
-    await ChromeStorageManager.add("aiConfig", newConfig);
+    await saveAiConfig(newConfig);
     notify(t("aiConfigUpdated"), "✅");
     setActiveTab("chat");
   };
@@ -764,15 +745,6 @@ export const Chat = () => {
       )}
     </Section>
   );
-};
-
-type TReasoningTag = "thinking" | "reasoning" | "thinking_process";
-type TAIConfig = {
-  systemPrompt: string;
-  model: TModel;
-  autoSaveConversations: boolean;
-  setTitleAtMessage?: number;
-  reasoningTag?: TReasoningTag;
 };
 
 const AIConfig = ({

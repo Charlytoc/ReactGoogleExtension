@@ -78,6 +78,8 @@
     "font": "Font",
     "background": "Background",
     "model": "Model",
+    "notesAssistantModel": "Notes assistant model",
+    "notesAssistantModelDescription": "Used by the note AI assistant and inline block editor.",
     "finishConfig": "Finish configuration",
     "systemPrompt": "System prompt",
     "aiConfigUpdated": "AI configuration updated",

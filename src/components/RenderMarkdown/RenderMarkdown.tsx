@@ -14,7 +14,7 @@ import {
   createToolsMap,
   toolify,
 } from "../../utils/ai";
-import { MODEL_CHAT_CAPABLE } from "../../utils/models";
+import { getNotesAssistantModelSlug } from "../../utils/aiConfigStorage";
 import { useStore } from "../../managers/store";
 import { useLocation, useNavigate } from "react-router";
 import { cacheLocation } from "../../utils/lib";
@@ -407,6 +407,8 @@ const MarkdownBlockEditorModal = ({
         ? "- Use generateBlockImage when the user wants a visual; embed the returned markdown in the block where it fits best.\n"
         : "";
 
+      const model = await getNotesAssistantModelSlug();
+
       await createStreamingResponseWithFunctions(
         {
           messages: [
@@ -430,7 +432,7 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
               content: `Instruction: ${aiInstruction}`,
             },
           ],
-          model: MODEL_CHAT_CAPABLE,
+          model,
           max_completion_tokens: 4000,
           response_format: { type: "text" },
           apiKey: effectiveApiKey,

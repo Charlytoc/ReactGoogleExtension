@@ -145,3 +145,14 @@ export type TModel = {
   slug: string;
   hasReasoning: boolean;
 };
+
+export type TReasoningTag = "thinking" | "reasoning" | "thinking_process";
+
+export type TAIConfig = {
+  systemPrompt: string;
+  model: TModel;
+  notesAssistantModel?: TModel;
+  autoSaveConversations: boolean;
+  setTitleAtMessage?: number;
+  reasoningTag?: TReasoningTag;
+};

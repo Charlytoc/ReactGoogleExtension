@@ -78,6 +78,8 @@
     "font": "Fuente",
     "background": "Fondo",
     "model": "Modelo",
+    "notesAssistantModel": "Modelo del asistente de notas",
+    "notesAssistantModelDescription": "Se usa en el asistente de IA de notas y en el editor de bloques inline.",
     "finishConfig": "Finalizar configuración",
     "systemPrompt": "Prompt del sistema",
     "aiConfigUpdated": "Configuración de AI actualizada",

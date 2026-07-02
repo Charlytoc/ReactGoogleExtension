@@ -6,8 +6,14 @@ import { useEffect, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
-import { createCompletion } from "../../utils/ai.ts";
+import { createCompletion, listModels } from "../../utils/ai.ts";
 import { MODEL_CHAT_SMALL } from "../../utils/models.ts";
+import {
+  createDefaultAiConfig,
+  getAiConfig,
+  modelFromSlug,
+  saveAiConfig,
+} from "../../utils/aiConfigStorage.ts";
 import { useShallow } from "zustand/shallow";
 import { useStore } from "../../managers/store.ts";
 import {
@@ -16,6 +22,7 @@ import {
   type TTheme,
 } from "../../managers/storeTypes.ts";
 import { Select } from "../../components/Select/Select.tsx";
+import type { TModel } from "../../types.ts";
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
@@ -99,6 +106,10 @@ export default function Config() {
   const [apiKey, setApiKey] = useState<string>("");
 
   const [colors, setColors] = useState<TTheme>(DEFAULT_THEME);
+  const [notesAssistantModel, setNotesAssistantModel] = useState<TModel>(
+    () => createDefaultAiConfig().notesAssistantModel!
+  );
+  const [availableModels, setAvailableModels] = useState<TModel[]>([]);
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
 
@@ -117,6 +128,20 @@ export default function Config() {
     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
     if (colorPreferences && typeof colorPreferences === "object") {
       setColors(mergeStoredTheme(colorPreferences as Partial<TTheme>));
+    }
+
+    const aiConfig = await getAiConfig();
+    if (aiConfig.notesAssistantModel) {
+      setNotesAssistantModel(aiConfig.notesAssistantModel);
+    }
+
+    if (apiKey) {
+      try {
+        const models = await listModels(apiKey as string);
+        setAvailableModels(models);
+      } catch {
+        setAvailableModels([]);
+      }
     }
   };
 
@@ -174,6 +199,33 @@ export default function Config() {
             onChange={(value) => setApiKey(value)}
           />
         </div>
+        <div className="flex-column gap-5">
+            <label className="color-secondary text-left" htmlFor="notesAssistantModel">
+              {t("notesAssistantModel")}
+            </label>
+            <span className="color-secondary text-left text-sm">
+              {t("notesAssistantModelDescription")}
+            </span>
+            <Select
+              name="notesAssistantModel"
+              id="notesAssistantModel"
+              options={
+                availableModels.length > 0
+                  ? availableModels.map((m) => ({ label: m.name, value: m.slug }))
+                  : [
+                      {
+                        label: notesAssistantModel.name,
+                        value: notesAssistantModel.slug,
+                      },
+                    ]
+              }
+              defaultValue={notesAssistantModel.slug}
+              onChange={(value) => {
+                const model = availableModels.find((m) => m.slug === value);
+                setNotesAssistantModel(model ?? modelFromSlug(value));
+              }}
+            />
+          </div>
         <div className="flex-column gap-10">
           {/* <h3 className="text-left">{t("colors")}</h3> */}
           <div className="flex-row gap-10 justify-between wrap">
@@ -309,6 +361,9 @@ export default function Config() {
         onClick={async () => {
           await ChromeStorageManager.add("colorPreferences", colors);
           await ChromeStorageManager.add("openaiApiKey", apiKey);
+          if (notesAssistantModel) {
+            await saveAiConfig({ notesAssistantModel });
+          }
           setConfig({ auth: { openaiApiKey: apiKey } });
           toast.success(t("settingsSaved"));
         }}

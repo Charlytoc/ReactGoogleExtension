@@ -40,7 +40,7 @@ import {
   isImageJobStale,
   type TCoverJobMap,
 } from "../../../utils/imageJobs";
-import { MODEL_CHAT_CAPABLE } from "../../../utils/models";
+import { getNotesAssistantModelSlug } from "../../../utils/aiConfigStorage";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
@@ -113,10 +113,11 @@ const Prompter = ({
     setMessages(newMessages);
 
     try {
+      const model = await getNotesAssistantModelSlug();
       await createStreamingResponseWithFunctions(
         {
           messages: newMessages.map(convertToMessage),
-          model: MODEL_CHAT_CAPABLE,
+          model,
           apiKey: auth.openaiApiKey,
           max_completion_tokens: 16000,
           response_format: { type: "text" },
