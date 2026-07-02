@@ -361,6 +361,16 @@ button:focus-visible {
 
   & .markdown-block-row {
     position: relative;
+    padding-top: 28px;
+    margin-top: -28px;
+  }
+
+  & .markdown-block-row:first-child {
+    margin-top: 0;
+  }
+
+  & .markdown-block-row:hover {
+    z-index: 6;
   }
 
   & .markdown-block-content {
@@ -465,28 +475,10 @@ button:focus-visible {
     transition: opacity 0.15s ease;
   }
 
-  & .markdown-insert-zone::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
-    height: 1px;
-    background: var(--active-color);
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-
   & .markdown-block-row:hover .markdown-insert-zone,
   & .markdown-insert-zone:hover,
   & .markdown-insert-zone:focus-within {
     opacity: 1;
-  }
-
-  & .markdown-block-row:hover .markdown-insert-zone::before,
-  & .markdown-insert-zone:hover::before,
-  & .markdown-insert-zone:focus-within::before {
-    opacity: 0.45;
   }
 
   & .markdown-insert-zone-button {
@@ -518,10 +510,6 @@ button:focus-visible {
     min-height: 32px;
     margin-top: 8px;
     opacity: 1;
-  }
-
-  & .markdown-insert-zone--end::before {
-    display: none;
   }
 
   & .markdown-insert-zone-button--end {
