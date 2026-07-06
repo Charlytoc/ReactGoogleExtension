@@ -22,6 +22,26 @@ import {
   resolvePrompt,
 } from "./commandPrompts";
 import { MODEL_CHAT_SMALL, MODEL_IMAGE_GENERATION } from "./utils/models";
+import { createResponseWithFunctionsFetch } from "./utils/backgroundResponses";
+import { createToolsMap } from "./utils/ai";
+import { getNotesAssistantModelSlug } from "./utils/aiConfigStorage";
+import {
+  getNoteConversation,
+  saveNoteConversation,
+  withUpdatedSystemPrompt,
+} from "./utils/conversationsStorage";
+import {
+  AI_NOTE_ASSISTANT_JOBS_KEY,
+  deleteNoteAssistantJob,
+  getNoteAssistantJobs,
+  saveNoteAssistantJob,
+  type TGenerateNoteAssistantTurnMessage,
+} from "./utils/noteAssistantJobs";
+import {
+  buildNoteAssistantSystemPrompt,
+  messagesToResponsesInput,
+} from "./utils/noteAssistantPrompt";
+import { createNoteAssistantTools } from "./utils/noteAssistantTools";
 import {
   AI_COVER_JOBS_KEY,
   AI_IMAGE_JOBS_KEY,
@@ -35,6 +55,7 @@ import {
   type TGenerateNoteCoverMessage,
   type TGenerateNoteImageMessage,
 } from "./utils/imageJobs";
+import type { TMessage } from "./types";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -93,7 +114,8 @@ type ExtensionMessage =
   | NotifyMessage
   | ExtensionToolCompletionMessage
   | TGenerateNoteImageMessage
-  | TGenerateNoteCoverMessage;
+  | TGenerateNoteCoverMessage
+  | TGenerateNoteAssistantTurnMessage;
 
 // ─── Chrome Storage Manager ─────────────────────────────────────────────────
 
@@ -364,6 +386,93 @@ const runNoteImageJob = async (
   }
 };
 
+const runNoteAssistantJob = async (
+  request: TGenerateNoteAssistantTurnMessage
+): Promise<void> => {
+  startImageJobKeepalive();
+  try {
+    await saveNoteAssistantJob({
+      noteId: request.noteId,
+      userMessage: request.userMessage,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    const apiKey = await ChromeStorageManager.get<string>("openaiApiKey");
+    if (!apiKey) {
+      throw new Error("No API key found");
+    }
+
+    const notes = (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const note = notes.find((item) => item.id === request.noteId);
+    if (!note) {
+      throw new Error("Note not found");
+    }
+
+    const allConversations = await ChromeStorageManager.get<unknown>(
+      "conversations"
+    );
+    const conversationList = Array.isArray(allConversations)
+      ? allConversations
+      : [];
+    const existingConversation = getNoteConversation(
+      conversationList as Parameters<typeof getNoteConversation>[0],
+      request.noteId
+    );
+
+    const priorMessages: TMessage[] = existingConversation?.messages ?? [];
+    const systemPrompt = buildNoteAssistantSystemPrompt(note);
+    const inputMessages = withUpdatedSystemPrompt(systemPrompt, priorMessages);
+
+    const tools = createNoteAssistantTools({
+      noteId: request.noteId,
+      enqueueImageJob: runNoteImageJob,
+    });
+    const functionMap = createToolsMap(tools);
+    const model = await getNotesAssistantModelSlug();
+
+    const assistantText = await createResponseWithFunctionsFetch({
+      apiKey,
+      model,
+      input: messagesToResponsesInput(inputMessages),
+      tools: tools.map((tool) => tool.schema),
+      functionMap,
+      maxOutputTokens: 16000,
+    });
+
+    const nextMessages: TMessage[] = [
+      ...inputMessages,
+      { role: "assistant", content: assistantText },
+    ];
+
+    await saveNoteConversation(request.noteId, nextMessages, {
+      conversationId: existingConversation?.id,
+      title: existingConversation?.title || note.title?.trim() || "Note chat",
+    });
+
+    await deleteNoteAssistantJob(request.noteId);
+    notify(
+      "Note assistant",
+      note.title?.trim()
+        ? `${note.title.trim()} — reply ready`
+        : "Your note assistant reply is ready"
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error running note assistant job:", error);
+    await saveNoteAssistantJob({
+      noteId: request.noteId,
+      userMessage: request.userMessage,
+      status: "error",
+      error: message,
+      createdAt: new Date().toISOString(),
+    });
+    notify("Note assistant", "Failed: " + message);
+  } finally {
+    stopImageJobKeepalive();
+  }
+};
+
 /** Parses model JSON output, tolerating markdown code fences. */
 const parseJsonResponse = (raw: string): unknown => {
   const cleaned = raw
@@ -528,6 +637,10 @@ const cleanUpStaleJobs = async <
   try {
     await cleanUpStaleJobs(AI_IMAGE_JOBS_KEY, await getImageJobs());
     await cleanUpStaleJobs(AI_COVER_JOBS_KEY, await getCoverJobs());
+    await cleanUpStaleJobs(
+      AI_NOTE_ASSISTANT_JOBS_KEY,
+      await getNoteAssistantJobs()
+    );
   } catch (error) {
     console.error("Could not clean up stale image jobs:", error);
   }
@@ -1032,6 +1145,12 @@ chrome.runtime.onMessage.addListener(
     if (request.action === "generateNoteCover") {
       // Fire and forget: progress is reported through aiCoverJobs + notes.
       void runNoteCoverJob(request);
+      sendResponse({ accepted: true });
+      return undefined;
+    }
+
+    if (request.action === "generateNoteAssistantTurn") {
+      void runNoteAssistantJob(request);
       sendResponse({ accepted: true });
       return undefined;
     }

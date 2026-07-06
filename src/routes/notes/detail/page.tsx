@@ -10,13 +10,6 @@ import { openExtensionRouteInNewTab } from "../../../utils/chromeFunctions";
 // import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
 // import { NoteEditor } from "../../../components/Note/Note";
-import {
-  convertToMessage,
-  createStreamingResponseWithFunctions,
-  createToolsMap,
-  toolify,
-  TTool,
-} from "../../../utils/ai";
 import { useStore } from "../../../managers/store";
 import { AIInput } from "../../../components/AIInput/AIInput";
 import { useShallow } from "zustand/shallow";
@@ -40,7 +33,15 @@ import {
   isImageJobStale,
   type TCoverJobMap,
 } from "../../../utils/imageJobs";
-import { getNotesAssistantModelSlug } from "../../../utils/aiConfigStorage";
+import {
+  AI_NOTE_ASSISTANT_JOBS_KEY,
+  deleteNoteAssistantJob,
+  enqueueNoteAssistantJob,
+  getNoteAssistantJobs,
+  isNoteAssistantJobStale,
+  type TNoteAssistantJobMap,
+} from "../../../utils/noteAssistantJobs";
+import { buildNoteAssistantSystemPrompt } from "../../../utils/noteAssistantPrompt";
 import {
   clearNoteConversation,
   getNoteConversation,
@@ -58,7 +59,6 @@ const Prompter = ({
   noteId,
   noteTitle,
   systemPrompt,
-  functions,
   isOpen,
   onOpenChange,
   showTrigger = true,
@@ -66,7 +66,6 @@ const Prompter = ({
   noteId: string;
   noteTitle?: string;
   systemPrompt: string;
-  functions: TTool[];
   isOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   showTrigger?: boolean;
@@ -82,18 +81,32 @@ const Prompter = ({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const isLoadingConversationRef = useRef(true);
   const [state, setState] = useState<{
-    isGenerating: boolean;
-    response: string;
+    isAssistantPending: boolean;
     userMessage: string;
   }>({
-    isGenerating: false,
-    response: "",
+    isAssistantPending: false,
     userMessage: "",
   });
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
   const generationLockRef = useRef(false);
   const systemPromptRef = useRef(systemPrompt);
   systemPromptRef.current = systemPrompt;
+
+  const reloadConversationFromStorage = useCallback(async () => {
+    const all = await loadAllConversations();
+    const existing = getNoteConversation(all, noteId);
+    isLoadingConversationRef.current = true;
+    if (existing?.messages?.length) {
+      setMessages(
+        withUpdatedSystemPrompt(systemPromptRef.current, existing.messages)
+      );
+      setConversationId(existing.id);
+    } else {
+      setMessages([{ role: "system", content: systemPromptRef.current }]);
+      setConversationId(null);
+    }
+    isLoadingConversationRef.current = false;
+  }, [noteId]);
 
   useEffect(() => {
     let mounted = true;
@@ -143,55 +156,94 @@ const Prompter = ({
     })();
   }, [messages, noteId, noteTitle, conversationId]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const syncAssistantJob = async () => {
+      const jobs = await getNoteAssistantJobs();
+      if (!mounted) return;
+      const job = jobs[noteId];
+      setState((prev) => ({
+        ...prev,
+        isAssistantPending:
+          !!job && job.status === "pending" && !isNoteAssistantJobStale(job),
+      }));
+    };
+
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "local" || !changes[AI_NOTE_ASSISTANT_JOBS_KEY]) return;
+
+      const nextJobs = (changes[AI_NOTE_ASSISTANT_JOBS_KEY].newValue ??
+        {}) as TNoteAssistantJobMap;
+      const prevJobs = (changes[AI_NOTE_ASSISTANT_JOBS_KEY].oldValue ??
+        {}) as TNoteAssistantJobMap;
+      const job = nextJobs[noteId];
+      const prevJob = prevJobs[noteId];
+
+      if (!job && prevJob?.status === "pending") {
+        void reloadConversationFromStorage();
+        setState((prev) => ({ ...prev, isAssistantPending: false }));
+        toast.success(t("noteAssistantDone"));
+        return;
+      }
+      if (job?.status === "error" && prevJob?.status !== "error") {
+        setState((prev) => ({ ...prev, isAssistantPending: false }));
+        toast.error(
+          job.error || t("noteAssistantFailed")
+        );
+        return;
+      }
+      if (job?.status === "pending" && !isNoteAssistantJobStale(job)) {
+        setState((prev) => ({ ...prev, isAssistantPending: true }));
+      }
+    };
+
+    syncAssistantJob();
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
+  }, [noteId, reloadConversationFromStorage, t]);
+
   const handleGenerate = async () => {
-    if (generationLockRef.current) return;
+    if (generationLockRef.current || state.isAssistantPending) return;
     const trimmedMessage = state.userMessage.trim();
     if (!trimmedMessage) return;
     if (!auth.openaiApiKey) {
-      toast.error("Missing OpenAI API key");
+      toast.error(t("noApiKey") || "Missing OpenAI API key");
       return;
     }
 
     generationLockRef.current = true;
-    setState((prev) => ({ ...prev, isGenerating: true, userMessage: "" }));
+    const previousMessages = messages;
+    setState((prev) => ({ ...prev, userMessage: "" }));
 
     const userMessage: TMessage = { role: "user", content: trimmedMessage };
-    const assistantMessage: TMessage = { role: "assistant", content: "" };
-    const newMessages = [...messages, userMessage, assistantMessage];
-    setMessages(newMessages);
+    const withUser = [...messages, userMessage];
+    setMessages(withUser);
 
     try {
-      const model = await getNotesAssistantModelSlug();
-      await createStreamingResponseWithFunctions(
-        {
-          messages: newMessages.map(convertToMessage),
-          model,
-          apiKey: auth.openaiApiKey,
-          max_completion_tokens: 16000,
-          response_format: { type: "text" },
-          tools: functions.map((tool) => tool.schema),
-          functionMap: createToolsMap(functions),
-        },
-        (textDelta) => {
-          if (!textDelta) return;
-          setMessages((prev) => {
-            const lastAssistantMessage = prev[prev.length - 1];
-            if (!lastAssistantMessage || lastAssistantMessage.role !== "assistant") {
-              return prev;
-            }
-            return [
-              ...prev.slice(0, -1),
-              {
-                ...lastAssistantMessage,
-                content: `${lastAssistantMessage.content || ""}${textDelta}`,
-              },
-            ];
-          });
-        }
-      );
+      const saved = await saveNoteConversation(noteId, withUser, {
+        conversationId: conversationId ?? undefined,
+        title: noteTitle?.trim() || "Note chat",
+      });
+      setConversationId(saved.id);
+
+      await enqueueNoteAssistantJob({
+        noteId,
+        userMessage: trimmedMessage,
+      });
+      setState((prev) => ({ ...prev, isAssistantPending: true }));
+    } catch (error) {
+      console.error("Error starting note assistant job:", error);
+      toast.error(t("noteAssistantFailed"));
+      setMessages(previousMessages);
     } finally {
       generationLockRef.current = false;
-      setState((prev) => ({ ...prev, isGenerating: false }));
     }
   };
 
@@ -207,9 +259,10 @@ const Prompter = ({
   const startNewChat = async () => {
     isLoadingConversationRef.current = true;
     await clearNoteConversation(noteId);
+    await deleteNoteAssistantJob(noteId);
     setMessages([{ role: "system", content: systemPromptRef.current }]);
     setConversationId(null);
-    setState((prev) => ({ ...prev, userMessage: "" }));
+    setState((prev) => ({ ...prev, userMessage: "", isAssistantPending: false }));
     isLoadingConversationRef.current = false;
   };
 
@@ -219,7 +272,7 @@ const Prompter = ({
         <Button
           title={resolvedIsOpen ? t("close") : t("continueWithAI")}
           className={`w-100 justify-center padding-5 ${
-            state.isGenerating ? "bg-active" : ""
+            state.isAssistantPending ? "bg-active" : ""
           }`}
           onClick={() => setIsOpen(!resolvedIsOpen)}
           svg={resolvedIsOpen ? SVGS.close : SVGS.ai}
@@ -251,6 +304,11 @@ const Prompter = ({
               />
             </div>
             <div className="prompter-chat-messages" ref={setChatContainer}>
+              {state.isAssistantPending && (
+                <div className="padding-10 text-secondary">
+                  {t("noteAssistantWorking")}
+                </div>
+              )}
               {messages.map((message, index) => {
                 if (message.role === "system") return null;
                 return <Message key={index} message={message} />;
@@ -262,7 +320,7 @@ const Prompter = ({
                 value={state.userMessage}
                 onChange={(value) => setState({ ...state, userMessage: value })}
                 onSubmit={handleGenerate}
-                isLoading={state.isGenerating}
+                isLoading={state.isAssistantPending}
                 autoFocus
               />
             </div>
@@ -384,6 +442,51 @@ export default function NoteDetail() {
     };
   }, [id]);
 
+  // Note assistant job: reload title/content/color from storage when the
+  // background worker finishes a turn (user may have closed the popup).
+  useEffect(() => {
+    let mounted = true;
+
+    const applyStoredNoteFromAssistant = async () => {
+      const stored = (await ChromeStorageManager.get("notes")) as
+        | TNote[]
+        | undefined;
+      const storedNote = Array.isArray(stored)
+        ? stored.find((n) => n.id === id)
+        : undefined;
+      if (!storedNote || !mounted) return;
+      setNote((prev) => ({
+        ...prev,
+        title: storedNote.title,
+        content: storedNote.content,
+        color: storedNote.color,
+      }));
+    };
+
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "local" || !changes[AI_NOTE_ASSISTANT_JOBS_KEY]) return;
+      const nextJobs = (changes[AI_NOTE_ASSISTANT_JOBS_KEY].newValue ??
+        {}) as TNoteAssistantJobMap;
+      const prevJobs = (changes[AI_NOTE_ASSISTANT_JOBS_KEY].oldValue ??
+        {}) as TNoteAssistantJobMap;
+      const job = nextJobs[id!];
+      const prevJob = prevJobs[id!];
+
+      if (!job && prevJob?.status === "pending") {
+        void applyStoredNoteFromAssistant();
+      }
+    };
+
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
+  }, [id]);
+
   useEffect(() => {
     if (note) {
       saveNote();
@@ -450,81 +553,12 @@ export default function NoteDetail() {
     await ChromeStorageManager.add("notes", newNotes);
   };
 
-  const updateColorTool = toolify(
-    (args: { color: string }) => {
-      console.log(args.color, "color from updateColorTool");
-
-      setNote({ ...note, color: args.color });
-      toast.success(t("noteUpdated"));
-      return "Color updated successfully";
-    },
-    "updateColorTool",
-    "Update the background color of the note. The color should be a valid CSS color. Include the alpha value if you want a transparent color.",
-    {
-      color: {
-        type: "string",
-        description: "The new color to update the note",
-      },
-    }
-  );
-
-  const updateTitleTool = toolify(
-    (args: { title: string }) => {
-      setNote({ ...note, title: args.title });
-      toast.success(t("noteUpdated"));
-      return "Title updated successfully";
-    },
-    "updateTitleTool",
-    "Update the title of the note. The title should be a string. The title should be a short description of the note.",
-    {
-      title: {
-        type: "string",
-        description: "The new title to update the note",
-      },
-    }
-  );
-
-  // const replaceInNote = toolify(
-  //   ({
-  //     searchString,
-  //     replacement,
-  //   }: {
-  //     searchString: string;
-  //     replacement: string;
-  //   }) => {
-  //     const newContent = note.content?.replace(searchString, replacement) || "";
-  //     if (!newContent) return "No replacement provided";
-  //     setNote({ ...note, content: newContent });
-  //     return "Note updated successfully";
-  //   },
-  //   "replaceInNote",
-  //   "Replace a particular part of the note content. Use this tool when you need to update a specific part of the note.",
-  //   {
-  //     searchString: {
-  //       type: "string",
-  //       description: "The string to search for in the note",
-  //     },
-  //     replacement: {
-  //       type: "string",
-  //       description: "The new content to update the note",
-  //     },
-  //   }
-  // );
-
   const processImage = (file: File) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       setNote({ ...note, imageURL: reader.result as string });
     };
     reader.readAsDataURL(file);
-  };
-
-  const appendAttachmentToNote = (attachmentId: string, altText: string) => {
-    const markdownImage = `\n\n![${altText}](attachment:${attachmentId})\n`;
-    setNote((prev) => ({
-      ...prev,
-      content: `${prev.content || ""}${markdownImage}`,
-    }));
   };
 
   const normalizeImageSize = (size: string): TImageSizeOption => {
@@ -643,71 +677,11 @@ ${noteContext}`;
     return result?.markdown ?? null;
   };
 
-  const generateAndAttachImageToNote = async (
-    instruction: string,
-    altText: string,
-    size: string
-  ) => {
-    if (!instruction.trim()) {
-      return "No instruction provided";
-    }
-    if (!auth.openaiApiKey) {
-      return "No API key found";
-    }
-
-    const result = await createNoteImageAttachment(
-      instruction,
-      altText,
-      size
-    );
-    if (!result) {
-      return "Could not generate image";
-    }
-
-    appendAttachmentToNote(result.attachmentId, altText || "generated image");
-    toast.success(t("imageGenerationStarted"));
-    return JSON.stringify({
-      success: true,
-      status: "generating",
-      detail:
-        "Image generation started in the background. The markdown placeholder was already appended to the note and will display the image once ready.",
-      attachmentId: result.attachmentId,
-      markdown: result.markdown,
-    });
-  };
-
-  const appendGeneratedImageToNoteTool = toolify(
-    async (args: { instruction: string; altText: string; size: string }) => {
-      return await generateAndAttachImageToNote(
-        args.instruction,
-        args.altText,
-        args.size
-      );
-    },
-    "appendGeneratedImageToNote",
-    "Generate an image attachment and append it inside the note content as markdown. Use this when the user asks for a visual/image in the note. You should provide a detailed generation instruction based on user intent.",
-    {
-      instruction: {
-        type: "string",
-        description:
-          "Detailed image generation instruction. Expand the user's intent into a richer prompt with style/composition details.",
-      },
-      altText: {
-        type: "string",
-        description: "Short alt text for the markdown image label.",
-      },
-      size: {
-        type: "string",
-        description:
-          "Image size/aspect ratio. Must be one of: 1024x1024 (square), 1024x1536 (portrait), 1536x1024 (landscape), auto.",
-      },
-    }
-  );
-
   const deleteCurrentNote = useCallback(async () => {
     const newNotes = notes.filter((n) => n.id !== id);
     setNotes(newNotes);
     await ChromeStorageManager.add("notes", newNotes);
+    await deleteNoteAssistantJob(id!);
     const allConversations = await loadAllConversations();
     await saveAllConversations(removeConversationsForNote(allConversations, id!));
     const prevPage = (await ChromeStorageManager.get("prevPage")) || "/notes";
@@ -720,24 +694,6 @@ ${noteContext}`;
     cacheLocation(prevPage, "lastPage");
     navigate(prevPage);
   }, [navigate]);
-
-  const updateNoteContent = toolify(
-    (newContent: { newContent: string }) => {
-      console.log("AI wants to update the entire note", newContent);
-      setNote({ ...note, content: newContent.newContent });
-      toast.success(t("noteUpdated"));
-      return "Note updated successfully";
-    },
-    "updateNoteContent",
-    "Update the content of the note. Use this tool when you need to make changes to the note. The function expects a string representing the entire content of the note.",
-    {
-      newContent: {
-        type: "string",
-        description:
-          "The new content to update the note. The content should be a string representing the entire content of the note.",
-      },
-    }
-  );
 
   const handleBlockChange = (
     range: { start: number; end: number },
@@ -853,32 +809,7 @@ ${noteContext}`;
           showTrigger={false}
           isOpen={isPrompterOpen}
           onOpenChange={setIsPrompterOpen}
-          systemPrompt={`
-## SYSTEM
-
-You are a powerful note taking assistant.
-You will be given a note and you will need to update the note based on the context and instructions you have. You can use a set of tools to help you manage the note and customize it to match the user's needs.
-
-This is a JSON representation of the note:
-\`\`\`json
-${JSON.stringify(note)}
-\`\`\`
-
-## RULES
-- Use the right tool depending on the task in hand.
-- Provide useful insights about the note and the changes you are making.
-- Ask for clarification if needed.
-- When generating content that includes diagrams, flowcharts, sequences, or graphs, use Mermaid syntax inside a mermaid code block (\`\`\`mermaid ... \`\`\`). Mermaid diagrams are fully supported and rendered in this note.
-- If the user asks for an image/visual inside the note, use appendGeneratedImageToNote. Do not ask the user to write a detailed generation prompt; craft it yourself from intent.
-- Choose image size based on user intent: portrait for vertical compositions, landscape for wide scenes, square for icons/avatars.
-
-          `}
-          functions={[
-            updateNoteContent,
-            updateColorTool,
-            updateTitleTool,
-            appendGeneratedImageToNoteTool,
-          ]}
+          systemPrompt={buildNoteAssistantSystemPrompt(note)}
         />
         <div
           style={{
