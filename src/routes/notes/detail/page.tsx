@@ -41,25 +41,35 @@ import {
   type TCoverJobMap,
 } from "../../../utils/imageJobs";
 import { getNotesAssistantModelSlug } from "../../../utils/aiConfigStorage";
+import {
+  clearNoteConversation,
+  getNoteConversation,
+  loadAllConversations,
+  removeConversationsForNote,
+  saveAllConversations,
+  saveNoteConversation,
+  withUpdatedSystemPrompt,
+} from "../../../utils/conversationsStorage";
 import { Textarea } from "../../../components/Textarea/Textarea";
 import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
 
 const Prompter = ({
+  noteId,
+  noteTitle,
   systemPrompt,
   functions,
   isOpen,
   onOpenChange,
   showTrigger = true,
-}: // onComplete,
-{
+}: {
+  noteId: string;
+  noteTitle?: string;
   systemPrompt: string;
-  // apiKey: string;
   functions: TTool[];
   isOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   showTrigger?: boolean;
-  // onComplete: (response: string) => void;
 }) => {
   const { t } = useTranslation();
   const auth = useStore(useShallow((state) => state.config.auth));
@@ -69,6 +79,8 @@ const Prompter = ({
   const [messages, setMessages] = useState<TMessage[]>([
     { role: "system", content: systemPrompt },
   ]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const isLoadingConversationRef = useRef(true);
   const [state, setState] = useState<{
     isGenerating: boolean;
     response: string;
@@ -80,20 +92,56 @@ const Prompter = ({
   });
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
   const generationLockRef = useRef(false);
+  const systemPromptRef = useRef(systemPrompt);
+  systemPromptRef.current = systemPrompt;
 
   useEffect(() => {
-    setMessages((prev) => {
-      const systemMessageIndex = prev.findIndex((m) => m.role === "system");
-      if (systemMessageIndex === -1) {
-        return [{ role: "system", content: systemPrompt }, ...prev];
+    let mounted = true;
+    isLoadingConversationRef.current = true;
+
+    void (async () => {
+      const all = await loadAllConversations();
+      const existing = getNoteConversation(all, noteId);
+      if (!mounted) return;
+
+      if (existing?.messages?.length) {
+        setMessages(
+          withUpdatedSystemPrompt(systemPromptRef.current, existing.messages)
+        );
+        setConversationId(existing.id);
+      } else {
+        setMessages([{ role: "system", content: systemPromptRef.current }]);
+        setConversationId(null);
       }
-      return prev.map((message, index) =>
-        index === systemMessageIndex
-          ? { ...message, content: systemPrompt }
-          : message
-      );
-    });
+      isLoadingConversationRef.current = false;
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [noteId]);
+
+  useEffect(() => {
+    if (isLoadingConversationRef.current) return;
+    setMessages((prev) => withUpdatedSystemPrompt(systemPrompt, prev));
   }, [systemPrompt]);
+
+  useEffect(() => {
+    if (isLoadingConversationRef.current) return;
+
+    const hasChatMessages = messages.some(
+      (message) => message.role === "user" || message.role === "assistant"
+    );
+    if (!hasChatMessages) return;
+
+    void (async () => {
+      const saved = await saveNoteConversation(noteId, messages, {
+        conversationId: conversationId ?? undefined,
+        title: noteTitle?.trim() || "Note chat",
+      });
+      setConversationId((prev) => (prev === saved.id ? prev : saved.id));
+    })();
+  }, [messages, noteId, noteTitle, conversationId]);
 
   const handleGenerate = async () => {
     if (generationLockRef.current) return;
@@ -152,6 +200,19 @@ const Prompter = ({
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }, [messages, chatContainer]);
 
+  const hasChatMessages = messages.some(
+    (message) => message.role === "user" || message.role === "assistant"
+  );
+
+  const startNewChat = async () => {
+    isLoadingConversationRef.current = true;
+    await clearNoteConversation(noteId);
+    setMessages([{ role: "system", content: systemPromptRef.current }]);
+    setConversationId(null);
+    setState((prev) => ({ ...prev, userMessage: "" }));
+    isLoadingConversationRef.current = false;
+  };
+
   return (
     <>
       {showTrigger && (
@@ -171,6 +232,24 @@ const Prompter = ({
             onClick={() => setIsOpen(false)}
           />
           <div className="prompter-container bg-gradient">
+            <div className="prompter-toolbar flex-row justify-end">
+              <Button
+                className="padding-5"
+                text={t("startNewNoteChat")}
+                svg={SVGS.plus}
+                onClick={startNewChat}
+                confirmations={
+                  hasChatMessages
+                    ? [
+                        {
+                          text: t("startNewNoteChatConfirm"),
+                          className: "bg-danger",
+                        },
+                      ]
+                    : []
+                }
+              />
+            </div>
             <div className="prompter-chat-messages" ref={setChatContainer}>
               {messages.map((message, index) => {
                 if (message.role === "system") return null;
@@ -629,6 +708,8 @@ ${noteContext}`;
     const newNotes = notes.filter((n) => n.id !== id);
     setNotes(newNotes);
     await ChromeStorageManager.add("notes", newNotes);
+    const allConversations = await loadAllConversations();
+    await saveAllConversations(removeConversationsForNote(allConversations, id!));
     const prevPage = (await ChromeStorageManager.get("prevPage")) || "/notes";
     cacheLocation(prevPage, "lastPage");
     navigate(prevPage);
@@ -767,6 +848,8 @@ ${noteContext}`;
         }
       >
         <Prompter
+          noteId={note.id}
+          noteTitle={note.title}
           showTrigger={false}
           isOpen={isPrompterOpen}
           onOpenChange={setIsPrompterOpen}

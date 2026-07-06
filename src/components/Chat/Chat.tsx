@@ -31,6 +31,14 @@ import {
 import { migrateTask } from "../../utils/tags";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel, TAIConfig } from "../../types";
+import {
+  createMainConversation,
+  deleteConversationsByIds,
+  getMainConversations,
+  loadAllConversations,
+  saveMainConversation,
+  updateConversationTitle,
+} from "../../utils/conversationsStorage";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
@@ -226,28 +234,24 @@ export const Chat = () => {
   };
 
   const createNewConversation = async () => {
-    const newConversation: TConversation = {
-      id: generateRandomId("conversation"),
-      messages: [],
-      title: "",
-      date: new Date().toISOString(),
-    };
+    const newConversation = createMainConversation();
     setConversation(newConversation);
     setMessages(defaultMessages);
   };
 
   const getConversations = async () => {
-    const conversations: TConversation[] = await ChromeStorageManager.get(
-      "conversations"
-    );
-    if (!Array.isArray(conversations)) {
+    const all = await loadAllConversations();
+    const mainConversations = getMainConversations(all);
+
+    if (mainConversations.length === 0) {
       setConversations([]);
       createNewConversation();
       return;
     }
-    setConversations(conversations);
 
-    const conversation = conversations.find((c) => c.messages.length <= 1);
+    setConversations(mainConversations);
+
+    const conversation = mainConversations.find((c) => c.messages.length <= 1);
     if (conversation) {
       setConversation(conversation);
     } else {
@@ -514,50 +518,28 @@ export const Chat = () => {
   };
 
   const saveConversation = async () => {
-    console.log("SAVING CONVERSATIONS");
-    
     if (!conversation) return;
 
-    const newConversations = conversations.map((c) =>
-      c.id === conversation.id
-        ? { ...c, ...conversation, messages: messages }
-        : c
-    );
-    let conversationIndex = newConversations.findIndex(
-      (c) => c.id === conversation.id
-    );
-    if (conversationIndex === -1) {
-      newConversations.push({ ...conversation, messages: messages });
-      conversationIndex = newConversations.length - 1;
-    }
+    let updatedConversation: TConversation = { ...conversation, messages };
 
-    setConversations(newConversations);
-
-    if (conversation && !Boolean(conversation.title) && messages.length >= 3) {
+    if (!conversation.title && messages.length >= 3) {
       const title = await generateConversationTitle(
         messages.map((m) => m.content).join("\n"),
         apiKey
       );
       if (title) {
-        newConversations[conversationIndex] = {
-          ...newConversations[conversationIndex],
-          title,
-        };
-        setConversations(newConversations);
-
-        await ChromeStorageManager.add("conversations", newConversations);
+        updatedConversation = { ...updatedConversation, title };
       }
-    } else {
-      await ChromeStorageManager.add("conversations", newConversations);
     }
+
+    const nextMain = await saveMainConversation(updatedConversation, messages);
+    setConversations(nextMain);
+    setConversation(updatedConversation);
   };
 
-  const deleteConversation = (conversation: TConversation) => {
-    const newConversations = conversations.filter(
-      (c) => c.id !== conversation.id
-    );
-    setConversations(newConversations);
-    ChromeStorageManager.add("conversations", newConversations);
+  const deleteConversation = async (conversation: TConversation) => {
+    const nextMain = await deleteConversationsByIds([conversation.id]);
+    setConversations(nextMain);
   };
 
   const loadConversation = (conversation: TConversation) => {
@@ -876,7 +858,7 @@ const History = ({
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const deleteSelected = () => {
+  const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
     const n = selectedIds.size;
     if (
@@ -886,9 +868,8 @@ const History = ({
     ) {
       return;
     }
-    const next = conversations.filter((c) => !selectedIds.has(c.id));
+    const next = await deleteConversationsByIds(selectedIds);
     setConversations(next);
-    void ChromeStorageManager.add("conversations", next);
     setSelectedIds(new Set());
     toast.success(
       t("bulkConversationsDeleted").replace("%s", String(n)),
@@ -957,15 +938,15 @@ const History = ({
                 <h3
                   contentEditable={true}
                   suppressContentEditableWarning={true}
-                  onBlur={(e) => {
+                  onBlur={async (e) => {
                     const newTitle = e.target.innerText;
                     if (!newTitle || newTitle === conversation.title) return;
 
+                    await updateConversationTitle(conversation.id, newTitle);
                     const newConversations = conversations.map((c) =>
                       c.id === conversation.id ? { ...c, title: newTitle } : c
                     );
                     setConversations(newConversations);
-                    ChromeStorageManager.add("conversations", newConversations);
                     toast.success(t("conversationSaved"), {
                       icon: "✅",
                     });

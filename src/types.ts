@@ -61,6 +61,8 @@ export type TConversation = {
   title: string;
   date: string;
   messages: TMessage[];
+  /** When set, this thread belongs to a note and is hidden from main Chat history. */
+  noteId?: string;
 };
 
 export type TSnaptie = {

@@ -156,6 +156,8 @@
     "tags-comma-hint": "Separa con comas. Las sugerencias provienen de notas, tareas, marcadores y formateadores.",
     "archived": "Archivado",
     "continueWithAI": "Continuar con AI",
+    "startNewNoteChat": "Empezar un chat nuevo",
+    "startNewNoteChatConfirm": "¿Empezar de nuevo? Esto borra el historial del chat de la nota.",
     "generateColorWithAI": "Generar color con AI",
     "generateColorDescription": "Generar un color para la nota usando AI",
     "execute": "Ejecutar",

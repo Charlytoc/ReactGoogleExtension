@@ -156,6 +156,8 @@
     "tags-comma-hint": "Separate with commas. Suggestions come from notes, tasks, bookmarks, and formatters.",
     "archived": "Archived",
     "continueWithAI": "Continue with AI",
+    "startNewNoteChat": "Start a new chat",
+    "startNewNoteChatConfirm": "Start over? This deletes the note chat history.",
     "generateColorWithAI": "Generate color with AI",
     "generateColorDescription": "Generate a color for the note using AI",
     "execute": "Execute",

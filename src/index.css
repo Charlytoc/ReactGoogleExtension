@@ -962,6 +962,10 @@ input:focus,
   gap: 10px;
 }
 
+.prompter-toolbar {
+  flex-shrink: 0;
+}
+
 .prompter-chat-messages {
   flex: 1;
   overflow-y: auto;
