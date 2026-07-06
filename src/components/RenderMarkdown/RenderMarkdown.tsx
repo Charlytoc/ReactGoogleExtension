@@ -1,4 +1,4 @@
-import { MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { createContext, MouseEvent, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import Markdown, { defaultUrlTransform } from "react-markdown";
@@ -97,6 +97,8 @@ type TOffsets = {
   start: number;
   end: number;
 };
+
+const InsideListItemContext = createContext(false);
 
 const getOffsets = (node: any): TOffsets | null => {
   const start = node?.position?.start?.offset;
@@ -993,34 +995,70 @@ const ListItemEditAsText = ({
   }
 
   return (
-    <li>
-      <div className="markdown-block-row">
-        <div className="markdown-block-content">
-          {children}
+    <InsideListItemContext.Provider value={true}>
+      <li>
+        <div className="markdown-block-row">
+          <div className="markdown-block-content">
+            {children}
+          </div>
+          <BlockActionBar
+            onEditText={() => openModal("edit-text")}
+            onEditAI={() => openModal("edit-ai")}
+            onEditImage={() => openModal("edit-image")}
+            onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+            confirmDelete={confirmDelete}
+            onCancelDelete={() => setConfirmDelete(false)}
+            onGenerateBlockImage={onGenerateBlockImage}
+            blockMarkdown={originalMarkdown}
+          />
+          <MarkdownBlockEditorModal
+            opened={isEditing}
+            originalMarkdown={originalMarkdown}
+            draftMarkdown={draftMarkdown}
+            onChange={setDraftMarkdown}
+            onSave={saveChanges}
+            onCancel={() => { setIsEditing(false); setConfirmDelete(false); }}
+            onDelete={deleteBlock}
+            onGenerateBlockImage={onGenerateBlockImage}
+            initialMode={initialMode}
+          />
         </div>
-        <BlockActionBar
-          onEditText={() => openModal("edit-text")}
-          onEditAI={() => openModal("edit-ai")}
-          onEditImage={() => openModal("edit-image")}
-          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-          confirmDelete={confirmDelete}
-          onCancelDelete={() => setConfirmDelete(false)}
-          onGenerateBlockImage={onGenerateBlockImage}
-          blockMarkdown={originalMarkdown}
-        />
-        <MarkdownBlockEditorModal
-          opened={isEditing}
-          originalMarkdown={originalMarkdown}
-          draftMarkdown={draftMarkdown}
-          onChange={setDraftMarkdown}
-          onSave={saveChanges}
-          onCancel={() => { setIsEditing(false); setConfirmDelete(false); }}
-          onDelete={deleteBlock}
-          onGenerateBlockImage={onGenerateBlockImage}
-          initialMode={initialMode}
-        />
-      </div>
-    </li>
+      </li>
+    </InsideListItemContext.Provider>
+  );
+};
+
+const MarkdownParagraph = ({
+  node,
+  children,
+  sourceMarkdown,
+  editableBlocks = false,
+  onBlockChange,
+  onGenerateBlockImage,
+}: {
+  node: any;
+  children: ReactNode;
+  sourceMarkdown: string;
+  editableBlocks?: boolean;
+  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
+}) => {
+  const insideListItem = useContext(InsideListItemContext);
+
+  if (insideListItem) {
+    return <p>{children}</p>;
+  }
+
+  return (
+    <BlockEditAsText
+      sourceMarkdown={sourceMarkdown}
+      node={node}
+      editableBlocks={editableBlocks}
+      onBlockChange={onBlockChange}
+      onGenerateBlockImage={onGenerateBlockImage}
+    >
+      <p>{children}</p>
+    </BlockEditAsText>
   );
 };
 
@@ -1118,16 +1156,24 @@ const CustomAnchor = ({
 const Tasky = ({
   node,
   sourceMarkdown,
+  editableBlocks = false,
   onBlockChange,
+  onGenerateBlockImage,
   children,
   className,
 }: {
   children?: ReactNode;
   node: any;
   sourceMarkdown: string;
+  editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
   className?: string;
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [initialMode, setInitialMode] = useState<TBlockEditorMode>("edit-text");
+  const [draftMarkdown, setDraftMarkdown] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const offsets = getOffsets(node);
   const originalSlice =
     offsets != null ? getNodeTextFromOffsets(sourceMarkdown, node) : "";
@@ -1143,35 +1189,94 @@ const Tasky = ({
 
   const isChecked = overrideChecked ?? astChecked;
 
-  return (
-    <li className={className}>
-      <div className="flex-row align-start gap-5">
-        <input
-          className="checkbox"
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => {
-            const next = e.target.checked;
-            setOverrideChecked(next);
-            if (onBlockChange && offsets && originalSlice) {
-              const updated = replaceTaskCheckboxInListItemSource(originalSlice, next);
-              if (updated !== originalSlice) {
-                onBlockChange(offsets, updated);
-              } else {
-                setOverrideChecked(null);
-              }
+  const openModal = (mode: TBlockEditorMode) => {
+    setDraftMarkdown(originalSlice);
+    setInitialMode(mode);
+    setIsEditing(true);
+  };
+
+  const saveChanges = (overrideValue?: string) => {
+    if (!offsets) return;
+    onBlockChange?.(offsets, overrideValue ?? draftMarkdown);
+    setIsEditing(false);
+  };
+
+  const deleteBlock = () => {
+    if (!offsets) return;
+    onBlockChange?.(offsets, "");
+    setDraftMarkdown("");
+    setIsEditing(false);
+    setConfirmDelete(false);
+  };
+
+  const taskBody = (
+    <div className="flex-row align-start gap-5">
+      <input
+        className="checkbox"
+        type="checkbox"
+        checked={isChecked}
+        onChange={(e) => {
+          const next = e.target.checked;
+          setOverrideChecked(next);
+          if (onBlockChange && offsets && originalSlice) {
+            const updated = replaceTaskCheckboxInListItemSource(originalSlice, next);
+            if (updated !== originalSlice) {
+              onBlockChange(offsets, updated);
+            } else {
+              setOverrideChecked(null);
             }
-          }}
-        />
-        <div
-          className="task-list-item-body"
-          data-checked={isChecked ? "true" : "false"}
-          style={{ flex: 1, minWidth: 0 }}
-        >
-          {children}
-        </div>
+          }
+        }}
+      />
+      <div
+        className="task-list-item-body"
+        data-checked={isChecked ? "true" : "false"}
+        style={{ flex: 1, minWidth: 0 }}
+      >
+        {children}
       </div>
-    </li>
+    </div>
+  );
+
+  if (!editableBlocks || !offsets) {
+    return (
+      <InsideListItemContext.Provider value={true}>
+        <li className={className}>{taskBody}</li>
+      </InsideListItemContext.Provider>
+    );
+  }
+
+  return (
+    <InsideListItemContext.Provider value={true}>
+      <li className={className}>
+        <div className="markdown-block-row">
+          <div className="markdown-block-content">
+            {taskBody}
+          </div>
+          <BlockActionBar
+            onEditText={() => openModal("edit-text")}
+            onEditAI={() => openModal("edit-ai")}
+            onEditImage={() => openModal("edit-image")}
+            onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+            confirmDelete={confirmDelete}
+            onCancelDelete={() => setConfirmDelete(false)}
+            onGenerateBlockImage={onGenerateBlockImage}
+            blockMarkdown={originalSlice}
+          />
+          <MarkdownBlockEditorModal
+            opened={isEditing}
+            originalMarkdown={originalSlice}
+            draftMarkdown={draftMarkdown}
+            onChange={setDraftMarkdown}
+            onSave={saveChanges}
+            onCancel={() => { setIsEditing(false); setConfirmDelete(false); }}
+            onDelete={deleteBlock}
+            onGenerateBlockImage={onGenerateBlockImage}
+            initialMode={initialMode}
+          />
+        </div>
+      </li>
+    </InsideListItemContext.Provider>
   );
 };
 
@@ -1444,7 +1549,9 @@ export const RenderMarkdown = ({
                 className={stringifyLiClassName(props.className)}
                 node={props.node}
                 sourceMarkdown={markdown}
+                editableBlocks={editableBlocks}
                 onBlockChange={onBlockChange}
+                onGenerateBlockImage={onGenerateBlockImage}
               >
                 {props.children}
               </Tasky>
@@ -1462,19 +1569,17 @@ export const RenderMarkdown = ({
             </ListItemEditAsText>
           );
         },
-        p: (props) => {
-          return (
-            <BlockEditAsText
-              sourceMarkdown={markdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <p>{props.children}</p>
-            </BlockEditAsText>
-          );
-        },
+        p: (props) => (
+          <MarkdownParagraph
+            node={props.node}
+            sourceMarkdown={markdown}
+            editableBlocks={editableBlocks}
+            onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
+          >
+            {props.children}
+          </MarkdownParagraph>
+        ),
         h1: (props) => (
           <BlockEditAsText
             sourceMarkdown={markdown}

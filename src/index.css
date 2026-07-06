@@ -365,12 +365,20 @@ button:focus-visible {
     margin-top: -28px;
   }
 
-  & .markdown-block-row:first-child {
+  & > .markdown-block-row:first-child {
     margin-top: 0;
   }
 
   & .markdown-block-row:hover {
     z-index: 6;
+  }
+
+  & li > .markdown-block-row {
+    margin-top: -28px;
+  }
+
+  & li:first-child > .markdown-block-row {
+    margin-top: 0;
   }
 
   & .markdown-block-content {
@@ -566,9 +574,12 @@ button:focus-visible {
   & ol {
     margin-left: 20px;
     padding-left: 20px;
+    overflow: visible;
   }
 
   & li {
+    position: relative;
+    overflow: visible;
     list-style-position: outside;
 
     &::marker {
