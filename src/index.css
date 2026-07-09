@@ -369,8 +369,23 @@ button:focus-visible {
     margin-top: 0;
   }
 
-  & .markdown-block-row:hover {
+  & .markdown-block-row:hover,
+  & .markdown-block-row--editing {
     z-index: 6;
+  }
+
+  & .markdown-block-row--editing .markdown-block-actions {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  & .markdown-inline-text-editor {
+    width: 100%;
+  }
+
+  & .markdown-inline-text-editor textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    line-height: 1.5;
   }
 
   & li > .markdown-block-row {
