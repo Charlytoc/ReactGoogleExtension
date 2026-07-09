@@ -889,9 +889,9 @@ const BlockActionBar = ({
   onGenerateBlockImage,
   blockMarkdown,
 }: {
-  onEditText: () => void;
-  onEditAI: () => void;
-  onEditImage: () => void;
+  onEditText?: () => void;
+  onEditAI?: () => void;
+  onEditImage?: () => void;
   onDelete: () => void;
   confirmDelete: boolean;
   onCancelDelete: () => void;
@@ -899,6 +899,48 @@ const BlockActionBar = ({
   blockMarkdown: string;
 }) => {
   const { t } = useTranslation();
+  const barRef = useRef<HTMLDivElement>(null);
+  const [isRowHovered, setIsRowHovered] = useState(false);
+
+  useEffect(() => {
+    const row = barRef.current?.closest(".markdown-block-row");
+    if (!row) return;
+
+    const onEnter = () => setIsRowHovered(true);
+    const onLeave = () => setIsRowHovered(false);
+    row.addEventListener("mouseenter", onEnter);
+    row.addEventListener("mouseleave", onLeave);
+    return () => {
+      row.removeEventListener("mouseenter", onEnter);
+      row.removeEventListener("mouseleave", onLeave);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!confirmDelete && !isRowHovered) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("textarea, input, [contenteditable='true']")) {
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete();
+        return;
+      }
+      if (confirmDelete && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCancelDelete();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [confirmDelete, isRowHovered, onDelete, onCancelDelete]);
 
   const copyBlock = () => {
     void navigator.clipboard.writeText(blockMarkdown).then(() => {
@@ -932,7 +974,10 @@ const BlockActionBar = ({
     }
   };
   return (
-    <div className="markdown-block-actions">
+    <div
+      ref={barRef}
+      className={`markdown-block-actions${confirmDelete ? " markdown-block-actions--confirming" : ""}`}
+    >
       {confirmDelete ? (
         <>
           <Tooltip label={t("sure?")} withArrow openDelay={150} position="top">
@@ -960,29 +1005,33 @@ const BlockActionBar = ({
         </>
       ) : (
         <>
-          <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="gray"
-              onClick={onEditText}
-              aria-label={t("editAsText")}
-            >
-              {SVGS.edit}
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label={t("editWithAI")} withArrow openDelay={400} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="grape"
-              onClick={onEditAI}
-              aria-label={t("editWithAI")}
-            >
-              {SVGS.ai}
-            </ActionIcon>
-          </Tooltip>
-          {onGenerateBlockImage && (
+          {onEditText && (
+            <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="gray"
+                onClick={onEditText}
+                aria-label={t("editAsText")}
+              >
+                {SVGS.edit}
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {onEditAI && (
+            <Tooltip label={t("editWithAI")} withArrow openDelay={400} position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="grape"
+                onClick={onEditAI}
+                aria-label={t("editWithAI")}
+              >
+                {SVGS.ai}
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {onEditImage && onGenerateBlockImage && (
             <Tooltip label={t("generateImage")} withArrow openDelay={400} position="top">
               <ActionIcon
                 size="sm"
@@ -1154,6 +1203,56 @@ const BlockEditAsText = ({
         onGenerateBlockImage={onGenerateBlockImage}
         initialMode={modalMode ?? "edit-ai"}
       />
+    </div>
+  );
+};
+
+const HorizontalRuleBlock = ({
+  sourceMarkdown,
+  node,
+  editableBlocks = false,
+  onBlockChange,
+}: {
+  sourceMarkdown: string;
+  node: any;
+  editableBlocks?: boolean;
+  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+}) => {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const offsets = getOffsets(node);
+  const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
+
+  const deleteBlock = () => {
+    if (!offsets) return;
+    onBlockChange?.(offsets, "");
+    setConfirmDelete(false);
+  };
+
+  if (!editableBlocks || !offsets) {
+    return <hr />;
+  }
+
+  const showInsertZone =
+    onBlockChange != null && offsets.end < sourceMarkdown.length;
+
+  return (
+    <div className="markdown-block-row">
+      <div className="markdown-block-content">
+        <hr />
+      </div>
+      <BlockActionBar
+        onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+        confirmDelete={confirmDelete}
+        onCancelDelete={() => setConfirmDelete(false)}
+        blockMarkdown={originalMarkdown}
+      />
+      {showInsertZone && (
+        <MarkdownInsertZone
+          sourceMarkdown={sourceMarkdown}
+          insertAt={offsets.end}
+          onBlockChange={onBlockChange}
+        />
+      )}
     </div>
   );
 };
@@ -1949,6 +2048,14 @@ const RenderMarkdownBody = ({
             >
               <blockquote>{props.children}</blockquote>
             </BlockEditAsText>
+          ),
+          hr: (props) => (
+            <HorizontalRuleBlock
+              sourceMarkdown={displayMarkdown}
+              node={props.node}
+              editableBlocks={editableBlocks}
+              onBlockChange={onBlockChange}
+            />
           ),
         }}
         remarkPlugins={[remarkGfm]}

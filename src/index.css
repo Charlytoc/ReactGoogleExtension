@@ -422,7 +422,8 @@ button:focus-visible {
 
   & .markdown-block-row:hover .markdown-block-actions,
   & .markdown-block-actions:hover,
-  & .markdown-block-actions:focus-within {
+  & .markdown-block-actions:focus-within,
+  & .markdown-block-actions--confirming {
     opacity: 1;
     pointer-events: auto;
   }
