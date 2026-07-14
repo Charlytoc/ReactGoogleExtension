@@ -370,8 +370,26 @@ button:focus-visible {
   }
 
   & .markdown-block-row:hover,
-  & .markdown-block-row--editing {
+  & .markdown-block-row--editing,
+  & .markdown-block-row:focus-within,
+  & .markdown-block-row--confirming {
     z-index: 6;
+  }
+
+  & .markdown-block-row:focus-visible {
+    outline: 1px solid var(--active-color);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  & .markdown-block-row:hover .markdown-block-actions,
+  & .markdown-block-row:focus-within .markdown-block-actions,
+  & .markdown-block-actions:hover,
+  & .markdown-block-actions:focus-within,
+  & .markdown-block-actions--confirming,
+  & .markdown-block-row--confirming .markdown-block-actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   & .markdown-block-row--editing .markdown-block-actions {
@@ -396,6 +414,16 @@ button:focus-visible {
     margin-top: 0;
   }
 
+  /* Task rows must not overlap the previous item or its checkbox becomes unclickable. */
+  & li.task-list-item > .markdown-block-row {
+    margin-top: 0;
+  }
+
+  & li.task-list-item .checkbox {
+    position: relative;
+    z-index: 1;
+  }
+
   & .markdown-block-content {
     min-width: 0;
   }
@@ -418,14 +446,6 @@ button:focus-visible {
     padding: 2px 3px;
     z-index: 5;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  }
-
-  & .markdown-block-row:hover .markdown-block-actions,
-  & .markdown-block-actions:hover,
-  & .markdown-block-actions:focus-within,
-  & .markdown-block-actions--confirming {
-    opacity: 1;
-    pointer-events: auto;
   }
 
   & .markdown-block-actions-divider {

@@ -899,48 +899,6 @@ const BlockActionBar = ({
   blockMarkdown: string;
 }) => {
   const { t } = useTranslation();
-  const barRef = useRef<HTMLDivElement>(null);
-  const [isRowHovered, setIsRowHovered] = useState(false);
-
-  useEffect(() => {
-    const row = barRef.current?.closest(".markdown-block-row");
-    if (!row) return;
-
-    const onEnter = () => setIsRowHovered(true);
-    const onLeave = () => setIsRowHovered(false);
-    row.addEventListener("mouseenter", onEnter);
-    row.addEventListener("mouseleave", onLeave);
-    return () => {
-      row.removeEventListener("mouseenter", onEnter);
-      row.removeEventListener("mouseleave", onLeave);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!confirmDelete && !isRowHovered) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("textarea, input, [contenteditable='true']")) {
-        return;
-      }
-
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        e.stopPropagation();
-        onDelete();
-        return;
-      }
-      if (confirmDelete && e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onCancelDelete();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [confirmDelete, isRowHovered, onDelete, onCancelDelete]);
 
   const copyBlock = () => {
     void navigator.clipboard.writeText(blockMarkdown).then(() => {
@@ -975,7 +933,6 @@ const BlockActionBar = ({
   };
   return (
     <div
-      ref={barRef}
       className={`markdown-block-actions${confirmDelete ? " markdown-block-actions--confirming" : ""}`}
     >
       {confirmDelete ? (
@@ -985,6 +942,7 @@ const BlockActionBar = ({
               size="sm"
               variant="subtle"
               color="red"
+              tabIndex={-1}
               onClick={onDelete}
               aria-label={t("sure?")}
             >
@@ -996,6 +954,7 @@ const BlockActionBar = ({
               size="sm"
               variant="subtle"
               color="gray"
+              tabIndex={-1}
               onClick={onCancelDelete}
               aria-label={t("goBack")}
             >
@@ -1011,6 +970,7 @@ const BlockActionBar = ({
                 size="sm"
                 variant="subtle"
                 color="gray"
+                tabIndex={-1}
                 onClick={onEditText}
                 aria-label={t("editAsText")}
               >
@@ -1024,6 +984,7 @@ const BlockActionBar = ({
                 size="sm"
                 variant="subtle"
                 color="grape"
+                tabIndex={-1}
                 onClick={onEditAI}
                 aria-label={t("editWithAI")}
               >
@@ -1037,6 +998,7 @@ const BlockActionBar = ({
                 size="sm"
                 variant="subtle"
                 color="blue"
+                tabIndex={-1}
                 onClick={onEditImage}
                 aria-label={t("generateImage")}
               >
@@ -1049,6 +1011,7 @@ const BlockActionBar = ({
               size="sm"
               variant="subtle"
               color="gray"
+              tabIndex={-1}
               onClick={copyBlock}
               aria-label={t("copyCode")}
             >
@@ -1066,6 +1029,7 @@ const BlockActionBar = ({
                 size="sm"
                 variant="subtle"
                 color="gray"
+                tabIndex={-1}
                 onClick={() => void downloadBlockImages()}
                 aria-label={t("downloadImage")}
               >
@@ -1079,6 +1043,7 @@ const BlockActionBar = ({
               size="sm"
               variant="subtle"
               color="red"
+              tabIndex={-1}
               onClick={onDelete}
               aria-label={t("delete")}
             >
@@ -1087,6 +1052,126 @@ const BlockActionBar = ({
           </Tooltip>
         </>
       )}
+    </div>
+  );
+};
+
+const EditableBlockShell = ({
+  isEditing = false,
+  confirmDelete,
+  onEditText,
+  onRequestDelete,
+  onConfirmDelete,
+  onCancelDelete,
+  ariaLabel,
+  children,
+  actions,
+  insertZone,
+  modal,
+}: {
+  isEditing?: boolean;
+  confirmDelete: boolean;
+  onEditText?: () => void;
+  onRequestDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+  actions?: ReactNode;
+  insertZone?: ReactNode;
+  modal?: ReactNode;
+}) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isEditing) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("textarea, input:not(.checkbox), [contenteditable='true']")) {
+        return;
+      }
+
+      const row = rowRef.current;
+      if (!row) return;
+
+      const active = document.activeElement;
+      const rowIsFocused = active === row || (active != null && row.contains(active));
+      const rowIsHovered = isHovered;
+      if (!rowIsFocused && !rowIsHovered && !confirmDelete) return;
+      // If confirming, only this confirming row should handle keys.
+      if (confirmDelete && !row.classList.contains("markdown-block-row--confirming")) {
+        return;
+      }
+      if (!confirmDelete && !rowIsFocused && !rowIsHovered) return;
+
+      if ((e.key === "Enter" || e.key === " ") && onEditText && !confirmDelete) {
+        if (e.key === " " && target?.closest("input.checkbox")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onEditText();
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirmDelete) {
+          onConfirmDelete();
+        } else {
+          onRequestDelete();
+        }
+        return;
+      }
+
+      if (confirmDelete && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCancelDelete();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [
+    isEditing,
+    confirmDelete,
+    isHovered,
+    isFocused,
+    onEditText,
+    onRequestDelete,
+    onConfirmDelete,
+    onCancelDelete,
+  ]);
+
+  return (
+    <div
+      ref={rowRef}
+      className={`markdown-block-row${isEditing ? " markdown-block-row--editing" : ""}${
+        confirmDelete ? " markdown-block-row--confirming" : ""
+      }`}
+      tabIndex={isEditing ? -1 : 0}
+      role="group"
+      aria-label={ariaLabel}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        if (!isFocused) onCancelDelete();
+      }}
+      onFocus={() => setIsFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setIsFocused(false);
+          onCancelDelete();
+        }
+      }}
+    >
+      <div className="markdown-block-content">{children}</div>
+      {!isEditing && actions}
+      {!isEditing && insertZone}
+      {modal}
     </div>
   );
 };
@@ -1106,6 +1191,7 @@ const BlockEditAsText = ({
   onGenerateBlockImage?: TGenerateBlockImage;
   children: ReactNode;
 }) => {
+  const { t } = useTranslation();
   const inlineEdit = useActiveInlineEdit();
   const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
   const [draftMarkdown, setDraftMarkdown] = useState("");
@@ -1124,6 +1210,7 @@ const BlockEditAsText = ({
 
   const openInlineEdit = () => {
     if (!offsets || !inlineEdit) return;
+    setConfirmDelete(false);
     inlineEdit.startEdit(
       offsets.start,
       offsets.end,
@@ -1157,19 +1244,15 @@ const BlockEditAsText = ({
     onBlockChange != null && offsets.end < sourceMarkdown.length;
 
   return (
-    <div className={`markdown-block-row${isEditingText ? " markdown-block-row--editing" : ""}`}>
-      <div className="markdown-block-content">
-        {isEditingText && inlineEdit?.session ? (
-          <InlineBlockTextEditor
-            initialDraft={originalMarkdown}
-            onFinish={inlineEdit.finish}
-            onCancel={inlineEdit.cancel}
-          />
-        ) : (
-          children
-        )}
-      </div>
-      {!isEditingText && (
+    <EditableBlockShell
+      isEditing={isEditingText}
+      confirmDelete={confirmDelete}
+      onEditText={openInlineEdit}
+      onRequestDelete={() => setConfirmDelete(true)}
+      onConfirmDelete={deleteBlock}
+      onCancelDelete={() => setConfirmDelete(false)}
+      ariaLabel={t("editAsText")}
+      actions={
         <BlockActionBar
           onEditText={openInlineEdit}
           onEditAI={() => openModal("edit-ai")}
@@ -1180,30 +1263,44 @@ const BlockEditAsText = ({
           onGenerateBlockImage={onGenerateBlockImage}
           blockMarkdown={originalMarkdown}
         />
-      )}
-      {showInsertZone && !isEditingText && (
-        <MarkdownInsertZone
-          sourceMarkdown={sourceMarkdown}
-          insertAt={offsets.end}
-          onBlockChange={onBlockChange}
+      }
+      insertZone={
+        showInsertZone ? (
+          <MarkdownInsertZone
+            sourceMarkdown={sourceMarkdown}
+            insertAt={offsets.end}
+            onBlockChange={onBlockChange}
+            onGenerateBlockImage={onGenerateBlockImage}
+          />
+        ) : null
+      }
+      modal={
+        <MarkdownBlockEditorModal
+          opened={modalMode != null}
+          originalMarkdown={originalMarkdown}
+          draftMarkdown={draftMarkdown}
+          onChange={setDraftMarkdown}
+          onSave={saveModalChanges}
+          onCancel={() => {
+            setModalMode(null);
+            setConfirmDelete(false);
+          }}
+          onDelete={deleteBlock}
           onGenerateBlockImage={onGenerateBlockImage}
+          initialMode={modalMode ?? "edit-ai"}
         />
+      }
+    >
+      {isEditingText && inlineEdit?.session ? (
+        <InlineBlockTextEditor
+          initialDraft={originalMarkdown}
+          onFinish={inlineEdit.finish}
+          onCancel={inlineEdit.cancel}
+        />
+      ) : (
+        children
       )}
-      <MarkdownBlockEditorModal
-        opened={modalMode != null}
-        originalMarkdown={originalMarkdown}
-        draftMarkdown={draftMarkdown}
-        onChange={setDraftMarkdown}
-        onSave={saveModalChanges}
-        onCancel={() => {
-          setModalMode(null);
-          setConfirmDelete(false);
-        }}
-        onDelete={deleteBlock}
-        onGenerateBlockImage={onGenerateBlockImage}
-        initialMode={modalMode ?? "edit-ai"}
-      />
-    </div>
+    </EditableBlockShell>
   );
 };
 
@@ -1218,6 +1315,7 @@ const HorizontalRuleBlock = ({
   editableBlocks?: boolean;
   onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
 }) => {
+  const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const offsets = getOffsets(node);
   const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
@@ -1236,24 +1334,32 @@ const HorizontalRuleBlock = ({
     onBlockChange != null && offsets.end < sourceMarkdown.length;
 
   return (
-    <div className="markdown-block-row">
-      <div className="markdown-block-content">
-        <hr />
-      </div>
-      <BlockActionBar
-        onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-        confirmDelete={confirmDelete}
-        onCancelDelete={() => setConfirmDelete(false)}
-        blockMarkdown={originalMarkdown}
-      />
-      {showInsertZone && (
-        <MarkdownInsertZone
-          sourceMarkdown={sourceMarkdown}
-          insertAt={offsets.end}
-          onBlockChange={onBlockChange}
+    <EditableBlockShell
+      confirmDelete={confirmDelete}
+      onRequestDelete={() => setConfirmDelete(true)}
+      onConfirmDelete={deleteBlock}
+      onCancelDelete={() => setConfirmDelete(false)}
+      ariaLabel={t("delete")}
+      actions={
+        <BlockActionBar
+          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+          confirmDelete={confirmDelete}
+          onCancelDelete={() => setConfirmDelete(false)}
+          blockMarkdown={originalMarkdown}
         />
-      )}
-    </div>
+      }
+      insertZone={
+        showInsertZone ? (
+          <MarkdownInsertZone
+            sourceMarkdown={sourceMarkdown}
+            insertAt={offsets.end}
+            onBlockChange={onBlockChange}
+          />
+        ) : null
+      }
+    >
+      <hr />
+    </EditableBlockShell>
   );
 };
 
@@ -1272,6 +1378,7 @@ const ListItemEditAsText = ({
   onGenerateBlockImage?: TGenerateBlockImage;
   children: ReactNode;
 }) => {
+  const { t } = useTranslation();
   const inlineEdit = useActiveInlineEdit();
   const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
   const [draftMarkdown, setDraftMarkdown] = useState("");
@@ -1290,6 +1397,7 @@ const ListItemEditAsText = ({
 
   const openInlineEdit = () => {
     if (!offsets || !inlineEdit) return;
+    setConfirmDelete(false);
     inlineEdit.startEdit(
       offsets.start,
       offsets.end,
@@ -1322,19 +1430,15 @@ const ListItemEditAsText = ({
   return (
     <InsideListItemContext.Provider value={true}>
       <li>
-        <div className={`markdown-block-row${isEditingText ? " markdown-block-row--editing" : ""}`}>
-          <div className="markdown-block-content">
-            {isEditingText && inlineEdit?.session ? (
-              <InlineBlockTextEditor
-                initialDraft={originalMarkdown}
-                onFinish={inlineEdit.finish}
-                onCancel={inlineEdit.cancel}
-              />
-            ) : (
-              children
-            )}
-          </div>
-          {!isEditingText && (
+        <EditableBlockShell
+          isEditing={isEditingText}
+          confirmDelete={confirmDelete}
+          onEditText={openInlineEdit}
+          onRequestDelete={() => setConfirmDelete(true)}
+          onConfirmDelete={deleteBlock}
+          onCancelDelete={() => setConfirmDelete(false)}
+          ariaLabel={t("editAsText")}
+          actions={
             <BlockActionBar
               onEditText={openInlineEdit}
               onEditAI={() => openModal("edit-ai")}
@@ -1345,22 +1449,34 @@ const ListItemEditAsText = ({
               onGenerateBlockImage={onGenerateBlockImage}
               blockMarkdown={originalMarkdown}
             />
+          }
+          modal={
+            <MarkdownBlockEditorModal
+              opened={modalMode != null}
+              originalMarkdown={originalMarkdown}
+              draftMarkdown={draftMarkdown}
+              onChange={setDraftMarkdown}
+              onSave={saveModalChanges}
+              onCancel={() => {
+                setModalMode(null);
+                setConfirmDelete(false);
+              }}
+              onDelete={deleteBlock}
+              onGenerateBlockImage={onGenerateBlockImage}
+              initialMode={modalMode ?? "edit-ai"}
+            />
+          }
+        >
+          {isEditingText && inlineEdit?.session ? (
+            <InlineBlockTextEditor
+              initialDraft={originalMarkdown}
+              onFinish={inlineEdit.finish}
+              onCancel={inlineEdit.cancel}
+            />
+          ) : (
+            children
           )}
-          <MarkdownBlockEditorModal
-            opened={modalMode != null}
-            originalMarkdown={originalMarkdown}
-            draftMarkdown={draftMarkdown}
-            onChange={setDraftMarkdown}
-            onSave={saveModalChanges}
-            onCancel={() => {
-              setModalMode(null);
-              setConfirmDelete(false);
-            }}
-            onDelete={deleteBlock}
-            onGenerateBlockImage={onGenerateBlockImage}
-            initialMode={modalMode ?? "edit-ai"}
-          />
-        </div>
+        </EditableBlockShell>
       </li>
     </InsideListItemContext.Provider>
   );
@@ -1508,6 +1624,7 @@ const Tasky = ({
   onGenerateBlockImage?: TGenerateBlockImage;
   className?: string;
 }) => {
+  const { t } = useTranslation();
   const inlineEdit = useActiveInlineEdit();
   const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
   const [draftMarkdown, setDraftMarkdown] = useState("");
@@ -1538,6 +1655,7 @@ const Tasky = ({
 
   const openInlineEdit = () => {
     if (!offsets || !inlineEdit) return;
+    setConfirmDelete(false);
     inlineEdit.startEdit(
       offsets.start,
       offsets.end,
@@ -1568,7 +1686,10 @@ const Tasky = ({
       <input
         className="checkbox"
         type="checkbox"
+        tabIndex={-1}
         checked={isChecked}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
           const next = e.target.checked;
           setOverrideChecked(next);
@@ -1603,19 +1724,15 @@ const Tasky = ({
   return (
     <InsideListItemContext.Provider value={true}>
       <li className={className}>
-        <div className={`markdown-block-row${isEditingText ? " markdown-block-row--editing" : ""}`}>
-          <div className="markdown-block-content">
-            {isEditingText && inlineEdit?.session ? (
-              <InlineBlockTextEditor
-                initialDraft={originalSlice}
-                onFinish={inlineEdit.finish}
-                onCancel={inlineEdit.cancel}
-              />
-            ) : (
-              taskBody
-            )}
-          </div>
-          {!isEditingText && (
+        <EditableBlockShell
+          isEditing={isEditingText}
+          confirmDelete={confirmDelete}
+          onEditText={openInlineEdit}
+          onRequestDelete={() => setConfirmDelete(true)}
+          onConfirmDelete={deleteBlock}
+          onCancelDelete={() => setConfirmDelete(false)}
+          ariaLabel={t("editAsText")}
+          actions={
             <BlockActionBar
               onEditText={openInlineEdit}
               onEditAI={() => openModal("edit-ai")}
@@ -1626,22 +1743,34 @@ const Tasky = ({
               onGenerateBlockImage={onGenerateBlockImage}
               blockMarkdown={originalSlice}
             />
+          }
+          modal={
+            <MarkdownBlockEditorModal
+              opened={modalMode != null}
+              originalMarkdown={originalSlice}
+              draftMarkdown={draftMarkdown}
+              onChange={setDraftMarkdown}
+              onSave={saveModalChanges}
+              onCancel={() => {
+                setModalMode(null);
+                setConfirmDelete(false);
+              }}
+              onDelete={deleteBlock}
+              onGenerateBlockImage={onGenerateBlockImage}
+              initialMode={modalMode ?? "edit-ai"}
+            />
+          }
+        >
+          {isEditingText && inlineEdit?.session ? (
+            <InlineBlockTextEditor
+              initialDraft={originalSlice}
+              onFinish={inlineEdit.finish}
+              onCancel={inlineEdit.cancel}
+            />
+          ) : (
+            taskBody
           )}
-          <MarkdownBlockEditorModal
-            opened={modalMode != null}
-            originalMarkdown={originalSlice}
-            draftMarkdown={draftMarkdown}
-            onChange={setDraftMarkdown}
-            onSave={saveModalChanges}
-            onCancel={() => {
-              setModalMode(null);
-              setConfirmDelete(false);
-            }}
-            onDelete={deleteBlock}
-            onGenerateBlockImage={onGenerateBlockImage}
-            initialMode={modalMode ?? "edit-ai"}
-          />
-        </div>
+        </EditableBlockShell>
       </li>
     </InsideListItemContext.Provider>
   );
