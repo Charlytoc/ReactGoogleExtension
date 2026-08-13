@@ -247,7 +247,12 @@ export default function FormatterDetail() {
   return (
     <Section
       className="bg-gradient"
-      headerLeft={<h3 className="font-mono">{mode === "edit" ? t("edit") : "Run"}</h3>}
+      headerLeft={
+        <h3 className="font-mono">
+          {formatter?.title?.trim() ||
+            (mode === "edit" ? t("edit") : "Untitled")}
+        </h3>
+      }
       headerRight={
         <Button
           onClick={() =>
@@ -342,7 +347,9 @@ export default function FormatterDetail() {
 
           {mode === "run" && (
           <div className="flex-column gap-5">
-            <h4 className="font-mono">Run</h4>
+            <h4 className="font-mono">
+              {formatter?.title?.trim() || "Untitled"}
+            </h4>
             <p className="text-sm text-gray-400">
               {variables.length === 0
                 ? t("formatterRunNoVariables")
