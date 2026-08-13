@@ -1,4 +1,8 @@
 import type { TFormatter, TNote, TSnaptie, TTask } from "../types";
+import {
+  formatterInputsFromPrompt,
+  migrateLegacyFormatterPrompt,
+} from "./promptVariables";
 
 export function normalizeTag(s: string): string {
   return s.trim();
@@ -103,12 +107,11 @@ export function migrateFormatter(raw: unknown): TFormatter {
   const o = raw as LegacyRecord;
   const id = String(o.id ?? "");
   const title = String(o.title ?? "");
-  const description =
-    o.description != null && typeof o.description === "string"
-      ? o.description
-      : undefined;
-  const inputs = Array.isArray(o.inputs) ? (o.inputs as TFormatter["inputs"]) : [];
-  const prompt = String(o.prompt ?? "");
+  const rawInputs = Array.isArray(o.inputs)
+    ? (o.inputs as TFormatter["inputs"])
+    : [];
+  const prompt = migrateLegacyFormatterPrompt(String(o.prompt ?? ""), rawInputs);
+  const inputs = formatterInputsFromPrompt(prompt, rawInputs);
   const createdAt = String(o.createdAt ?? new Date().toISOString());
   const updatedAt =
     o.updatedAt != null && typeof o.updatedAt === "string" ? o.updatedAt : undefined;
@@ -128,7 +131,6 @@ export function migrateFormatter(raw: unknown): TFormatter {
   return {
     id,
     title,
-    description,
     inputs,
     prompt,
     createdAt,

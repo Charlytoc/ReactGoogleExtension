@@ -109,6 +109,9 @@ export default function Config() {
   const [notesAssistantModel, setNotesAssistantModel] = useState<TModel>(
     () => createDefaultAiConfig().notesAssistantModel!
   );
+  const [formatterModel, setFormatterModel] = useState<TModel>(
+    () => createDefaultAiConfig().formatterModel!
+  );
   const [availableModels, setAvailableModels] = useState<TModel[]>([]);
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
@@ -133,6 +136,9 @@ export default function Config() {
     const aiConfig = await getAiConfig();
     if (aiConfig.notesAssistantModel) {
       setNotesAssistantModel(aiConfig.notesAssistantModel);
+    }
+    if (aiConfig.formatterModel) {
+      setFormatterModel(aiConfig.formatterModel);
     }
 
     if (apiKey) {
@@ -223,6 +229,33 @@ export default function Config() {
               onChange={(value) => {
                 const model = availableModels.find((m) => m.slug === value);
                 setNotesAssistantModel(model ?? modelFromSlug(value));
+              }}
+            />
+          </div>
+        <div className="flex-column gap-5">
+            <label className="color-secondary text-left" htmlFor="formatterModel">
+              {t("formatterModel")}
+            </label>
+            <span className="color-secondary text-left text-sm">
+              {t("formatterModelDescription")}
+            </span>
+            <Select
+              name="formatterModel"
+              id="formatterModel"
+              options={
+                availableModels.length > 0
+                  ? availableModels.map((m) => ({ label: m.name, value: m.slug }))
+                  : [
+                      {
+                        label: formatterModel.name,
+                        value: formatterModel.slug,
+                      },
+                    ]
+              }
+              defaultValue={formatterModel.slug}
+              onChange={(value) => {
+                const model = availableModels.find((m) => m.slug === value);
+                setFormatterModel(model ?? modelFromSlug(value));
               }}
             />
           </div>
@@ -361,9 +394,7 @@ export default function Config() {
         onClick={async () => {
           await ChromeStorageManager.add("colorPreferences", colors);
           await ChromeStorageManager.add("openaiApiKey", apiKey);
-          if (notesAssistantModel) {
-            await saveAiConfig({ notesAssistantModel });
-          }
+          await saveAiConfig({ notesAssistantModel, formatterModel });
           setConfig({ auth: { openaiApiKey: apiKey } });
           toast.success(t("settingsSaved"));
         }}

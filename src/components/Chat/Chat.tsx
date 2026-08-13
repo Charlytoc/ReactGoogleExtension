@@ -17,6 +17,7 @@ import {
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
 import { TMessage } from "../../types";
+import { extractVariables, fillVariables } from "../../utils/promptVariables";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
@@ -85,21 +86,6 @@ type TPrompt = {
   content: string;
   pinned?: boolean;
 };
-
-const extractVariables = (content: string): string[] => {
-  const matches = content.match(/\{\{([^}]+)\}\}/g);
-  if (!matches) return [];
-  return [...new Set(matches.map((m) => m.slice(2, -2).trim()))];
-};
-
-const fillVariables = (
-  content: string,
-  values: Record<string, string>
-): string =>
-  content.replace(
-    /\{\{([^}]+)\}\}/g,
-    (_, key) => values[key.trim()] ?? `{{${key}}}`
-  );
 
 const appendSystemPrompt = (
   systemPrompt: string,

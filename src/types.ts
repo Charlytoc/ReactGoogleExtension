@@ -79,14 +79,9 @@ export type TSnaptie = {
 export type TFormatterInput = {
   id: string;
   /**
-   * Human-friendly label for the input (e.g. "A", "Price", "User name").
+   * Variable name extracted from {{placeholders}} in the prompt.
    */
   label: string;
-  /**
-   * When true, the last value entered for this input in the Run section
-   * will be remembered and pre-filled next time.
-   */
-  rememberLastValue?: boolean;
   /**
    * The last value used for this input (persisted together with the formatter).
    */
@@ -100,16 +95,11 @@ export type TFormatter = {
    */
   title: string;
   /**
-   * Optional helper text to explain what this formatter does.
-   */
-  description?: string;
-  /**
-   * List of inputs that will be provided to the formatter.
+   * Last-value cache for {{variables}} in the prompt. Derived on save/run.
    */
   inputs: TFormatterInput[];
   /**
-   * Prompt/instructions used to guide the AI on how to format
-   * the final string based on the inputs.
+   * Prompt/instructions. Use {{variable}} to declare run inputs.
    */
   prompt: string;
   createdAt: string;
@@ -154,6 +144,7 @@ export type TAIConfig = {
   systemPrompt: string;
   model: TModel;
   notesAssistantModel?: TModel;
+  formatterModel?: TModel;
   autoSaveConversations: boolean;
   setTitleAtMessage?: number;
   reasoningTag?: TReasoningTag;

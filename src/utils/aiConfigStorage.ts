@@ -1,6 +1,6 @@
 import { ChromeStorageManager } from "../managers/Storage";
 import { TAIConfig, TModel } from "../types";
-import { MODEL_CHAT_CAPABLE, MODEL_CHAT_SMALL } from "./models";
+import { MODEL_CHAT_CAPABLE, MODEL_CHAT_NANO, MODEL_CHAT_SMALL } from "./models";
 
 const AI_CONFIG_KEY = "aiConfig";
 
@@ -28,6 +28,7 @@ export const createDefaultAiConfig = (): TAIConfig => ({
   systemPrompt: "You are a helpful assistant. ",
   model: modelFromSlug(MODEL_CHAT_SMALL),
   notesAssistantModel: modelFromSlug(MODEL_CHAT_CAPABLE),
+  formatterModel: modelFromSlug(MODEL_CHAT_NANO),
   autoSaveConversations: true,
   setTitleAtMessage: 0,
 });
@@ -52,11 +53,21 @@ const mergeWithDefaults = (stored: Partial<TAIConfig> | null | undefined): TAICo
         }
       : defaults.notesAssistantModel!;
 
+  const formatterModel =
+    stored.formatterModel?.slug != null
+      ? {
+          ...defaults.formatterModel!,
+          ...stored.formatterModel,
+          slug: stored.formatterModel.slug,
+        }
+      : defaults.formatterModel!;
+
   return {
     ...defaults,
     ...stored,
     model,
     notesAssistantModel,
+    formatterModel,
   };
 };
 
@@ -77,4 +88,9 @@ export async function saveAiConfig(partial: Partial<TAIConfig>): Promise<TAIConf
 export async function getNotesAssistantModelSlug(): Promise<string> {
   const config = await getAiConfig();
   return config.notesAssistantModel?.slug ?? MODEL_CHAT_CAPABLE;
+}
+
+export async function getFormatterModelSlug(): Promise<string> {
+  const config = await getAiConfig();
+  return config.formatterModel?.slug ?? MODEL_CHAT_NANO;
 }

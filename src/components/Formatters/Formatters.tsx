@@ -46,13 +46,8 @@ export const Formatters = () => {
     const defaultFormatter: TFormatter = {
       id: generateRandomId("formatter"),
       title: "",
-      description: "",
-      inputs: [
-        { id: "input-a", label: "A" },
-        { id: "input-b", label: "B" },
-      ],
-      prompt:
-        "Take the inputs and return the formatted string. Always answer with a single string and no explanations.",
+      inputs: [],
+      prompt: "",
       createdAt: new Date().toISOString(),
       tags: [],
       color: cssVariableValue,
