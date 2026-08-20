@@ -61,9 +61,10 @@ a:hover {
   color: var(--active-color);
 }
 
+/* Default (and extension toolbar popup): fixed chrome dimensions */
 body {
-  width: fit-content;
-  height: fit-content;
+  width: var(--extension-width);
+  height: var(--extension-height);
 }
 
 /* React entry point — default until a shell class is applied (see main.tsx) */
@@ -88,10 +89,9 @@ body.extension-tab #root {
   min-height: 100vh;
 }
 
-/* Extension toolbar popup — fixed chrome dimensions */
 body.extension-popup {
-  width: fit-content;
-  height: fit-content;
+  width: var(--extension-width);
+  height: var(--extension-height);
 }
 
 body.extension-popup #root {
