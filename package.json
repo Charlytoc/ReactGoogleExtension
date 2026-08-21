@@ -15,6 +15,7 @@
     "@mantine/dates": "^8.3.14",
     "@mantine/form": "^8.3.14",
     "@mantine/hooks": "^8.3.14",
+    "@supabase/supabase-js": "^2.112.3",
     "@tabler/icons-react": "^3.36.1",
     "dayjs": "^1.11.19",
     "i18next": "^24.2.0",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/chrome": "^0.0.289",
+    "@types/node": "^26.2.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react-swc": "^3.5.0",

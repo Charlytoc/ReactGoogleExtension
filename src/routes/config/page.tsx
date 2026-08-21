@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../../components/Button/Button";
 import { SVGS } from "../../assets/svgs.tsx";
 import { ChromeStorageManager } from "../../managers/Storage.ts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
@@ -23,6 +23,24 @@ import {
 } from "../../managers/storeTypes.ts";
 import { Select } from "../../components/Select/Select.tsx";
 import type { TModel } from "../../types.ts";
+import {
+  downloadBackup,
+  exportAllData,
+  importAllData,
+  parseBackupFile,
+} from "../../utils/backup.ts";
+import { isSupabaseConfigured } from "../../utils/supabaseClient.ts";
+import {
+  BACKUPS_TABLE_SETUP_SQL,
+  downloadBackupFromCloud,
+  getCurrentUser,
+  signIn,
+  signOut,
+  signUp,
+  TableMissingError,
+  uploadBackupToCloud,
+  type TCloudUser,
+} from "../../utils/cloudSync.ts";
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
@@ -104,6 +122,7 @@ const setColorsInDocument = (colors: TTheme) => {
 export default function Config() {
   const { i18n, t } = useTranslation();
   const [apiKey, setApiKey] = useState<string>("");
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const [colors, setColors] = useState<TTheme>(DEFAULT_THEME);
   const [notesAssistantModel, setNotesAssistantModel] = useState<TModel>(
@@ -113,6 +132,13 @@ export default function Config() {
     () => createDefaultAiConfig().formatterModel!
   );
   const [availableModels, setAvailableModels] = useState<TModel[]>([]);
+
+  const [cloudUser, setCloudUser] = useState<TCloudUser | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [tableMissing, setTableMissing] = useState(false);
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
 
@@ -148,6 +174,116 @@ export default function Config() {
       } catch {
         setAvailableModels([]);
       }
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const user = await getCurrentUser();
+        setCloudUser(user);
+      } catch {
+        setCloudUser(null);
+      }
+    }
+  };
+
+  const handleSignIn = async () => {
+    setAuthBusy(true);
+    try {
+      const user = await signIn(authEmail.trim(), authPassword);
+      setCloudUser(user);
+      setAuthPassword("");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : undefined;
+      toast.error(message ? `${t("signInError")}: ${message}` : t("signInError"));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    setAuthBusy(true);
+    try {
+      const user = await signUp(authEmail.trim(), authPassword);
+      setCloudUser(user);
+      setAuthPassword("");
+      toast.success(t("signUpSuccess"));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : undefined;
+      toast.error(message ? `${t("signUpError")}: ${message}` : t("signUpError"));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setCloudUser(null);
+  };
+
+  const handleUploadToCloud = async () => {
+    setCloudBusy(true);
+    try {
+      await uploadBackupToCloud();
+      setTableMissing(false);
+      toast.success(t("uploadToCloudSuccess"));
+    } catch (e) {
+      if (e instanceof TableMissingError) {
+        setTableMissing(true);
+      } else {
+        toast.error(t("uploadToCloudError"));
+      }
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const handleDownloadFromCloud = async () => {
+    if (!window.confirm(t("downloadFromCloudConfirm"))) return;
+    setCloudBusy(true);
+    try {
+      await downloadBackupFromCloud();
+      setTableMissing(false);
+      toast.success(t("downloadFromCloudSuccess"));
+      window.location.reload();
+    } catch (e) {
+      if (e instanceof TableMissingError) {
+        setTableMissing(true);
+      } else {
+        toast.error(t("downloadFromCloudError"));
+      }
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const copySetupSql = () => {
+    navigator.clipboard.writeText(BACKUPS_TABLE_SETUP_SQL);
+    toast.success(t("sqlCopiedToClipboard"));
+  };
+
+  const handleExportData = async () => {
+    const backup = await exportAllData();
+    downloadBackup(backup);
+    toast.success(t("exportDataSuccess"));
+  };
+
+  const handleImportFileSelected = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!window.confirm(t("importDataConfirm"))) return;
+
+    try {
+      const raw = await file.text();
+      const backup = parseBackupFile(raw);
+      await importAllData(backup);
+      toast.success(t("importDataSuccess"));
+      window.location.reload();
+    } catch {
+      toast.error(t("importDataError"));
     }
   };
 
@@ -385,6 +521,135 @@ export default function Config() {
             }}
           />
         </div>
+      </div>
+
+      <div className="flex-column gap-10 padding-10">
+        <h3 className="text-left">{t("backupAndRestore")}</h3>
+        <span className="color-secondary text-left text-sm">
+          {t("backupAndRestoreDescription")}
+        </span>
+        <div className="flex-row gap-10 wrap">
+          <Button
+            className="padding-10 justify-center active-on-hover"
+            text={t("exportData")}
+            svg={SVGS.save}
+            onClick={handleExportData}
+          />
+          <Button
+            className="padding-10 justify-center active-on-hover"
+            text={t("importData")}
+            svg={SVGS.read}
+            onClick={() => importFileInputRef.current?.click()}
+          />
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: "none" }}
+            onChange={handleImportFileSelected}
+          />
+        </div>
+      </div>
+
+      <div className="flex-column gap-10 padding-10">
+        <h3 className="text-left">{t("supabaseConfig")}</h3>
+        <span className="color-secondary text-left text-sm">
+          {t("supabaseConfigDescription")}
+        </span>
+
+        {isSupabaseConfigured() ? (
+          <div className="flex-column gap-10">
+            {cloudUser ? (
+              <>
+                <span className="text-left text-sm">
+                  {t("signedInAs", { email: cloudUser.email ?? cloudUser.id })}
+                </span>
+                <div className="flex-row gap-10 wrap">
+                  <Button
+                    className="padding-10 justify-center active-on-hover"
+                    text={t("uploadToCloud")}
+                    svg={SVGS.save}
+                    disabled={cloudBusy}
+                    onClick={handleUploadToCloud}
+                  />
+                  <Button
+                    className="padding-10 justify-center active-on-hover"
+                    text={t("downloadFromCloud")}
+                    svg={SVGS.read}
+                    disabled={cloudBusy}
+                    onClick={handleDownloadFromCloud}
+                  />
+                  <Button
+                    className="padding-10 justify-center active-on-hover"
+                    text={t("signOut")}
+                    onClick={handleSignOut}
+                  />
+                </div>
+                {tableMissing && (
+                  <div className="flex-column gap-5">
+                    <span className="text-left text-sm color-secondary">
+                      {t("tableMissingHint")}
+                    </span>
+                    <pre
+                      className="text-left text-sm"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        maxHeight: 160,
+                        overflowY: "auto",
+                        padding: 10,
+                      }}
+                    >
+                      {BACKUPS_TABLE_SETUP_SQL}
+                    </pre>
+                    <Button
+                      className="padding-10 justify-center active-on-hover"
+                      text={t("copySql")}
+                      svg={SVGS.copy}
+                      onClick={copySetupSql}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <LabeledInput
+                  label={t("email")}
+                  type="email"
+                  name="authEmail"
+                  className="w-100"
+                  value={authEmail}
+                  onChange={setAuthEmail}
+                />
+                <LabeledInput
+                  label={t("password")}
+                  type="password"
+                  name="authPassword"
+                  className="w-100"
+                  value={authPassword}
+                  onChange={setAuthPassword}
+                />
+                <div className="flex-row gap-10 wrap">
+                  <Button
+                    className="padding-10 justify-center active-on-hover"
+                    text={t("signIn")}
+                    disabled={authBusy}
+                    onClick={handleSignIn}
+                  />
+                  <Button
+                    className="padding-10 justify-center active-on-hover"
+                    text={t("signUp")}
+                    disabled={authBusy}
+                    onClick={handleSignUp}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <span className="text-left text-sm color-secondary">
+            {t("supabaseNotConfigured")}
+          </span>
+        )}
       </div>
 
       <Button
