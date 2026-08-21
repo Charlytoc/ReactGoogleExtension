@@ -319,6 +319,7 @@ const Prompter = ({
                 onSubmit={handleGenerate}
                 isLoading={state.isAssistantPending}
                 autoFocus
+                multiline
               />
             </div>
           </div>

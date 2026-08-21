@@ -818,18 +818,20 @@ const BlockActionBar = ({
   onEditText,
   onEditAI,
   onEditImage,
-  onDelete,
+  onRequestDelete,
+  onConfirmDelete,
   confirmDelete,
-  onCancelDelete,
   onGenerateBlockImage,
   blockMarkdown,
 }: {
   onEditText?: () => void;
   onEditAI?: () => void;
   onEditImage?: () => void;
-  onDelete: () => void;
+  /** First click on the trash icon: arms the confirm state. */
+  onRequestDelete: () => void;
+  /** Second click, while armed: actually deletes. */
+  onConfirmDelete: () => void;
   confirmDelete: boolean;
-  onCancelDelete: () => void;
   onGenerateBlockImage?: TGenerateBlockImage;
   blockMarkdown: string;
 }) => {
@@ -870,123 +872,93 @@ const BlockActionBar = ({
     <div
       className={`markdown-block-actions${confirmDelete ? " markdown-block-actions--confirming" : ""}`}
     >
-      {confirmDelete ? (
-        <>
-          <Tooltip label={t("sure?")} withArrow openDelay={150} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="red"
-              tabIndex={-1}
-              onClick={onDelete}
-              aria-label={t("sure?")}
-            >
-              {SVGS.check}
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label={t("goBack")} withArrow openDelay={150} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="gray"
-              tabIndex={-1}
-              onClick={onCancelDelete}
-              aria-label={t("goBack")}
-            >
-              {SVGS.close}
-            </ActionIcon>
-          </Tooltip>
-        </>
-      ) : (
-        <>
-          {onEditText && (
-            <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="gray"
-                tabIndex={-1}
-                onClick={onEditText}
-                aria-label={t("editAsText")}
-              >
-                {SVGS.edit}
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {onEditAI && (
-            <Tooltip label={t("editWithAI")} withArrow openDelay={400} position="top">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="grape"
-                tabIndex={-1}
-                onClick={onEditAI}
-                aria-label={t("editWithAI")}
-              >
-                {SVGS.ai}
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {onEditImage && onGenerateBlockImage && (
-            <Tooltip label={t("generateImage")} withArrow openDelay={400} position="top">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="blue"
-                tabIndex={-1}
-                onClick={onEditImage}
-                aria-label={t("generateImage")}
-              >
-                {SVGS.image}
-              </ActionIcon>
-            </Tooltip>
-          )}
-          <Tooltip label={t("copyCode")} withArrow openDelay={400} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="gray"
-              tabIndex={-1}
-              onClick={copyBlock}
-              aria-label={t("copyCode")}
-            >
-              {SVGS.copy}
-            </ActionIcon>
-          </Tooltip>
-          {blockImages.length > 0 && (
-            <Tooltip
-              label={t("downloadImage")}
-              withArrow
-              openDelay={400}
-              position="top"
-            >
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="gray"
-                tabIndex={-1}
-                onClick={() => void downloadBlockImages()}
-                aria-label={t("downloadImage")}
-              >
-                <IconDownload size={14} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          <div className="markdown-block-actions-divider" />
-          <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="red"
-              tabIndex={-1}
-              onClick={onDelete}
-              aria-label={t("delete")}
-            >
-              {SVGS.trash}
-            </ActionIcon>
-          </Tooltip>
-        </>
+      {onEditText && (
+        <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            tabIndex={-1}
+            onClick={onEditText}
+            aria-label={t("editAsText")}
+          >
+            {SVGS.edit}
+          </ActionIcon>
+        </Tooltip>
       )}
+      {onEditAI && (
+        <Tooltip label={t("editWithAI")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="grape"
+            tabIndex={-1}
+            onClick={onEditAI}
+            aria-label={t("editWithAI")}
+          >
+            {SVGS.ai}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {onEditImage && onGenerateBlockImage && (
+        <Tooltip label={t("generateImage")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="blue"
+            tabIndex={-1}
+            onClick={onEditImage}
+            aria-label={t("generateImage")}
+          >
+            {SVGS.image}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Tooltip label={t("copyCode")} withArrow openDelay={400} position="top">
+        <ActionIcon
+          size="sm"
+          variant="subtle"
+          color="gray"
+          tabIndex={-1}
+          onClick={copyBlock}
+          aria-label={t("copyCode")}
+        >
+          {SVGS.copy}
+        </ActionIcon>
+      </Tooltip>
+      {blockImages.length > 0 && (
+        <Tooltip label={t("downloadImage")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            tabIndex={-1}
+            onClick={() => void downloadBlockImages()}
+            aria-label={t("downloadImage")}
+          >
+            <IconDownload size={14} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <div className="markdown-block-actions-divider" />
+      <Tooltip
+        label={confirmDelete ? t("sure?") : t("delete")}
+        withArrow
+        openDelay={confirmDelete ? 0 : 400}
+        opened={confirmDelete ? true : undefined}
+        position="top"
+      >
+        <ActionIcon
+          size="sm"
+          variant={confirmDelete ? "filled" : "subtle"}
+          color="red"
+          tabIndex={-1}
+          onClick={confirmDelete ? onConfirmDelete : onRequestDelete}
+          aria-label={confirmDelete ? t("sure?") : t("delete")}
+        >
+          {SVGS.trash}
+        </ActionIcon>
+      </Tooltip>
     </div>
   );
 };
@@ -1748,9 +1720,9 @@ const NodeBlock = ({
           onEditText={isTable ? undefined : openInlineEdit}
           onEditAI={() => openModal("edit-ai")}
           onEditImage={isTable ? undefined : () => openModal("edit-image")}
-          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+          onRequestDelete={() => setConfirmDelete(true)}
+          onConfirmDelete={deleteBlock}
           confirmDelete={confirmDelete}
-          onCancelDelete={() => setConfirmDelete(false)}
           onGenerateBlockImage={isTable ? undefined : onGenerateBlockImage}
           blockMarkdown={node.content}
         />

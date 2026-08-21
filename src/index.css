@@ -713,6 +713,19 @@ button:focus-visible {
     }
   }
 
+  /* The checkbox already marks a task item — a bullet/number marker is
+     redundant, so drop it along with the indent that used to reserve space
+     for that marker (the checkbox needs much less of it). */
+  & li.task-list-item {
+    list-style: none;
+  }
+
+  & ul:has(> li.task-list-item),
+  & ol:has(> li.task-list-item) {
+    margin-left: 4px;
+    padding-left: 4px;
+  }
+
   & .task-list-item-body[data-checked="true"] > p:first-of-type {
     text-decoration: line-through;
     text-decoration-color: var(--active-color);
