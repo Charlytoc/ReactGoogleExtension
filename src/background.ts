@@ -437,7 +437,10 @@ const runNoteAssistantJob = async (
       input: messagesToResponsesInput(inputMessages),
       tools: tools.map((tool) => tool.schema),
       functionMap,
-      maxOutputTokens: 16000,
+      // Node-scoped tools (updateNode/insertNode/deleteNode) only ever emit one
+      // block's worth of markdown per call, not the whole note — a turn with
+      // several tool calls still fits comfortably under the old whole-note budget.
+      maxOutputTokens: 6000,
     });
 
     const nextMessages: TMessage[] = [
@@ -523,7 +526,7 @@ ${formatFontCatalogForPrompt()}`;
     const userContent = `Title: ${note.title || "Untitled"}
 
 Content (excerpt):
-${(note.content || "").slice(0, 1000)}
+${note.nodes.map((n) => n.content).join("\n\n").slice(0, 1000)}
 
 User hint for styling/cover: ${request.hint.trim() || "none"}
 

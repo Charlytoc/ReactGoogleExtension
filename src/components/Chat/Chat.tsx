@@ -342,7 +342,9 @@ export const Chat = () => {
         const note: TNote = {
           id: generateRandomId("note"),
           title: (args.title || "").trim() || "Untitled note",
-          content: args.content || "",
+          nodes: args.content
+            ? [{ id: generateRandomId("node"), type: "markdown", content: args.content }]
+            : [],
           color: "var(--bg-color)",
           backgroundType: "solid",
           color2: "var(--bg-color-secondary)",

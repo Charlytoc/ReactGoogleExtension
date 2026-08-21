@@ -13,16 +13,16 @@ export type TAttachment = {
 };
 
 export type TNode = {
-  type: "markdown",
+  id: string;
+  type: "markdown";
   content: string;
-}
+};
 
 export type TNote = {
   id: string;
   title?: string;
-  content?: string;
   color?: string;
-  nodes?: TNode[];
+  nodes: TNode[];
   backgroundType?: TBackgroundType;
   color2?: string;
   tags?: string[];

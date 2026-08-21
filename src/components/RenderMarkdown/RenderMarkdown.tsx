@@ -28,7 +28,7 @@ import { useStore } from "../../managers/store";
 import { useLocation, useNavigate } from "react-router";
 import { cacheLocation } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
-import { TAttachment } from "../../types";
+import { TAttachment, TNode } from "../../types";
 import {
   AI_IMAGE_JOBS_KEY,
   getImageJobs,
@@ -36,21 +36,13 @@ import {
   type TImageJobMap,
 } from "../../utils/imageJobs";
 type TInlineEditSession = {
-  start: number;
-  end: number;
+  nodeId: string;
   revertTo: string;
-  /** Source markdown frozen when editing started, so react-markdown does not remount mid-edit. */
-  frozenSource: string;
 };
 
 type TActiveInlineEditContextValue = {
   session: TInlineEditSession | null;
-  startEdit: (
-    start: number,
-    end: number,
-    markdown: string,
-    sourceMarkdown: string
-  ) => void;
+  startEdit: (nodeId: string, markdown: string) => void;
   finish: (draft: string) => void;
   cancel: () => void;
   discard: () => void;
@@ -128,19 +120,7 @@ const getAttachmentIdFromReference = (value: string) => {
   return "";
 };
 
-type TOffsets = {
-  start: number;
-  end: number;
-};
-
 const InsideListItemContext = createContext(false);
-
-const getOffsets = (node: any): TOffsets | null => {
-  const start = node?.position?.start?.offset;
-  const end = node?.position?.end?.offset;
-  if (typeof start !== "number" || typeof end !== "number") return null;
-  return { start, end };
-};
 
 const hasTaskListItemClassName = (className: unknown): boolean => {
   if (className == null) return false;
@@ -158,11 +138,6 @@ const stringifyLiClassName = (className: unknown): string | undefined => {
   }
   const s = String(className).trim();
   return s || undefined;
-};
-const getNodeTextFromOffsets = (source: string, node: any) => {
-  const offsets = getOffsets(node);
-  if (!offsets) return "";
-  return source.slice(offsets.start, offsets.end);
 };
 
 const findTaskCheckboxNode = (node: any): any => {
@@ -219,28 +194,6 @@ export type TGenerateBlockImage = (
 
 type TBlockEditorMode = "preview" | "edit-text" | "edit-ai" | "edit-image";
 
-const formatBlockInsertion = (
-  sourceMarkdown: string,
-  insertAt: number,
-  text: string
-): string => {
-  const trimmed = text.trim();
-  if (!trimmed) return "";
-
-  if (insertAt === 0 && sourceMarkdown.length === 0) {
-    return trimmed;
-  }
-
-  const before = sourceMarkdown.slice(0, insertAt);
-  if (before.endsWith("\n\n")) {
-    return trimmed;
-  }
-  if (before.endsWith("\n")) {
-    return `\n${trimmed}`;
-  }
-  return `\n\n${trimmed}`;
-};
-
 const modalTextareaStyles = (monospace = false) => ({
   input: {
     fontFamily: monospace ? "monospace" : "inherit",
@@ -253,55 +206,35 @@ const modalTextareaStyles = (monospace = false) => ({
 });
 
 const ActiveInlineEditProvider = ({
-  onBlockChange,
+  onNodeChange,
   children,
 }: {
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onNodeChange?: (nodeId: string, newMarkdown: string) => void;
   children: ReactNode;
 }) => {
   const [session, setSession] = useState<TInlineEditSession | null>(null);
   const sessionRef = useRef(session);
-  const onBlockChangeRef = useRef(onBlockChange);
+  const onNodeChangeRef = useRef(onNodeChange);
   const lastFlushedDraftRef = useRef<string | null>(null);
-  const initialMarkdownRef = useRef<string>("");
 
   sessionRef.current = session;
-  onBlockChangeRef.current = onBlockChange;
+  onNodeChangeRef.current = onNodeChange;
 
   // Persist to the note without setState — avoids remounting the textarea mid-edit.
   const flushQuiet = useCallback((draftInput: string) => {
     const current = sessionRef.current;
-    if (!current || !onBlockChangeRef.current) return;
+    if (!current || !onNodeChangeRef.current) return;
 
     const draft = draftInput.replace(/\r\n/g, "\n");
     if (lastFlushedDraftRef.current === draft) return;
 
-    onBlockChangeRef.current(
-      { start: current.start, end: current.end },
-      draft
-    );
+    onNodeChangeRef.current(current.nodeId, draft);
     lastFlushedDraftRef.current = draft;
-    // Keep offsets in the ref only; do not setSession (that re-renders the tree).
-    sessionRef.current = {
-      ...current,
-      end: current.start + draft.length,
-    };
   }, []);
 
-  const startEdit = useCallback((
-    start: number,
-    end: number,
-    markdown: string,
-    sourceMarkdown: string
-  ) => {
-    initialMarkdownRef.current = markdown;
+  const startEdit = useCallback((nodeId: string, markdown: string) => {
     lastFlushedDraftRef.current = markdown;
-    const next = {
-      start,
-      end,
-      revertTo: markdown,
-      frozenSource: sourceMarkdown,
-    };
+    const next = { nodeId, revertTo: markdown };
     sessionRef.current = next;
     setSession(next);
   }, []);
@@ -317,13 +250,10 @@ const ActiveInlineEditProvider = ({
     const current = sessionRef.current;
     if (
       current &&
-      onBlockChangeRef.current &&
+      onNodeChangeRef.current &&
       lastFlushedDraftRef.current !== current.revertTo
     ) {
-      onBlockChangeRef.current(
-        { start: current.start, end: current.end },
-        current.revertTo
-      );
+      onNodeChangeRef.current(current.nodeId, current.revertTo);
     }
     lastFlushedDraftRef.current = null;
     sessionRef.current = null;
@@ -646,7 +576,7 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
         {mode === "preview" && (
           <>
             <div className="markdown-block-preview">
-              <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
+              <RenderMarkdown markdown={originalMarkdown} />
             </div>
             <div className="flex-row gap-5">
               <Button
@@ -722,7 +652,7 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
             <BlockModalHeader title={t("generateImage")} />
             {originalMarkdown.trim() ? (
               <div className="markdown-block-preview">
-                <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
+                <RenderMarkdown markdown={originalMarkdown} />
               </div>
             ) : null}
             <Textarea
@@ -763,7 +693,7 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
             <BlockModalHeader title={t("editWithAI")} />
             {originalMarkdown.trim() ? (
               <div className="markdown-block-preview">
-                <RenderMarkdown markdown={originalMarkdown} editableBlocks={false} />
+                <RenderMarkdown markdown={originalMarkdown} />
               </div>
             ) : null}
             <Textarea
@@ -802,15 +732,13 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
 };
 
 const MarkdownInsertZone = ({
-  sourceMarkdown,
-  insertAt,
-  onBlockChange,
+  afterNodeId,
+  onNodeInsert,
   onGenerateBlockImage,
   variant = "between",
 }: {
-  sourceMarkdown: string;
-  insertAt: number;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  afterNodeId: string | null;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
   variant?: "between" | "end";
 }) => {
@@ -826,16 +754,12 @@ const MarkdownInsertZone = ({
   };
 
   const saveInsert = (overrideValue?: string) => {
-    const insertion = formatBlockInsertion(
-      sourceMarkdown,
-      insertAt,
-      overrideValue ?? draftMarkdown
-    );
+    const insertion = (overrideValue ?? draftMarkdown).trim();
     if (!insertion) {
       setIsOpen(false);
       return;
     }
-    onBlockChange?.({ start: insertAt, end: insertAt }, insertion);
+    onNodeInsert?.(afterNodeId, insertion);
     setDraftMarkdown("");
     setIsOpen(false);
   };
@@ -1176,345 +1100,6 @@ const EditableBlockShell = ({
   );
 };
 
-const BlockEditAsText = ({
-  sourceMarkdown,
-  node,
-  editableBlocks = false,
-  onBlockChange,
-  onGenerateBlockImage,
-  children,
-}: {
-  sourceMarkdown: string;
-  node: any;
-  editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
-  onGenerateBlockImage?: TGenerateBlockImage;
-  children: ReactNode;
-}) => {
-  const { t } = useTranslation();
-  const inlineEdit = useActiveInlineEdit();
-  const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
-  const [draftMarkdown, setDraftMarkdown] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const offsets = getOffsets(node);
-  const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
-  const isEditingText =
-    inlineEdit?.session != null &&
-    offsets != null &&
-    inlineEdit.session.start === offsets.start;
-
-  const openModal = (mode: "edit-ai" | "edit-image") => {
-    setDraftMarkdown(originalMarkdown);
-    setModalMode(mode);
-  };
-
-  const openInlineEdit = () => {
-    if (!offsets || !inlineEdit) return;
-    setConfirmDelete(false);
-    inlineEdit.startEdit(
-      offsets.start,
-      offsets.end,
-      originalMarkdown,
-      sourceMarkdown
-    );
-  };
-
-  const saveModalChanges = (overrideValue?: string) => {
-    if (!offsets) return;
-    onBlockChange?.(offsets, overrideValue ?? draftMarkdown);
-    setModalMode(null);
-  };
-
-  const deleteBlock = () => {
-    if (!offsets) return;
-    if (isEditingText) {
-      inlineEdit?.discard();
-    }
-    onBlockChange?.(offsets, "");
-    setDraftMarkdown("");
-    setModalMode(null);
-    setConfirmDelete(false);
-  };
-
-  if (!editableBlocks || !offsets) {
-    return <>{children}</>;
-  }
-
-  const showInsertZone =
-    onBlockChange != null && offsets.end < sourceMarkdown.length;
-
-  return (
-    <EditableBlockShell
-      isEditing={isEditingText}
-      confirmDelete={confirmDelete}
-      onEditText={openInlineEdit}
-      onRequestDelete={() => setConfirmDelete(true)}
-      onConfirmDelete={deleteBlock}
-      onCancelDelete={() => setConfirmDelete(false)}
-      ariaLabel={t("editAsText")}
-      actions={
-        <BlockActionBar
-          onEditText={openInlineEdit}
-          onEditAI={() => openModal("edit-ai")}
-          onEditImage={() => openModal("edit-image")}
-          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-          confirmDelete={confirmDelete}
-          onCancelDelete={() => setConfirmDelete(false)}
-          onGenerateBlockImage={onGenerateBlockImage}
-          blockMarkdown={originalMarkdown}
-        />
-      }
-      insertZone={
-        showInsertZone ? (
-          <MarkdownInsertZone
-            sourceMarkdown={sourceMarkdown}
-            insertAt={offsets.end}
-            onBlockChange={onBlockChange}
-            onGenerateBlockImage={onGenerateBlockImage}
-          />
-        ) : null
-      }
-      modal={
-        <MarkdownBlockEditorModal
-          opened={modalMode != null}
-          originalMarkdown={originalMarkdown}
-          draftMarkdown={draftMarkdown}
-          onChange={setDraftMarkdown}
-          onSave={saveModalChanges}
-          onCancel={() => {
-            setModalMode(null);
-            setConfirmDelete(false);
-          }}
-          onDelete={deleteBlock}
-          onGenerateBlockImage={onGenerateBlockImage}
-          initialMode={modalMode ?? "edit-ai"}
-        />
-      }
-    >
-      {isEditingText && inlineEdit?.session ? (
-        <InlineBlockTextEditor
-          initialDraft={originalMarkdown}
-          onFinish={inlineEdit.finish}
-          onCancel={inlineEdit.cancel}
-        />
-      ) : (
-        children
-      )}
-    </EditableBlockShell>
-  );
-};
-
-const HorizontalRuleBlock = ({
-  sourceMarkdown,
-  node,
-  editableBlocks = false,
-  onBlockChange,
-}: {
-  sourceMarkdown: string;
-  node: any;
-  editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
-}) => {
-  const { t } = useTranslation();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const offsets = getOffsets(node);
-  const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
-
-  const deleteBlock = () => {
-    if (!offsets) return;
-    onBlockChange?.(offsets, "");
-    setConfirmDelete(false);
-  };
-
-  if (!editableBlocks || !offsets) {
-    return <hr />;
-  }
-
-  const showInsertZone =
-    onBlockChange != null && offsets.end < sourceMarkdown.length;
-
-  return (
-    <EditableBlockShell
-      confirmDelete={confirmDelete}
-      onRequestDelete={() => setConfirmDelete(true)}
-      onConfirmDelete={deleteBlock}
-      onCancelDelete={() => setConfirmDelete(false)}
-      ariaLabel={t("delete")}
-      actions={
-        <BlockActionBar
-          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-          confirmDelete={confirmDelete}
-          onCancelDelete={() => setConfirmDelete(false)}
-          blockMarkdown={originalMarkdown}
-        />
-      }
-      insertZone={
-        showInsertZone ? (
-          <MarkdownInsertZone
-            sourceMarkdown={sourceMarkdown}
-            insertAt={offsets.end}
-            onBlockChange={onBlockChange}
-          />
-        ) : null
-      }
-    >
-      <hr />
-    </EditableBlockShell>
-  );
-};
-
-const ListItemEditAsText = ({
-  sourceMarkdown,
-  node,
-  editableBlocks = false,
-  onBlockChange,
-  onGenerateBlockImage,
-  children,
-}: {
-  sourceMarkdown: string;
-  node: any;
-  editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
-  onGenerateBlockImage?: TGenerateBlockImage;
-  children: ReactNode;
-}) => {
-  const { t } = useTranslation();
-  const inlineEdit = useActiveInlineEdit();
-  const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
-  const [draftMarkdown, setDraftMarkdown] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const offsets = getOffsets(node);
-  const originalMarkdown = getNodeTextFromOffsets(sourceMarkdown, node);
-  const isEditingText =
-    inlineEdit?.session != null &&
-    offsets != null &&
-    inlineEdit.session.start === offsets.start;
-
-  const openModal = (mode: "edit-ai" | "edit-image") => {
-    setDraftMarkdown(originalMarkdown);
-    setModalMode(mode);
-  };
-
-  const openInlineEdit = () => {
-    if (!offsets || !inlineEdit) return;
-    setConfirmDelete(false);
-    inlineEdit.startEdit(
-      offsets.start,
-      offsets.end,
-      originalMarkdown,
-      sourceMarkdown
-    );
-  };
-
-  const saveModalChanges = (overrideValue?: string) => {
-    if (!offsets) return;
-    onBlockChange?.(offsets, overrideValue ?? draftMarkdown);
-    setModalMode(null);
-  };
-
-  const deleteBlock = () => {
-    if (!offsets) return;
-    if (isEditingText) {
-      inlineEdit?.discard();
-    }
-    onBlockChange?.(offsets, "");
-    setDraftMarkdown("");
-    setModalMode(null);
-    setConfirmDelete(false);
-  };
-
-  if (!editableBlocks || !offsets) {
-    return <li>{children}</li>;
-  }
-
-  return (
-    <InsideListItemContext.Provider value={true}>
-      <li>
-        <EditableBlockShell
-          isEditing={isEditingText}
-          confirmDelete={confirmDelete}
-          onEditText={openInlineEdit}
-          onRequestDelete={() => setConfirmDelete(true)}
-          onConfirmDelete={deleteBlock}
-          onCancelDelete={() => setConfirmDelete(false)}
-          ariaLabel={t("editAsText")}
-          actions={
-            <BlockActionBar
-              onEditText={openInlineEdit}
-              onEditAI={() => openModal("edit-ai")}
-              onEditImage={() => openModal("edit-image")}
-              onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-              confirmDelete={confirmDelete}
-              onCancelDelete={() => setConfirmDelete(false)}
-              onGenerateBlockImage={onGenerateBlockImage}
-              blockMarkdown={originalMarkdown}
-            />
-          }
-          modal={
-            <MarkdownBlockEditorModal
-              opened={modalMode != null}
-              originalMarkdown={originalMarkdown}
-              draftMarkdown={draftMarkdown}
-              onChange={setDraftMarkdown}
-              onSave={saveModalChanges}
-              onCancel={() => {
-                setModalMode(null);
-                setConfirmDelete(false);
-              }}
-              onDelete={deleteBlock}
-              onGenerateBlockImage={onGenerateBlockImage}
-              initialMode={modalMode ?? "edit-ai"}
-            />
-          }
-        >
-          {isEditingText && inlineEdit?.session ? (
-            <InlineBlockTextEditor
-              initialDraft={originalMarkdown}
-              onFinish={inlineEdit.finish}
-              onCancel={inlineEdit.cancel}
-            />
-          ) : (
-            children
-          )}
-        </EditableBlockShell>
-      </li>
-    </InsideListItemContext.Provider>
-  );
-};
-
-const MarkdownParagraph = ({
-  node,
-  children,
-  sourceMarkdown,
-  editableBlocks = false,
-  onBlockChange,
-  onGenerateBlockImage,
-}: {
-  node: any;
-  children: ReactNode;
-  sourceMarkdown: string;
-  editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
-  onGenerateBlockImage?: TGenerateBlockImage;
-}) => {
-  const insideListItem = useContext(InsideListItemContext);
-
-  if (insideListItem) {
-    return <p>{children}</p>;
-  }
-
-  return (
-    <BlockEditAsText
-      sourceMarkdown={sourceMarkdown}
-      node={node}
-      editableBlocks={editableBlocks}
-      onBlockChange={onBlockChange}
-      onGenerateBlockImage={onGenerateBlockImage}
-    >
-      <p>{children}</p>
-    </BlockEditAsText>
-  );
-};
 
 const CustomAnchor = ({
   href,
@@ -1607,79 +1192,40 @@ const CustomAnchor = ({
   return <a href={href}>{children}</a>;
 };
 
+/**
+ * Task checkboxes (`- [ ]` / `- [x]`) live inside a node's markdown as one line
+ * among possibly several. Toggling one must locate that line within the node's
+ * own source (via this node's local AST position offsets) and patch just that
+ * line, then hand the whole node content back to the caller.
+ */
 const Tasky = ({
   node,
-  sourceMarkdown,
-  editableBlocks = false,
-  onBlockChange,
-  onGenerateBlockImage,
+  nodeMarkdown,
+  onNodeContentChange,
   children,
   className,
 }: {
   children?: ReactNode;
   node: any;
-  sourceMarkdown: string;
-  editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
-  onGenerateBlockImage?: TGenerateBlockImage;
+  nodeMarkdown: string;
+  onNodeContentChange?: (newMarkdown: string) => void;
   className?: string;
 }) => {
-  const { t } = useTranslation();
-  const inlineEdit = useActiveInlineEdit();
-  const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
-  const [draftMarkdown, setDraftMarkdown] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const offsets = getOffsets(node);
-  const originalSlice =
-    offsets != null ? getNodeTextFromOffsets(sourceMarkdown, node) : "";
+  const start = node?.position?.start?.offset;
+  const end = node?.position?.end?.offset;
+  const hasOffsets = typeof start === "number" && typeof end === "number";
+  const originalSlice = hasOffsets ? nodeMarkdown.slice(start, end) : "";
   const inputNode = findTaskCheckboxNode(node);
   const sourceChecked = getTaskCheckedFromListItemSource(originalSlice);
   const astChecked =
     inputNode != null ? Boolean(inputNode?.properties?.checked) : sourceChecked ?? false;
   const [overrideChecked, setOverrideChecked] = useState<boolean | null>(null);
-  const isEditingText =
-    inlineEdit?.session != null &&
-    offsets != null &&
-    inlineEdit.session.start === offsets.start;
 
   useEffect(() => {
     setOverrideChecked(null);
   }, [originalSlice]);
 
   const isChecked = overrideChecked ?? astChecked;
-
-  const openModal = (mode: "edit-ai" | "edit-image") => {
-    setDraftMarkdown(originalSlice);
-    setModalMode(mode);
-  };
-
-  const openInlineEdit = () => {
-    if (!offsets || !inlineEdit) return;
-    setConfirmDelete(false);
-    inlineEdit.startEdit(
-      offsets.start,
-      offsets.end,
-      originalSlice,
-      sourceMarkdown
-    );
-  };
-
-  const saveModalChanges = (overrideValue?: string) => {
-    if (!offsets) return;
-    onBlockChange?.(offsets, overrideValue ?? draftMarkdown);
-    setModalMode(null);
-  };
-
-  const deleteBlock = () => {
-    if (!offsets) return;
-    if (isEditingText) {
-      inlineEdit?.discard();
-    }
-    onBlockChange?.(offsets, "");
-    setDraftMarkdown("");
-    setModalMode(null);
-    setConfirmDelete(false);
-  };
 
   const taskBody = (
     <div className="flex-row align-start gap-5">
@@ -1693,10 +1239,17 @@ const Tasky = ({
         onChange={(e) => {
           const next = e.target.checked;
           setOverrideChecked(next);
-          if (onBlockChange && offsets && originalSlice) {
-            const updated = replaceTaskCheckboxInListItemSource(originalSlice, next);
-            if (updated !== originalSlice) {
-              onBlockChange(offsets, updated);
+          if (onNodeContentChange && hasOffsets && originalSlice) {
+            const updatedSlice = replaceTaskCheckboxInListItemSource(
+              originalSlice,
+              next
+            );
+            if (updatedSlice !== originalSlice) {
+              const updatedNode =
+                nodeMarkdown.slice(0, start) +
+                updatedSlice +
+                nodeMarkdown.slice(end);
+              onNodeContentChange(updatedNode);
             } else {
               setOverrideChecked(null);
             }
@@ -1713,65 +1266,9 @@ const Tasky = ({
     </div>
   );
 
-  if (!editableBlocks || !offsets) {
-    return (
-      <InsideListItemContext.Provider value={true}>
-        <li className={className}>{taskBody}</li>
-      </InsideListItemContext.Provider>
-    );
-  }
-
   return (
     <InsideListItemContext.Provider value={true}>
-      <li className={className}>
-        <EditableBlockShell
-          isEditing={isEditingText}
-          confirmDelete={confirmDelete}
-          onEditText={openInlineEdit}
-          onRequestDelete={() => setConfirmDelete(true)}
-          onConfirmDelete={deleteBlock}
-          onCancelDelete={() => setConfirmDelete(false)}
-          ariaLabel={t("editAsText")}
-          actions={
-            <BlockActionBar
-              onEditText={openInlineEdit}
-              onEditAI={() => openModal("edit-ai")}
-              onEditImage={() => openModal("edit-image")}
-              onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
-              confirmDelete={confirmDelete}
-              onCancelDelete={() => setConfirmDelete(false)}
-              onGenerateBlockImage={onGenerateBlockImage}
-              blockMarkdown={originalSlice}
-            />
-          }
-          modal={
-            <MarkdownBlockEditorModal
-              opened={modalMode != null}
-              originalMarkdown={originalSlice}
-              draftMarkdown={draftMarkdown}
-              onChange={setDraftMarkdown}
-              onSave={saveModalChanges}
-              onCancel={() => {
-                setModalMode(null);
-                setConfirmDelete(false);
-              }}
-              onDelete={deleteBlock}
-              onGenerateBlockImage={onGenerateBlockImage}
-              initialMode={modalMode ?? "edit-ai"}
-            />
-          }
-        >
-          {isEditingText && inlineEdit?.session ? (
-            <InlineBlockTextEditor
-              initialDraft={originalSlice}
-              onFinish={inlineEdit.finish}
-              onCancel={inlineEdit.cancel}
-            />
-          ) : (
-            taskBody
-          )}
-        </EditableBlockShell>
-      </li>
+      <li className={className}>{taskBody}</li>
     </InsideListItemContext.Provider>
   );
 };
@@ -1866,43 +1363,185 @@ const CustomCode = ({ node }: { node: any }) => {
   );
 };
 
-export const RenderMarkdown = ({
-  markdown,
+/**
+ * Renders a note as a list of independently-editable nodes. Each node is
+ * exactly one markdown block; editing/AI/delete act on a whole node
+ * (addressed by id), never on positions within one — a node whose content
+ * happens to parse into several markdown blocks (e.g. a manual multi-paragraph
+ * paste) still renders all of it, just without per-sub-block actions.
+ */
+export const RenderNoteNodes = ({
+  nodes,
   editableBlocks = false,
-  onBlockChange,
+  onNodeChange,
+  onNodeInsert,
+  onNodeDelete,
   onGenerateBlockImage,
 }: {
-  markdown: string;
+  nodes: TNode[];
   editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onNodeChange?: (nodeId: string, newMarkdown: string) => void;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   return (
-    <ActiveInlineEditProvider onBlockChange={onBlockChange}>
-      <RenderMarkdownBody
-        markdown={markdown}
-        editableBlocks={editableBlocks}
-        onBlockChange={onBlockChange}
-        onGenerateBlockImage={onGenerateBlockImage}
-      />
+    <ActiveInlineEditProvider onNodeChange={onNodeChange}>
+      {nodes.map((node) => (
+        <NodeBlock
+          key={node.id}
+          node={node}
+          editableBlocks={editableBlocks}
+          onNodeChange={onNodeChange}
+          onNodeInsert={onNodeInsert}
+          onNodeDelete={onNodeDelete}
+          onGenerateBlockImage={onGenerateBlockImage}
+        />
+      ))}
+      {editableBlocks && onNodeInsert && (
+        <MarkdownInsertZone
+          afterNodeId={nodes.length ? nodes[nodes.length - 1].id : null}
+          onNodeInsert={onNodeInsert}
+          onGenerateBlockImage={onGenerateBlockImage}
+          variant="end"
+        />
+      )}
     </ActiveInlineEditProvider>
   );
 };
 
-const RenderMarkdownBody = ({
-  markdown,
+const NodeBlock = ({
+  node,
   editableBlocks = false,
-  onBlockChange,
+  onNodeChange,
+  onNodeInsert,
+  onNodeDelete,
   onGenerateBlockImage,
 }: {
-  markdown: string;
+  node: TNode;
   editableBlocks?: boolean;
-  onBlockChange?: (range: TOffsets, newMarkdown: string) => void;
+  onNodeChange?: (nodeId: string, newMarkdown: string) => void;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   const { t } = useTranslation();
   const inlineEdit = useActiveInlineEdit();
-  const displayMarkdown = inlineEdit?.session?.frozenSource ?? markdown;
+  const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
+  const [draftMarkdown, setDraftMarkdown] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isEditingText = inlineEdit?.session?.nodeId === node.id;
+  const displayMarkdown = isEditingText
+    ? inlineEdit!.session!.revertTo
+    : node.content;
+
+  const openModal = (mode: "edit-ai" | "edit-image") => {
+    setDraftMarkdown(node.content);
+    setModalMode(mode);
+  };
+
+  const openInlineEdit = () => {
+    if (!inlineEdit) return;
+    setConfirmDelete(false);
+    inlineEdit.startEdit(node.id, node.content);
+  };
+
+  const saveModalChanges = (overrideValue?: string) => {
+    onNodeChange?.(node.id, overrideValue ?? draftMarkdown);
+    setModalMode(null);
+  };
+
+  const deleteBlock = () => {
+    if (isEditingText) {
+      inlineEdit?.discard();
+    }
+    onNodeDelete?.(node.id);
+    setDraftMarkdown("");
+    setModalMode(null);
+    setConfirmDelete(false);
+  };
+
+  const body = (
+    <RenderMarkdown
+      markdown={displayMarkdown}
+      onNodeContentChange={(next) => onNodeChange?.(node.id, next)}
+    />
+  );
+
+  if (!editableBlocks) {
+    return body;
+  }
+
+  return (
+    <EditableBlockShell
+      isEditing={isEditingText}
+      confirmDelete={confirmDelete}
+      onEditText={openInlineEdit}
+      onRequestDelete={() => setConfirmDelete(true)}
+      onConfirmDelete={deleteBlock}
+      onCancelDelete={() => setConfirmDelete(false)}
+      ariaLabel={t("editAsText")}
+      actions={
+        <BlockActionBar
+          onEditText={openInlineEdit}
+          onEditAI={() => openModal("edit-ai")}
+          onEditImage={() => openModal("edit-image")}
+          onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
+          confirmDelete={confirmDelete}
+          onCancelDelete={() => setConfirmDelete(false)}
+          onGenerateBlockImage={onGenerateBlockImage}
+          blockMarkdown={node.content}
+        />
+      }
+      insertZone={
+        onNodeInsert ? (
+          <MarkdownInsertZone
+            afterNodeId={node.id}
+            onNodeInsert={onNodeInsert}
+            onGenerateBlockImage={onGenerateBlockImage}
+          />
+        ) : null
+      }
+      modal={
+        <MarkdownBlockEditorModal
+          opened={modalMode != null}
+          originalMarkdown={node.content}
+          draftMarkdown={draftMarkdown}
+          onChange={setDraftMarkdown}
+          onSave={saveModalChanges}
+          onCancel={() => {
+            setModalMode(null);
+            setConfirmDelete(false);
+          }}
+          onDelete={deleteBlock}
+          onGenerateBlockImage={onGenerateBlockImage}
+          initialMode={modalMode ?? "edit-ai"}
+        />
+      }
+    >
+      {isEditingText && inlineEdit?.session ? (
+        <InlineBlockTextEditor
+          initialDraft={node.content}
+          onFinish={inlineEdit.finish}
+          onCancel={inlineEdit.cancel}
+        />
+      ) : (
+        body
+      )}
+    </EditableBlockShell>
+  );
+};
+
+/** Renders one node's markdown content as its own independent react-markdown document. */
+export const RenderMarkdown = ({
+  markdown,
+  onNodeContentChange,
+}: {
+  markdown: string;
+  onNodeContentChange?: (newMarkdown: string) => void;
+}) => {
+  const { t } = useTranslation();
+  const displayMarkdown = markdown;
   const [attachmentDataUrls, setAttachmentDataUrls] = useState<Record<string, string>>({});
   const [imageJobs, setImageJobs] = useState<TImageJobMap>({});
 
@@ -2050,156 +1689,36 @@ const RenderMarkdownBody = ({
               />
             );
           },
-          pre: (props) => {
-            return (
-              <BlockEditAsText
-                sourceMarkdown={displayMarkdown}
-                node={props.node}
-                editableBlocks={editableBlocks}
-                onBlockChange={onBlockChange}
-                onGenerateBlockImage={onGenerateBlockImage}
-              >
-                <CustomCode node={props.node} />
-              </BlockEditAsText>
-            );
-          },
+          pre: (props) => <CustomCode node={props.node} />,
           li: (props) => {
             if (hasTaskListItemClassName(props.className)) {
               return (
                 <Tasky
                   className={stringifyLiClassName(props.className)}
                   node={props.node}
-                  sourceMarkdown={displayMarkdown}
-                  editableBlocks={editableBlocks}
-                  onBlockChange={onBlockChange}
-                  onGenerateBlockImage={onGenerateBlockImage}
+                  nodeMarkdown={displayMarkdown}
+                  onNodeContentChange={onNodeContentChange}
                 >
                   {props.children}
                 </Tasky>
               );
             }
-            return (
-              <ListItemEditAsText
-                sourceMarkdown={displayMarkdown}
-                node={props.node}
-                editableBlocks={editableBlocks}
-                onBlockChange={onBlockChange}
-                onGenerateBlockImage={onGenerateBlockImage}
-              >
-                {props.children}
-              </ListItemEditAsText>
-            );
+            return <li>{props.children}</li>;
           },
-          p: (props) => (
-            <MarkdownParagraph
-              node={props.node}
-              sourceMarkdown={displayMarkdown}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              {props.children}
-            </MarkdownParagraph>
-          ),
-          h1: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h1>{props.children}</h1>
-            </BlockEditAsText>
-          ),
-          h2: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h2>{props.children}</h2>
-            </BlockEditAsText>
-          ),
-          h3: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h3>{props.children}</h3>
-            </BlockEditAsText>
-          ),
-          h4: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h4>{props.children}</h4>
-            </BlockEditAsText>
-          ),
-          h5: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h5>{props.children}</h5>
-            </BlockEditAsText>
-          ),
-          h6: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <h6>{props.children}</h6>
-            </BlockEditAsText>
-          ),
-          blockquote: (props) => (
-            <BlockEditAsText
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-              onGenerateBlockImage={onGenerateBlockImage}
-            >
-              <blockquote>{props.children}</blockquote>
-            </BlockEditAsText>
-          ),
-          hr: (props) => (
-            <HorizontalRuleBlock
-              sourceMarkdown={displayMarkdown}
-              node={props.node}
-              editableBlocks={editableBlocks}
-              onBlockChange={onBlockChange}
-            />
-          ),
+          p: (props) => <p>{props.children}</p>,
+          h1: (props) => <h1>{props.children}</h1>,
+          h2: (props) => <h2>{props.children}</h2>,
+          h3: (props) => <h3>{props.children}</h3>,
+          h4: (props) => <h4>{props.children}</h4>,
+          h5: (props) => <h5>{props.children}</h5>,
+          h6: (props) => <h6>{props.children}</h6>,
+          blockquote: (props) => <blockquote>{props.children}</blockquote>,
+          hr: () => <hr />,
         }}
         remarkPlugins={[remarkGfm]}
       >
         {displayMarkdown}
       </Markdown>
-      {editableBlocks && onBlockChange && !inlineEdit?.session && (
-        <MarkdownInsertZone
-          sourceMarkdown={markdown}
-          insertAt={markdown.length}
-          onBlockChange={onBlockChange}
-          onGenerateBlockImage={onGenerateBlockImage}
-          variant="end"
-        />
-      )}
     </>
   );
 };

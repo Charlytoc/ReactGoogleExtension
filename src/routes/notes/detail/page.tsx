@@ -7,15 +7,12 @@ import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
 import { buildBackground, cacheLocation, generateRandomId } from "../../../utils/lib";
 import { openExtensionRouteInNewTab } from "../../../utils/chromeFunctions";
-// import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Section } from "../../../components/Section/Section";
-// import { NoteEditor } from "../../../components/Note/Note";
 import { useStore } from "../../../managers/store";
 import { AIInput } from "../../../components/AIInput/AIInput";
 import { useShallow } from "zustand/shallow";
 import { Message } from "../../../components/Chat/Chat";
 import toast from "react-hot-toast";
-// import { Textarea } from "../../../components/Textarea/Textarea";
 import { TagsField } from "../../../components/TagsField/TagsField";
 import { Select } from "../../../components/Select/Select";
 import {
@@ -23,6 +20,7 @@ import {
   migrateFormatter,
   migrateSnaptie,
   migrateTask,
+  nodesToMarkdown,
 } from "../../../utils/tags";
 import { NOTE_FONT_OPTIONS } from "../../../utils/noteTheme";
 import {
@@ -51,8 +49,7 @@ import {
   saveNoteConversation,
   withUpdatedSystemPrompt,
 } from "../../../utils/conversationsStorage";
-import { Textarea } from "../../../components/Textarea/Textarea";
-import { StyledMarkdown } from "../../../components/RenderMarkdown/StyledMarkdown";
+import { StyledNoteNodes } from "../../../components/RenderMarkdown/StyledMarkdown";
 import { Text } from "@mantine/core";
 
 const Prompter = ({
@@ -338,7 +335,6 @@ export default function NoteDetail() {
   const { t } = useTranslation();
   const [notes, setNotes] = useState<TNote[]>([]);
   const isLoaded = useRef(false);
-  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [isPrompterOpen, setIsPrompterOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -351,7 +347,7 @@ export default function NoteDetail() {
   const [note, setNote] = useState<TNote>({
     id: id,
     title: "",
-    content: "",
+    nodes: [],
     color: "var(--bg-color)",
     tags: [],
     archived: false,
@@ -458,7 +454,7 @@ export default function NoteDetail() {
       setNote((prev) => ({
         ...prev,
         title: storedNote.title,
-        content: storedNote.content,
+        nodes: storedNote.nodes,
         color: storedNote.color,
       }));
     };
@@ -607,7 +603,7 @@ export default function NoteDetail() {
     const noteContext = `Note title: ${note.title || "Untitled"}
 
 Note content (excerpt):
-${(note.content || "").slice(0, 1500)}`;
+${nodesToMarkdown(note.nodes).slice(0, 1500)}`;
 
     const block = blockContext?.trim();
     if (!block) {
@@ -695,16 +691,38 @@ ${noteContext}`;
     navigate(prevPage);
   }, [navigate]);
 
-  const handleBlockChange = (
-    range: { start: number; end: number },
-    newMarkdown: string
-  ) => {
+  const handleNodeChange = (nodeId: string, newMarkdown: string) => {
     const normalizedMarkdown = newMarkdown.replace(/\r\n/g, "\n");
-    const content = note.content || "";
-    const updatedContent = `${content.slice(0, range.start)}${normalizedMarkdown}${content.slice(range.end)}`;
-    if (updatedContent !== note.content) {
-      setNote({ ...note, content: updatedContent });
-    }
+    setNote((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) =>
+        n.id === nodeId ? { ...n, content: normalizedMarkdown } : n
+      ),
+    }));
+  };
+
+  const handleNodeInsert = (afterNodeId: string | null, newMarkdown: string) => {
+    const normalizedMarkdown = newMarkdown.replace(/\r\n/g, "\n");
+    const newNode = {
+      id: generateRandomId("node"),
+      type: "markdown" as const,
+      content: normalizedMarkdown,
+    };
+    setNote((prev) => {
+      const index = afterNodeId
+        ? prev.nodes.findIndex((n) => n.id === afterNodeId)
+        : -1;
+      const nodes = [...prev.nodes];
+      nodes.splice(index + 1, 0, newNode);
+      return { ...prev, nodes };
+    });
+  };
+
+  const handleNodeDelete = (nodeId: string) => {
+    setNote((prev) => ({
+      ...prev,
+      nodes: prev.nodes.filter((n) => n.id !== nodeId),
+    }));
   };
 
   return (
@@ -752,9 +770,10 @@ ${noteContext}`;
               title={t("copyNote")}
               onClick={() => {
                 const title = note.title?.trim();
+                const bodyMarkdown = nodesToMarkdown(note.nodes);
                 const textToCopy = title
-                  ? `# ${title}\n\n${note.content || ""}`.trimEnd()
-                  : note.content || "";
+                  ? `# ${title}\n\n${bodyMarkdown}`.trimEnd()
+                  : bodyMarkdown;
                 void navigator.clipboard.writeText(textToCopy).then(() => {
                   toast.success(t("noteCopied"));
                 });
@@ -767,16 +786,6 @@ ${noteContext}`;
                 isPrompterOpen ? t("close") : t("continueWithAI")
               }
               onClick={() => setIsPrompterOpen((prev) => !prev)}
-            />
-            <Button
-              className="justify-center padding-5"
-              svg={isMarkdownMode ? SVGS.text : SVGS.markdown}
-              title={
-                isMarkdownMode
-                  ? `${t("text")} -> ${t("markdown")}`
-                  : `${t("markdown")} -> ${t("text")}`
-              }
-              onClick={() => setIsMarkdownMode((prev) => !prev)}
             />
             <Button
               className="justify-center padding-5"
@@ -975,26 +984,14 @@ ${noteContext}`;
           )}
         </div>
         <div className="w-100 h-100">
-          {isMarkdownMode ? (
-            <div className="flex-column gap-5 h-100">
-              <Textarea
-                defaultValue={note.content || ""}
-                onChange={(value) => setNote({ ...note, content: value })}
-                name="content"
-                placeholder={t("writeYourNoteHere")}
-                maxHeight="none"
-                fillAvailableHeight
-                containerClassName="note-raw-textarea h-100"
-              />
-            </div>
-          ) : (
-            <StyledMarkdown
-              markdown={note.content || ""}
-              editableBlocks={true}
-              onBlockChange={handleBlockChange}
-              onGenerateBlockImage={handleGenerateBlockImage}
-            />
-          )}
+          <StyledNoteNodes
+            nodes={note.nodes}
+            editableBlocks={true}
+            onNodeChange={handleNodeChange}
+            onNodeInsert={handleNodeInsert}
+            onNodeDelete={handleNodeDelete}
+            onGenerateBlockImage={handleGenerateBlockImage}
+          />
         </div>
         {isCustomizeOpen && (
           <div

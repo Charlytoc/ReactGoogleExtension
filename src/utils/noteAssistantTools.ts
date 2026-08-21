@@ -53,7 +53,7 @@ const buildNoteImageContext = (note: TNote, blockContext?: string): string => {
   const noteContext = `Note title: ${note.title || "Untitled"}
 
 Note content (excerpt):
-${(note.content || "").slice(0, 1500)}`;
+${note.nodes.map((n) => n.content).join("\n\n").slice(0, 1500)}`;
 
   const block = blockContext?.trim();
   if (!block) {
@@ -77,21 +77,88 @@ export const createNoteAssistantTools = (
 ): TTool[] => {
   const { noteId, enqueueImageJob } = deps;
 
-  const updateNoteContent = toolify(
-    async (args: { newContent: string }) => {
-      const updated = await updateStoredNote(noteId, {
-        content: args.newContent,
+  const updateNode = toolify(
+    async (args: { nodeId: string; content: string }) => {
+      const note = await getNoteById(noteId);
+      if (!note) return "Note not found";
+      if (!note.nodes.some((n) => n.id === args.nodeId)) {
+        return `Node not found: ${args.nodeId}`;
+      }
+      await updateStoredNote(noteId, {
+        nodes: note.nodes.map((n) =>
+          n.id === args.nodeId ? { ...n, content: args.content } : n
+        ),
       });
-      if (!updated) return "Note not found";
-      return "Note updated successfully";
+      return "Node updated successfully";
     },
-    "updateNoteContent",
-    "Update the content of the note. Use this tool when you need to make changes to the note. The function expects a string representing the entire content of the note.",
+    "updateNode",
+    "Replace the content of a single existing node in the note. Use this to edit one paragraph/heading/list/etc without touching the rest of the note.",
     {
-      newContent: {
+      nodeId: {
+        type: "string",
+        description: "The id of the node to update.",
+      },
+      content: {
+        type: "string",
+        description: "The new markdown content for this node (one block).",
+      },
+    }
+  );
+
+  const insertNode = toolify(
+    async (args: { afterNodeId: string; content: string }) => {
+      const note = await getNoteById(noteId);
+      if (!note) return "Note not found";
+      const newNode = {
+        id: generateRandomId("node"),
+        type: "markdown" as const,
+        content: args.content,
+      };
+      const afterNodeId = args.afterNodeId?.trim();
+      const index = afterNodeId
+        ? note.nodes.findIndex((n) => n.id === afterNodeId)
+        : -1;
+      if (afterNodeId && index === -1) {
+        return `Node not found: ${afterNodeId}`;
+      }
+      const nodes = [...note.nodes];
+      nodes.splice(index + 1, 0, newNode);
+      await updateStoredNote(noteId, { nodes });
+      return JSON.stringify({ success: true, nodeId: newNode.id });
+    },
+    "insertNode",
+    "Insert a new markdown node (one block) into the note at a given position.",
+    {
+      afterNodeId: {
         type: "string",
         description:
-          "The new content to update the note. The content should be a string representing the entire content of the note.",
+          "Insert the new node right after this node id. Pass an empty string to insert at the very start of the note.",
+      },
+      content: {
+        type: "string",
+        description: "Markdown content for the new node (one block).",
+      },
+    }
+  );
+
+  const deleteNode = toolify(
+    async (args: { nodeId: string }) => {
+      const note = await getNoteById(noteId);
+      if (!note) return "Note not found";
+      if (!note.nodes.some((n) => n.id === args.nodeId)) {
+        return `Node not found: ${args.nodeId}`;
+      }
+      await updateStoredNote(noteId, {
+        nodes: note.nodes.filter((n) => n.id !== args.nodeId),
+      });
+      return "Node deleted successfully";
+    },
+    "deleteNode",
+    "Delete a single node from the note.",
+    {
+      nodeId: {
+        type: "string",
+        description: "The id of the node to delete.",
       },
     }
   );
@@ -139,9 +206,13 @@ export const createNoteAssistantTools = (
       const attachmentId = generateRandomId("attachment");
       const label = args.altText?.trim() || "generated image";
       const markdown = `![${label}](attachment:${attachmentId})`;
-      const content = `${note.content || ""}\n\n${markdown}\n`;
+      const newNode = {
+        id: generateRandomId("node"),
+        type: "markdown" as const,
+        content: markdown,
+      };
 
-      await updateStoredNote(noteId, { content });
+      await updateStoredNote(noteId, { nodes: [...note.nodes, newNode] });
 
       await saveImageJob({
         attachmentId,
@@ -194,7 +265,9 @@ export const createNoteAssistantTools = (
   );
 
   return [
-    updateNoteContent,
+    updateNode,
+    insertNode,
+    deleteNode,
     updateColorTool,
     updateTitleTool,
     appendGeneratedImageToNote,

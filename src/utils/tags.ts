@@ -1,4 +1,4 @@
-import type { TFormatter, TNote, TSnaptie, TTask } from "../types";
+import type { TFormatter, TNode, TNote, TSnaptie, TTask } from "../types";
 import {
   formatterInputsFromPrompt,
   migrateLegacyFormatterPrompt,
@@ -236,11 +236,18 @@ export function formatterMatchesNameFilter(
 export function noteMatchesTextFilter(note: TNote, q: string): boolean {
   const lower = q.toLowerCase();
   const titleIncludes = (note.title ?? "").toLowerCase().includes(lower);
-  const contentIncludes = (note.content ?? "").toLowerCase().includes(lower);
+  const contentIncludes = (note.nodes ?? []).some((n) =>
+    n.content.toLowerCase().includes(lower)
+  );
   const tagIncludes = (note.tags ?? []).some((tag) =>
     tag.toLowerCase().includes(lower)
   );
   return titleIncludes || contentIncludes || tagIncludes;
+}
+
+/** Flattens a note's nodes into a single markdown string (for copy/export). */
+export function nodesToMarkdown(nodes: TNode[]): string {
+  return nodes.map((n) => n.content).join("\n\n");
 }
 
 export function taskMatchesTextFilter(task: TTask, q: string): boolean {

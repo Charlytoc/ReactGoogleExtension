@@ -28,8 +28,14 @@ This is a JSON representation of the note:
 ${JSON.stringify(note)}
 \`\`\`
 
+## NOTE STRUCTURE
+The note body is a list of nodes (see "nodes" above), each one markdown block (a paragraph, heading, list, code block, etc). Edit it with updateNode/insertNode/deleteNode, addressing nodes by their "id" — never regenerate the whole note as one string.
+
 ## RULES
 - Use the right tool depending on the task in hand.
+- To change one block, call updateNode with its id and the new content for just that block.
+- To add a block, call insertNode with the id of the node it should follow (or an empty string to insert at the start) and only that new block's markdown.
+- To remove a block, call deleteNode with its id.
 - Provide useful insights about the note and the changes you are making.
 - Ask for clarification if needed.
 - When generating content that includes diagrams, flowcharts, sequences, or graphs, use Mermaid syntax inside a mermaid code block (\`\`\`mermaid ... \`\`\`). Mermaid diagrams are fully supported and rendered in this note.

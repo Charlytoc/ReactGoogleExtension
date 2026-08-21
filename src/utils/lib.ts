@@ -23,6 +23,7 @@ export const generateRandomId = (
     | "formatter"
     | "attachment"
     | "prompt"
+    | "node"
 ) => {
   const timestamp = Date.now();
   const randomString = Math.random().toString(36).substring(2, 8);

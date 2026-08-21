@@ -17,6 +17,7 @@ import {
   migrateFormatter,
   migrateSnaptie,
   migrateTask,
+  noteMatchesTextFilter,
 } from "../../utils/tags";
 // import { useStore } from "../../managers/store"
 
@@ -73,7 +74,7 @@ export const NotesManager = () => {
     const defaultNote: TNote = {
       id: generateRandomId("note"),
       title: "",
-      content: "",
+      nodes: [],
       color: cssVariableValue,
       createdAt: new Date().toISOString(),
       tags: [],
@@ -143,14 +144,8 @@ export const NotesManager = () => {
     }
 
     if (filters.contains) {
-      notesToShow = notesToShow.filter(
-        (note: TNote) =>
-          note.title
-            ?.toLocaleLowerCase()
-            .includes(filters.contains.toLocaleLowerCase()) ||
-          note.content
-            ?.toLocaleLowerCase()
-            .includes(filters.contains.toLocaleLowerCase())
+      notesToShow = notesToShow.filter((note: TNote) =>
+        noteMatchesTextFilter(note, filters.contains)
       );
     }
 

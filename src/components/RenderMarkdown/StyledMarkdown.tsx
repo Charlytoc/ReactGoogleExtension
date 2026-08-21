@@ -1,25 +1,39 @@
-import { RenderMarkdown, TGenerateBlockImage } from "./RenderMarkdown";
+import { RenderMarkdown, RenderNoteNodes, TGenerateBlockImage } from "./RenderMarkdown";
+import type { TNode } from "../../types";
 
-export const StyledMarkdown = ({
-  markdown,
+/** Read-only markdown rendering for a plain string (chat messages, previews). */
+export const StyledMarkdown = ({ markdown }: { markdown: string }) => {
+  return (
+    <div className="markdown-container">
+      <RenderMarkdown markdown={markdown} />
+    </div>
+  );
+};
+
+/** Editable per-node rendering for a note's node list. */
+export const StyledNoteNodes = ({
+  nodes,
   editableBlocks = false,
-  onBlockChange,
+  onNodeChange,
+  onNodeInsert,
+  onNodeDelete,
   onGenerateBlockImage,
 }: {
-  markdown: string;
+  nodes: TNode[];
   editableBlocks?: boolean;
-  onBlockChange?: (
-    range: { start: number; end: number },
-    newMarkdown: string
-  ) => void;
+  onNodeChange?: (nodeId: string, newMarkdown: string) => void;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   return (
     <div className="markdown-container">
-      <RenderMarkdown
-        markdown={markdown}
+      <RenderNoteNodes
+        nodes={nodes}
         editableBlocks={editableBlocks}
-        onBlockChange={onBlockChange}
+        onNodeChange={onNodeChange}
+        onNodeInsert={onNodeInsert}
+        onNodeDelete={onNodeDelete}
         onGenerateBlockImage={onGenerateBlockImage}
       />
     </div>
