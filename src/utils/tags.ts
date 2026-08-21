@@ -232,3 +232,25 @@ export function formatterMatchesNameFilter(
   if (formatter.title.toLowerCase().includes(lower)) return true;
   return (formatter.tags ?? []).some((tag) => tag.toLowerCase().includes(lower));
 }
+
+export function noteMatchesTextFilter(note: TNote, q: string): boolean {
+  const lower = q.toLowerCase();
+  const titleIncludes = (note.title ?? "").toLowerCase().includes(lower);
+  const contentIncludes = (note.content ?? "").toLowerCase().includes(lower);
+  const tagIncludes = (note.tags ?? []).some((tag) =>
+    tag.toLowerCase().includes(lower)
+  );
+  return titleIncludes || contentIncludes || tagIncludes;
+}
+
+export function taskMatchesTextFilter(task: TTask, q: string): boolean {
+  const lower = q.toLowerCase();
+  const titleIncludes = task.title.toLowerCase().includes(lower);
+  const descriptionIncludes = (task.description ?? "")
+    .toLowerCase()
+    .includes(lower);
+  const tagIncludes = (task.tags ?? []).some((tag) =>
+    tag.toLowerCase().includes(lower)
+  );
+  return titleIncludes || descriptionIncludes || tagIncludes;
+}

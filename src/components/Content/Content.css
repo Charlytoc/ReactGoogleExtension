@@ -36,3 +36,14 @@
   border-color: var(--active-color);
   transform: scale(0.98);
 }
+
+/* ─── Global search results ─── */
+
+.search-results {
+  overflow-y: auto;
+}
+
+.search-result {
+  padding: 10px 12px;
+  text-align: left;
+}

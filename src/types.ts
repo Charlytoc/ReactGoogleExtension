@@ -12,11 +12,17 @@ export type TAttachment = {
   createdAt: string;
 };
 
+export type TNode = {
+  type: "markdown",
+  content: string;
+}
+
 export type TNote = {
   id: string;
   title?: string;
   content?: string;
   color?: string;
+  nodes?: TNode[];
   backgroundType?: TBackgroundType;
   color2?: string;
   tags?: string[];
