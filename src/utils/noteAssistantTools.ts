@@ -1,8 +1,11 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
-import type { TNote } from "../types";
+import type { TNode, TNodeType, TNote } from "../types";
 import { toolify, TTool } from "./ai";
 import { generateRandomId } from "./lib";
 import { saveImageJob, type TGenerateNoteImageMessage } from "./imageJobs";
+
+const normalizeNodeType = (value: string | undefined): TNodeType =>
+  value === "table" ? "table" : "markdown";
 
 type TImageSizeOption = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 
@@ -78,15 +81,21 @@ export const createNoteAssistantTools = (
   const { noteId, enqueueImageJob } = deps;
 
   const updateNode = toolify(
-    async (args: { nodeId: string; content: string }) => {
+    async (args: { nodeId: string; content: string; nodeType?: string }) => {
       const note = await getNoteById(noteId);
       if (!note) return "Note not found";
       if (!note.nodes.some((n) => n.id === args.nodeId)) {
         return `Node not found: ${args.nodeId}`;
       }
       await updateStoredNote(noteId, {
-        nodes: note.nodes.map((n) =>
-          n.id === args.nodeId ? { ...n, content: args.content } : n
+        nodes: note.nodes.map((n): TNode =>
+          n.id === args.nodeId
+            ? {
+                ...n,
+                content: args.content,
+                type: args.nodeType ? normalizeNodeType(args.nodeType) : n.type,
+              }
+            : n
         ),
       });
       return "Node updated successfully";
@@ -100,18 +109,24 @@ export const createNoteAssistantTools = (
       },
       content: {
         type: "string",
-        description: "The new markdown content for this node (one block).",
+        description:
+          "The new markdown content for this node (one block). For a table node, this must be a GFM markdown table (header row, separator row, data rows).",
+      },
+      nodeType: {
+        type: "string",
+        description:
+          "Optional. Either \"markdown\" or \"table\". Omit to keep the node's current type; pass \"table\" to convert this node into a table (content must then be a GFM markdown table).",
       },
     }
   );
 
   const insertNode = toolify(
-    async (args: { afterNodeId: string; content: string }) => {
+    async (args: { afterNodeId: string; content: string; nodeType?: string }) => {
       const note = await getNoteById(noteId);
       if (!note) return "Note not found";
-      const newNode = {
+      const newNode: TNode = {
         id: generateRandomId("node"),
-        type: "markdown" as const,
+        type: normalizeNodeType(args.nodeType),
         content: args.content,
       };
       const afterNodeId = args.afterNodeId?.trim();
@@ -127,7 +142,7 @@ export const createNoteAssistantTools = (
       return JSON.stringify({ success: true, nodeId: newNode.id });
     },
     "insertNode",
-    "Insert a new markdown node (one block) into the note at a given position.",
+    "Insert a new node (one block) into the note at a given position.",
     {
       afterNodeId: {
         type: "string",
@@ -136,7 +151,13 @@ export const createNoteAssistantTools = (
       },
       content: {
         type: "string",
-        description: "Markdown content for the new node (one block).",
+        description:
+          "Markdown content for the new node (one block). For a table node, this must be a GFM markdown table (header row, separator row, data rows), e.g. \"| A | B |\\n| --- | --- |\\n| 1 | 2 |\".",
+      },
+      nodeType: {
+        type: "string",
+        description:
+          "Either \"markdown\" (default) or \"table\". Use \"table\" when the user asks for a table.",
       },
     }
   );

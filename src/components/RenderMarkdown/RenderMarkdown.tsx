@@ -26,9 +26,16 @@ import {
 import { getNotesAssistantModelSlug } from "../../utils/aiConfigStorage";
 import { useStore } from "../../managers/store";
 import { useLocation, useNavigate } from "react-router";
-import { cacheLocation } from "../../utils/lib";
+import { cacheLocation, generateRandomId } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
-import { TAttachment, TNode } from "../../types";
+import { TAttachment, TNode, TNodeType } from "../../types";
+import useDebounce from "../../hooks/useDebounce";
+import {
+  createDefaultTableMarkdown,
+  parseMarkdownTable,
+  serializeMarkdownTable,
+  type TParsedTable,
+} from "../../utils/tableMarkdown";
 import {
   AI_IMAGE_JOBS_KEY,
   getImageJobs,
@@ -43,6 +50,8 @@ type TInlineEditSession = {
 type TActiveInlineEditContextValue = {
   session: TInlineEditSession | null;
   startEdit: (nodeId: string, markdown: string) => void;
+  /** Persists the draft without closing the editor (no setState/remount). */
+  flushDraft: (draft: string) => void;
   finish: (draft: string) => void;
   cancel: () => void;
   discard: () => void;
@@ -269,6 +278,7 @@ const ActiveInlineEditProvider = ({
   const value: TActiveInlineEditContextValue = {
     session,
     startEdit,
+    flushDraft: flushQuiet,
     finish,
     cancel,
     discard,
@@ -281,12 +291,17 @@ const ActiveInlineEditProvider = ({
   );
 };
 
+const INLINE_DRAFT_SAVE_DEBOUNCE_MS = 500;
+
 const InlineBlockTextEditor = ({
   initialDraft,
+  onSaveDraft,
   onFinish,
   onCancel,
 }: {
   initialDraft: string;
+  /** Persists the draft without closing the editor (debounced while typing). */
+  onSaveDraft: (draft: string) => void;
   onFinish: (draft: string) => void;
   onCancel: () => void;
 }) => {
@@ -294,6 +309,8 @@ const InlineBlockTextEditor = ({
   const [draft, setDraft] = useState(initialDraft);
   const draftRef = useRef(draft);
   draftRef.current = draft;
+
+  const debouncedSaveDraft = useDebounce(onSaveDraft, INLINE_DRAFT_SAVE_DEBOUNCE_MS);
 
   return (
     <Textarea
@@ -304,8 +321,10 @@ const InlineBlockTextEditor = ({
       value={draft}
       onChange={(e) => {
         setDraft(e.target.value);
-        // Intentionally no debounced parent flush while typing — that re-rendered
-        // the markdown tree and reset the caret. Persist on blur / Cmd+Enter only.
+        // Persist quietly (no setState/remount of the markdown tree) after a
+        // short pause in typing — covers Enter and any other key, without
+        // closing the editor. Cmd/Ctrl+Enter or blur still finalize the edit.
+        debouncedSaveDraft(e.target.value);
       }}
       onBlur={() => onFinish(draftRef.current)}
       onKeyDown={(e) => {
@@ -731,75 +750,67 @@ ${imageToolHint}- When finished, call saveBlock with the complete final markdown
   );
 };
 
+/**
+ * Both "+" (text) and the table icon insert their new node inline and
+ * immediately — no modal. Text starts empty and opens straight into the
+ * same inline text editor a normal node uses (via the shared
+ * ActiveInlineEditProvider), so typing starts right away; the table starts
+ * pre-filled with a blank 2-column grid, which is already its own ready-to-use
+ * editor, so no extra edit step is needed for it.
+ */
 const MarkdownInsertZone = ({
   afterNodeId,
   onNodeInsert,
-  onGenerateBlockImage,
   variant = "between",
 }: {
   afterNodeId: string | null;
-  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
-  onGenerateBlockImage?: TGenerateBlockImage;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string, nodeType?: TNodeType, nodeId?: string) => void;
   variant?: "between" | "end";
 }) => {
   const { t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(false);
-  const [draftMarkdown, setDraftMarkdown] = useState("");
+  const inlineEdit = useActiveInlineEdit();
 
-  const openInsert = (e: MouseEvent<HTMLButtonElement>) => {
+  const insertText = (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDraftMarkdown("");
-    setIsOpen(true);
+    const nodeId = generateRandomId("node");
+    onNodeInsert?.(afterNodeId, "", "markdown", nodeId);
+    inlineEdit?.startEdit(nodeId, "");
   };
 
-  const saveInsert = (overrideValue?: string) => {
-    const insertion = (overrideValue ?? draftMarkdown).trim();
-    if (!insertion) {
-      setIsOpen(false);
-      return;
-    }
-    onNodeInsert?.(afterNodeId, insertion);
-    setDraftMarkdown("");
-    setIsOpen(false);
+  const insertTable = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onNodeInsert?.(afterNodeId, createDefaultTableMarkdown(), "table");
   };
 
   return (
-    <>
-      <div
-        className={`markdown-insert-zone${
-          variant === "end" ? " markdown-insert-zone--end" : ""
-        }`}
+    <div
+      className={`markdown-insert-zone${
+        variant === "end" ? " markdown-insert-zone--end" : ""
+      }`}
+    >
+      <button
+        type="button"
+        tabIndex={-1}
+        className="markdown-insert-zone-button"
+        title={t("insertBlock")}
+        aria-label={t("insertBlock")}
+        onClick={insertText}
       >
-        <button
-          type="button"
-          className={`markdown-insert-zone-button${
-            variant === "end" ? " markdown-insert-zone-button--end" : ""
-          }`}
-          title={t("insertBlock")}
-          aria-label={t("insertBlock")}
-          onClick={openInsert}
-        >
-          {SVGS.plus}
-          {variant === "end" ? (
-            <span className="markdown-insert-zone-label">{t("insertBlock")}</span>
-          ) : null}
-        </button>
-      </div>
-      <MarkdownBlockEditorModal
-        opened={isOpen}
-        originalMarkdown=""
-        draftMarkdown={draftMarkdown}
-        onChange={setDraftMarkdown}
-        onSave={saveInsert}
-        onCancel={() => {
-          setIsOpen(false);
-          setDraftMarkdown("");
-        }}
-        onGenerateBlockImage={onGenerateBlockImage}
-        initialMode="edit-text"
-      />
-    </>
+        {SVGS.plus}
+      </button>
+      <button
+        type="button"
+        tabIndex={-1}
+        className="markdown-insert-zone-button"
+        title={t("insertTable")}
+        aria-label={t("insertTable")}
+        onClick={insertTable}
+      >
+        {SVGS.table}
+      </button>
+    </div>
   );
 };
 
@@ -987,6 +998,8 @@ const EditableBlockShell = ({
   onRequestDelete,
   onConfirmDelete,
   onCancelDelete,
+  onInsertAfter,
+  onInsertBefore,
   ariaLabel,
   children,
   actions,
@@ -999,6 +1012,10 @@ const EditableBlockShell = ({
   onRequestDelete: () => void;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
+  /** "+" while the block is focused/hovered: insert a new node right after it. */
+  onInsertAfter?: () => void;
+  /** Shift+"+" while the block is focused/hovered: insert a new node right before it. */
+  onInsertBefore?: () => void;
   ariaLabel: string;
   children: ReactNode;
   actions?: ReactNode;
@@ -1050,6 +1067,21 @@ const EditableBlockShell = ({
         return;
       }
 
+      // "<" (Shift+,) inserts a new node before this one; ">" (Shift+.) after.
+      if (e.key === ">" && onInsertAfter && !confirmDelete) {
+        e.preventDefault();
+        e.stopPropagation();
+        onInsertAfter();
+        return;
+      }
+
+      if (e.key === "<" && onInsertBefore && !confirmDelete) {
+        e.preventDefault();
+        e.stopPropagation();
+        onInsertBefore();
+        return;
+      }
+
       if (confirmDelete && e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -1068,6 +1100,8 @@ const EditableBlockShell = ({
     onRequestDelete,
     onConfirmDelete,
     onCancelDelete,
+    onInsertAfter,
+    onInsertBefore,
   ]);
 
   return (
@@ -1093,8 +1127,12 @@ const EditableBlockShell = ({
       }}
     >
       <div className="markdown-block-content">{children}</div>
-      {!isEditing && actions}
-      {!isEditing && insertZone}
+      {!isEditing && (actions || insertZone) && (
+        <div className="markdown-block-toolbar">
+          {actions}
+          {insertZone}
+        </div>
+      )}
       {modal}
     </div>
   );
@@ -1381,16 +1419,17 @@ export const RenderNoteNodes = ({
   nodes: TNode[];
   editableBlocks?: boolean;
   onNodeChange?: (nodeId: string, newMarkdown: string) => void;
-  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string, nodeType?: TNodeType, nodeId?: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
   return (
     <ActiveInlineEditProvider onNodeChange={onNodeChange}>
-      {nodes.map((node) => (
+      {nodes.map((node, index) => (
         <NodeBlock
           key={node.id}
           node={node}
+          previousNodeId={index > 0 ? nodes[index - 1].id : null}
           editableBlocks={editableBlocks}
           onNodeChange={onNodeChange}
           onNodeInsert={onNodeInsert}
@@ -1398,20 +1437,224 @@ export const RenderNoteNodes = ({
           onGenerateBlockImage={onGenerateBlockImage}
         />
       ))}
-      {editableBlocks && onNodeInsert && (
-        <MarkdownInsertZone
-          afterNodeId={nodes.length ? nodes[nodes.length - 1].id : null}
-          onNodeInsert={onNodeInsert}
-          onGenerateBlockImage={onGenerateBlockImage}
-          variant="end"
-        />
+      {editableBlocks && onNodeInsert && nodes.length === 0 && (
+        <MarkdownInsertZone afterNodeId={null} onNodeInsert={onNodeInsert} variant="end" />
       )}
     </ActiveInlineEditProvider>
   );
 };
 
+/**
+ * Grid editor for a table node. Parses the node's markdown into headers/rows,
+ * renders one input per cell, and re-serializes the whole table back to
+ * markdown on every edit — the node's `content` stays plain GFM markdown,
+ * this is purely a nicer way to read/write it than the raw-text editor.
+ *
+ * Keeps its own local `table` state (synced from `content` when the node
+ * changes elsewhere) instead of re-deriving it from `content` on every
+ * render. Re-deriving meant structural edits (add/remove row/column) and a
+ * still-pending debounced cell edit could both read a stale closure of the
+ * table and race to overwrite each other — e.g. deleting column 0 while a
+ * keystroke in another cell was still debouncing would have the pending
+ * keystroke's stale (pre-delete) table win once its timer fired, silently
+ * reverting the delete and leaving indices misaligned for the next click.
+ */
+const TableNodeEditor = ({
+  content,
+  onChange,
+}: {
+  content: string;
+  onChange: (newMarkdown: string) => void;
+}) => {
+  const { t } = useTranslation();
+  const parseTable = (raw: string): TParsedTable =>
+    parseMarkdownTable(raw) ?? { headers: [""], rows: [[""]] };
+
+  const [table, setTable] = useState<TParsedTable>(() => parseTable(content));
+  const lastContentRef = useRef(content);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Re-sync from `content` only when it changed for a reason other than our
+  // own commit (e.g. the AI assistant updated this node) — avoids clobbering
+  // in-progress local edits on every parent re-render.
+  if (content !== lastContentRef.current) {
+    lastContentRef.current = content;
+    setTable(parseTable(content));
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    };
+  }, []);
+
+  const commit = (next: TParsedTable) => {
+    if (pendingTimerRef.current) {
+      clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = undefined;
+    }
+    setTable(next);
+    const markdown = serializeMarkdownTable(next);
+    lastContentRef.current = markdown;
+    onChange(markdown);
+  };
+
+  const commitDebounced = (next: TParsedTable) => {
+    setTable(next);
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = setTimeout(() => {
+      pendingTimerRef.current = undefined;
+      const markdown = serializeMarkdownTable(next);
+      lastContentRef.current = markdown;
+      onChange(markdown);
+    }, 400);
+  };
+
+  const setHeaderCell = (col: number, value: string) => {
+    commitDebounced({
+      ...table,
+      headers: table.headers.map((h, i) => (i === col ? value : h)),
+    });
+  };
+
+  const setBodyCell = (row: number, col: number, value: string) => {
+    commitDebounced({
+      ...table,
+      rows: table.rows.map((r, ri) =>
+        ri === row ? r.map((c, ci) => (ci === col ? value : c)) : r
+      ),
+    });
+  };
+
+  const addRow = () => {
+    commit({
+      ...table,
+      rows: [...table.rows, table.headers.map(() => "")],
+    });
+  };
+
+  const removeRow = (row: number) => {
+    commit({
+      ...table,
+      rows: table.rows.filter((_, ri) => ri !== row),
+    });
+  };
+
+  const addColumn = () => {
+    commit({
+      headers: [...table.headers, `Column ${table.headers.length + 1}`],
+      rows: table.rows.map((r) => [...r, ""]),
+    });
+  };
+
+  const removeColumn = (col: number) => {
+    commit({
+      headers: table.headers.filter((_, i) => i !== col),
+      rows: table.rows.map((r) => r.filter((_, i) => i !== col)),
+    });
+  };
+
+  const columnCount = table.headers.length;
+
+  return (
+    <div className="table-node-editor" onClick={(e) => e.stopPropagation()}>
+      <div className="table-node-scroll">
+        <table className="table-node-grid">
+          <thead>
+            <tr>
+              {table.headers.map((header, col) => (
+                <th key={col}>
+                  <div className="table-node-cell">
+                    <input
+                      className="table-node-input table-node-input--header"
+                      value={header}
+                      placeholder={t("title")}
+                      onChange={(e) => setHeaderCell(col, e.target.value)}
+                    />
+                    <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
+                      <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        tabIndex={-1}
+                        className="table-node-cell-action"
+                        disabled={table.headers.length <= 1}
+                        onClick={() => removeColumn(col)}
+                        aria-label={t("delete")}
+                      >
+                        {SVGS.trash}
+                      </ActionIcon>
+                    </Tooltip>
+                  </div>
+                </th>
+              ))}
+              <th className="table-node-add-col-cell" rowSpan={table.rows.length + 1}>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="table-node-add-strip-button"
+                  title={t("addColumn")}
+                  aria-label={t("addColumn")}
+                  onClick={addColumn}
+                >
+                  {SVGS.plus}
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, ri) => (
+              <tr key={ri}>
+                {row.map((cell, ci) => (
+                  <td key={ci}>
+                    <input
+                      className="table-node-input"
+                      value={cell}
+                      onChange={(e) => setBodyCell(ri, ci, e.target.value)}
+                    />
+                  </td>
+                ))}
+                <td className="table-node-row-action-cell">
+                  <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      tabIndex={-1}
+                      disabled={table.rows.length <= 1}
+                      onClick={() => removeRow(ri)}
+                      aria-label={t("delete")}
+                    >
+                      {SVGS.trash}
+                    </ActionIcon>
+                  </Tooltip>
+                </td>
+              </tr>
+            ))}
+            <tr className="table-node-add-row-row">
+              <td colSpan={columnCount + 1}>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="table-node-add-strip-button"
+                  title={t("addRow")}
+                  aria-label={t("addRow")}
+                  onClick={addRow}
+                >
+                  {SVGS.plus}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const NodeBlock = ({
   node,
+  previousNodeId = null,
   editableBlocks = false,
   onNodeChange,
   onNodeInsert,
@@ -1419,9 +1662,10 @@ const NodeBlock = ({
   onGenerateBlockImage,
 }: {
   node: TNode;
+  previousNodeId?: string | null;
   editableBlocks?: boolean;
   onNodeChange?: (nodeId: string, newMarkdown: string) => void;
-  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string, nodeType?: TNodeType, nodeId?: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
@@ -1461,45 +1705,59 @@ const NodeBlock = ({
     setConfirmDelete(false);
   };
 
-  const body = (
-    <RenderMarkdown
-      markdown={displayMarkdown}
-      onNodeContentChange={(next) => onNodeChange?.(node.id, next)}
-    />
-  );
+  const insertTextAt = (afterNodeId: string | null) => {
+    if (!onNodeInsert) return;
+    setConfirmDelete(false);
+    const nodeId = generateRandomId("node");
+    onNodeInsert(afterNodeId, "", "markdown", nodeId);
+    inlineEdit?.startEdit(nodeId, "");
+  };
+
+  const body =
+    node.type === "table" ? (
+      <TableNodeEditor
+        content={node.content}
+        onChange={(next) => onNodeChange?.(node.id, next)}
+      />
+    ) : (
+      <RenderMarkdown
+        markdown={displayMarkdown}
+        onNodeContentChange={(next) => onNodeChange?.(node.id, next)}
+      />
+    );
 
   if (!editableBlocks) {
     return body;
   }
 
+  const isTable = node.type === "table";
+
   return (
     <EditableBlockShell
       isEditing={isEditingText}
       confirmDelete={confirmDelete}
-      onEditText={openInlineEdit}
+      onEditText={isTable ? undefined : openInlineEdit}
       onRequestDelete={() => setConfirmDelete(true)}
       onConfirmDelete={deleteBlock}
       onCancelDelete={() => setConfirmDelete(false)}
+      onInsertAfter={onNodeInsert ? () => insertTextAt(node.id) : undefined}
+      onInsertBefore={onNodeInsert ? () => insertTextAt(previousNodeId) : undefined}
       ariaLabel={t("editAsText")}
       actions={
         <BlockActionBar
-          onEditText={openInlineEdit}
+          onEditText={isTable ? undefined : openInlineEdit}
           onEditAI={() => openModal("edit-ai")}
-          onEditImage={() => openModal("edit-image")}
+          onEditImage={isTable ? undefined : () => openModal("edit-image")}
           onDelete={confirmDelete ? deleteBlock : () => setConfirmDelete(true)}
           confirmDelete={confirmDelete}
           onCancelDelete={() => setConfirmDelete(false)}
-          onGenerateBlockImage={onGenerateBlockImage}
+          onGenerateBlockImage={isTable ? undefined : onGenerateBlockImage}
           blockMarkdown={node.content}
         />
       }
       insertZone={
         onNodeInsert ? (
-          <MarkdownInsertZone
-            afterNodeId={node.id}
-            onNodeInsert={onNodeInsert}
-            onGenerateBlockImage={onGenerateBlockImage}
-          />
+          <MarkdownInsertZone afterNodeId={node.id} onNodeInsert={onNodeInsert} />
         ) : null
       }
       modal={
@@ -1514,7 +1772,7 @@ const NodeBlock = ({
             setConfirmDelete(false);
           }}
           onDelete={deleteBlock}
-          onGenerateBlockImage={onGenerateBlockImage}
+          onGenerateBlockImage={isTable ? undefined : onGenerateBlockImage}
           initialMode={modalMode ?? "edit-ai"}
         />
       }
@@ -1522,6 +1780,7 @@ const NodeBlock = ({
       {isEditingText && inlineEdit?.session ? (
         <InlineBlockTextEditor
           initialDraft={node.content}
+          onSaveDraft={inlineEdit.flushDraft}
           onFinish={inlineEdit.finish}
           onCancel={inlineEdit.cancel}
         />

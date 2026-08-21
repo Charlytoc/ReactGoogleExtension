@@ -361,12 +361,6 @@ button:focus-visible {
 
   & .markdown-block-row {
     position: relative;
-    padding-top: 28px;
-    margin-top: -28px;
-  }
-
-  & > .markdown-block-row:first-child {
-    margin-top: 0;
   }
 
   & .markdown-block-row:hover,
@@ -377,24 +371,13 @@ button:focus-visible {
   }
 
   & .markdown-block-row:focus-visible {
+    outline: none;
+  }
+
+  & .markdown-block-row:focus-visible .markdown-block-content {
     outline: 1px solid var(--active-color);
     outline-offset: 2px;
     border-radius: 6px;
-  }
-
-  & .markdown-block-row:hover .markdown-block-actions,
-  & .markdown-block-row:focus-within .markdown-block-actions,
-  & .markdown-block-actions:hover,
-  & .markdown-block-actions:focus-within,
-  & .markdown-block-actions--confirming,
-  & .markdown-block-row--confirming .markdown-block-actions {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  & .markdown-block-row--editing .markdown-block-actions {
-    opacity: 0;
-    pointer-events: none;
   }
 
   & .markdown-inline-text-editor {
@@ -406,19 +389,6 @@ button:focus-visible {
     line-height: 1.5;
   }
 
-  & li > .markdown-block-row {
-    margin-top: -28px;
-  }
-
-  & li:first-child > .markdown-block-row {
-    margin-top: 0;
-  }
-
-  /* Task rows must not overlap the previous item or its checkbox becomes unclickable. */
-  & li.task-list-item > .markdown-block-row {
-    margin-top: 0;
-  }
-
   & li.task-list-item .checkbox {
     position: relative;
     z-index: 1;
@@ -428,23 +398,40 @@ button:focus-visible {
     min-width: 0;
   }
 
+  /* Combined actions + insert-zone row, shown below the block content on hover/focus. */
+  & .markdown-block-toolbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 6px;
+    margin: 2px 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  & .markdown-block-row:hover .markdown-block-toolbar,
+  & .markdown-block-row:focus-within .markdown-block-toolbar,
+  & .markdown-block-toolbar:hover,
+  & .markdown-block-toolbar:focus-within,
+  & .markdown-block-actions--confirming,
+  & .markdown-block-row--confirming .markdown-block-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   & .markdown-block-actions {
-    position: absolute;
-    top: 0;
-    right: 0;
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 1px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease;
     background: color-mix(in srgb, var(--bg-color) 92%, transparent);
     backdrop-filter: blur(6px);
     border: 1px solid var(--opaque-gray-color);
     border-radius: 8px;
     padding: 2px 3px;
-    z-index: 5;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   }
 
@@ -510,19 +497,10 @@ button:focus-visible {
 
   & .markdown-insert-zone {
     position: relative;
-    height: 6px;
-    margin: 2px 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-
-  & .markdown-block-row:hover .markdown-insert-zone,
-  & .markdown-insert-zone:hover,
-  & .markdown-insert-zone:focus-within {
-    opacity: 1;
+    gap: 4px;
   }
 
   & .markdown-insert-zone-button {
@@ -535,7 +513,7 @@ button:focus-visible {
     width: 22px;
     height: 22px;
     padding: 0;
-    border: 1px solid var(--active-color);
+    border: none;
     border-radius: 999px;
     background: var(--bg-color);
     color: var(--active-color);
@@ -551,31 +529,137 @@ button:focus-visible {
 
   & .markdown-insert-zone--end {
     height: auto;
-    min-height: 32px;
+    min-height: 28px;
     margin-top: 8px;
     opacity: 1;
   }
 
-  & .markdown-insert-zone-button--end {
-    width: auto;
-    min-height: 28px;
-    padding: 4px 10px;
+  & .table-node-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  & .table-node-scroll {
+    overflow: auto;
+    border: 1px solid var(--opaque-gray-color);
     border-radius: 8px;
-    border-color: var(--opaque-gray-color);
-    color: var(--font-color-secondary);
+  }
+
+  & .table-node-grid {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    margin-block: 0;
+  }
+
+  & .table-node-grid th,
+  & .table-node-grid td {
+    border: 1px solid var(--opaque-gray-color);
+    padding: 0;
+    width: 140px;
+  }
+
+  & .table-node-grid thead th {
     background: rgba(255, 255, 255, 0.04);
   }
 
-  & .markdown-insert-zone-button--end:hover {
-    border-color: var(--active-color);
-    color: var(--active-color);
-    background: rgba(255, 255, 255, 0.08);
-    transform: none;
+  & .table-node-cell {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
   }
 
-  & .markdown-insert-zone-label {
-    font-size: 0.8rem;
-    font-weight: 500;
+  & .table-node-input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    color: var(--font-color);
+    font: inherit;
+    padding: 6px 8px;
+    outline: none;
+  }
+
+  & .table-node-input--header {
+    font-weight: 600;
+  }
+
+  & .table-node-input:focus {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  & .table-node-cell-action {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    margin-right: 2px;
+  }
+
+  & .table-node-grid th:hover .table-node-cell-action {
+    opacity: 1;
+  }
+
+  & .table-node-row-action-cell {
+    width: 28px;
+    text-align: center;
+    vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  & .table-node-grid tbody tr:hover .table-node-row-action-cell {
+    opacity: 1;
+  }
+
+  /* Narrow full-height/full-width strips for "add column" / "add row",
+     styled as an extension of the table rather than a distinct cell.
+     Specificity must beat ".table-node-grid th" (which sets width: auto). */
+  & .table-node-grid th.table-node-add-col-cell {
+    width: 22px;
+    padding: 0;
+    background: transparent;
+  }
+
+  & .table-node-add-row-row td {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 0;
+  }
+
+  & .table-node-add-strip-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--font-color-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+
+  & .table-node-add-strip-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  & .table-node-grid:hover .table-node-add-strip-button {
+    opacity: 0.6;
+  }
+
+  & .table-node-add-strip-button:hover {
+    opacity: 1 !important;
+    color: var(--active-color);
+    background: rgba(255, 255, 255, 0.06);
   }
 
   & blockquote {

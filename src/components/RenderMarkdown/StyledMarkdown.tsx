@@ -22,7 +22,12 @@ export const StyledNoteNodes = ({
   nodes: TNode[];
   editableBlocks?: boolean;
   onNodeChange?: (nodeId: string, newMarkdown: string) => void;
-  onNodeInsert?: (afterNodeId: string | null, newMarkdown: string) => void;
+  onNodeInsert?: (
+    afterNodeId: string | null,
+    newMarkdown: string,
+    nodeType?: TNode["type"],
+    nodeId?: string
+  ) => void;
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {

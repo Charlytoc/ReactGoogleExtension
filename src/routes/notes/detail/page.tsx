@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ChromeStorageManager } from "../../../managers/Storage";
-import { TBackgroundType, TMessage, TNote } from "../../../types";
+import { TBackgroundType, TMessage, TNodeType, TNote } from "../../../types";
 import { Button } from "../../../components/Button/Button";
 import { SVGS } from "../../../assets/svgs";
 import { useTranslation } from "react-i18next";
@@ -701,11 +701,16 @@ ${noteContext}`;
     }));
   };
 
-  const handleNodeInsert = (afterNodeId: string | null, newMarkdown: string) => {
+  const handleNodeInsert = (
+    afterNodeId: string | null,
+    newMarkdown: string,
+    nodeType: TNodeType = "markdown",
+    nodeId?: string
+  ) => {
     const normalizedMarkdown = newMarkdown.replace(/\r\n/g, "\n");
     const newNode = {
-      id: generateRandomId("node"),
-      type: "markdown" as const,
+      id: nodeId ?? generateRandomId("node"),
+      type: nodeType,
       content: normalizedMarkdown,
     };
     setNote((prev) => {
