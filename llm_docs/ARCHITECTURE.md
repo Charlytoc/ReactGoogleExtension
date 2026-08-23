@@ -36,7 +36,6 @@ notes-ext/
 │   │
 │   ├── components/             # Reusable UI components
 │   │   ├── Button/             # Button with icon support
-│   │   ├── Calendar/           # Calendar view for tasks
 │   │   ├── Chat/               # AI chat interface
 │   │   ├── CircularProgress/   # Loading spinner
 │   │   ├── CommandPalette/     # Command palette (quick actions)
@@ -124,7 +123,6 @@ All routing is defined in `src/main.tsx` using React Router v7:
 | `/config`            | `Config`           | Settings page           |
 | `/snapties`          | `Snapties`         | Snapties list           |
 | `/snapties/:id`      | `SnaptieDetail`    | Snaptie detail          |
-| `/calendar`          | `Calendar`         | Calendar view           |
 | `/formatters`        | `FormattersPage`   | Formatters list         |
 | `/formatters/:id`    | `FormatterDetail`  | Formatter editor        |
 
@@ -179,7 +177,6 @@ Task created with reminderEvery → chrome.alarms.create()
        ├─ Config → settings (API key, language, theme colors)
        ├─ Snapties → snaptie cards by category
        │   └─ SnaptieDetail → snaptie editor
-       ├─ Calendar → calendar grid with tasks/notes
        ├─ FormattersPage → formatter cards
        │   └─ FormatterDetail → formatter editor + runner
        └─ (shared) Section, Navbar, Button, LabeledInput, Select, etc.

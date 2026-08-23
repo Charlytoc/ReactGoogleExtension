@@ -57,7 +57,6 @@
   - `lastReminderAt` tracks the most recent reminder
 - **Motivation text**: Custom text shown in reminder notifications
 - **Time estimation**: Set estimated time with configurable units
-- **Calendar view**: Visualize tasks on a calendar (`/calendar` route)
 
 ### Task Structure
 ```typescript
@@ -246,19 +245,7 @@ These features work on any webpage via the background service worker and content
 
 ---
 
-## 8. Calendar
-
-**Route**: `/calendar`
-**Component**: `Calendar`
-
-### Capabilities
-- Calendar grid view showing tasks and notes by date
-- Visual overview of scheduled items
-- Navigate between months
-
----
-
-## 9. Command Palette
+## 8. Command Palette
 
 **Component**: `CommandPalette`
 
@@ -268,7 +255,7 @@ These features work on any webpage via the background service worker and content
 
 ---
 
-## 10. Page Reader
+## 9. Page Reader
 
 **Component**: `PageReader`
 
@@ -279,7 +266,7 @@ These features work on any webpage via the background service worker and content
 
 ---
 
-## 11. Money Manager
+## 10. Money Manager
 
 **Component**: `MoneyManager`
 
@@ -287,7 +274,7 @@ A budgeting/money tracking feature (implementation details in the component).
 
 ---
 
-## 12. Internationalization
+## 11. Internationalization
 
 - **Languages**: English (`en.json`) and Spanish (`es.json`)
 - **Library**: `react-i18next`

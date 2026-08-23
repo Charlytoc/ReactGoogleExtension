@@ -262,6 +262,12 @@ button:focus-visible {
     margin-block: 10px;
   }
 
+  &.markdown-container--editable {
+    /* Room for the last node's toolbar/insert-zone (and its focus glow while
+       editing) so it isn't clipped at the bottom of the scroll container. */
+    padding-bottom: 48px;
+  }
+
   & p {
     font-size: var(--reference-font-size) !important;
   }
@@ -534,6 +540,26 @@ button:focus-visible {
     opacity: 1;
   }
 
+  & .image-node-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    border: 1px dashed var(--opaque-gray-color);
+    border-radius: 8px;
+  }
+
+  & .image-node-editor--filled {
+    padding: 0;
+    border: none;
+  }
+
+  & .image-node-editor--filled img {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+
   & .table-node-editor {
     display: flex;
     flex-direction: column;
@@ -549,7 +575,7 @@ button:focus-visible {
 
   & .table-node-grid {
     border-collapse: collapse;
-    table-layout: fixed;
+    table-layout: auto;
     width: max-content;
     min-width: 100%;
     margin-block: 0;
@@ -559,7 +585,8 @@ button:focus-visible {
   & .table-node-grid td {
     border: 1px solid var(--opaque-gray-color);
     padding: 0;
-    width: 140px;
+    max-width: 200px;
+    vertical-align: top;
   }
 
   & .table-node-grid thead th {
@@ -568,29 +595,58 @@ button:focus-visible {
 
   & .table-node-cell {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 2px;
     width: 100%;
+    max-width: 200px;
   }
 
   & .table-node-input {
     flex: 1;
     width: 100%;
-    min-width: 0;
+    min-width: 80px;
+    max-width: 200px;
     box-sizing: border-box;
-    border: none;
-    background: transparent;
-    color: var(--font-color);
-    font: inherit;
-    padding: 6px 8px;
-    outline: none;
   }
 
-  & .table-node-input--header {
+  & .table-node-input textarea {
+    resize: none;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  & .table-node-input--header textarea {
     font-weight: 600;
   }
 
-  & .table-node-input:focus {
+  & .table-node-input textarea:focus {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  & .table-node-static-cell {
+    flex: 1;
+    width: 100%;
+    min-width: 80px;
+    max-width: 200px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    cursor: text;
+    outline: none;
+  }
+
+  & .table-node-static-cell--header {
+    font-weight: 600;
+  }
+
+  & .table-node-static-cell--empty {
+    color: var(--font-color-secondary);
+  }
+
+  & .table-node-static-cell:hover,
+  & .table-node-static-cell:focus {
     background: rgba(255, 255, 255, 0.06);
   }
 
@@ -1025,24 +1081,8 @@ input:focus,
   display: none;
 }
 
-.ball-small {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.task-small {
-  width: 10px;
-  height: 10px;
-  border-radius: 0;
-  border: 1px solid var(--font-color);
-}
-
 .color-gray {
   color: var(--font-color-tertiary);
-}
-
-.day-cell {
-  height: 70px;
 }
 
 .color-normal {

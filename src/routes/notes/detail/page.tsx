@@ -484,10 +484,22 @@ export default function NoteDetail() {
     };
   }, [id]);
 
+  const saveNoteTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   useEffect(() => {
-    if (note) {
+    if (!note) return;
+    // Debounced: every keystroke/checkbox-toggle updates `note` state, and
+    // writing the full notes array to chrome.storage on each one (plus the
+    // storage-change listeners it fans out to) was blocking the main thread
+    // long enough to show up as multi-second INP on simple clicks.
+    if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
+    saveNoteTimerRef.current = setTimeout(() => {
+      saveNoteTimerRef.current = undefined;
       saveNote();
-    }
+    }, 300);
+    return () => {
+      if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
+    };
   }, [note]);
 
   const getNote = async () => {
@@ -546,7 +558,6 @@ export default function NoteDetail() {
       });
     }
 
-    console.log(newNotes, "newNotes");
     await ChromeStorageManager.add("notes", newNotes);
   };
 
@@ -698,6 +709,19 @@ ${noteContext}`;
       ...prev,
       nodes: prev.nodes.map((n) =>
         n.id === nodeId ? { ...n, content: normalizedMarkdown } : n
+      ),
+    }));
+  };
+
+  const handleNodeConvert = (
+    nodeId: string,
+    nodeType: TNodeType,
+    content: string
+  ) => {
+    setNote((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) =>
+        n.id === nodeId ? { ...n, type: nodeType, content } : n
       ),
     }));
   };
@@ -994,6 +1018,7 @@ ${noteContext}`;
             nodes={note.nodes}
             editableBlocks={true}
             onNodeChange={handleNodeChange}
+            onNodeConvert={handleNodeConvert}
             onNodeInsert={handleNodeInsert}
             onNodeDelete={handleNodeDelete}
             onGenerateBlockImage={handleGenerateBlockImage}

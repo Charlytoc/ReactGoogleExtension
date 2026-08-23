@@ -214,6 +214,20 @@ const modalTextareaStyles = (monospace = false) => ({
   },
 });
 
+const tableCellTextareaStyles = {
+  input: {
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    lineHeight: "inherit",
+    background: "transparent",
+    color: "var(--font-color)",
+    border: "none",
+    borderRadius: 0,
+    padding: "6px 8px",
+    minHeight: 0,
+  },
+};
+
 const ActiveInlineEditProvider = ({
   onNodeChange,
   children,
@@ -778,12 +792,6 @@ const MarkdownInsertZone = ({
     inlineEdit?.startEdit(nodeId, "");
   };
 
-  const insertTable = (e: MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onNodeInsert?.(afterNodeId, createDefaultTableMarkdown(), "table");
-  };
-
   return (
     <div
       className={`markdown-insert-zone${
@@ -800,16 +808,6 @@ const MarkdownInsertZone = ({
       >
         {SVGS.plus}
       </button>
-      <button
-        type="button"
-        tabIndex={-1}
-        className="markdown-insert-zone-button"
-        title={t("insertTable")}
-        aria-label={t("insertTable")}
-        onClick={insertTable}
-      >
-        {SVGS.table}
-      </button>
     </div>
   );
 };
@@ -818,6 +816,8 @@ const BlockActionBar = ({
   onEditText,
   onEditAI,
   onEditImage,
+  onConvertToTable,
+  onConvertToImage,
   onRequestDelete,
   onConfirmDelete,
   confirmDelete,
@@ -827,6 +827,9 @@ const BlockActionBar = ({
   onEditText?: () => void;
   onEditAI?: () => void;
   onEditImage?: () => void;
+  /** Only offered on a blank text node — turns it into a table/image node. */
+  onConvertToTable?: () => void;
+  onConvertToImage?: () => void;
   /** First click on the trash icon: arms the confirm state. */
   onRequestDelete: () => void;
   /** Second click, while armed: actually deletes. */
@@ -909,6 +912,34 @@ const BlockActionBar = ({
             tabIndex={-1}
             onClick={onEditImage}
             aria-label={t("generateImage")}
+          >
+            {SVGS.image}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {onConvertToTable && (
+        <Tooltip label={t("convertToTable")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            tabIndex={-1}
+            onClick={onConvertToTable}
+            aria-label={t("convertToTable")}
+          >
+            {SVGS.table}
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {onConvertToImage && (
+        <Tooltip label={t("convertToImage")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            color="gray"
+            tabIndex={-1}
+            onClick={onConvertToImage}
+            aria-label={t("convertToImage")}
           >
             {SVGS.image}
           </ActionIcon>
@@ -1384,6 +1415,7 @@ export const RenderNoteNodes = ({
   nodes,
   editableBlocks = false,
   onNodeChange,
+  onNodeConvert,
   onNodeInsert,
   onNodeDelete,
   onGenerateBlockImage,
@@ -1391,6 +1423,7 @@ export const RenderNoteNodes = ({
   nodes: TNode[];
   editableBlocks?: boolean;
   onNodeChange?: (nodeId: string, newMarkdown: string) => void;
+  onNodeConvert?: (nodeId: string, nodeType: TNodeType, content: string) => void;
   onNodeInsert?: (afterNodeId: string | null, newMarkdown: string, nodeType?: TNodeType, nodeId?: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
@@ -1404,6 +1437,7 @@ export const RenderNoteNodes = ({
           previousNodeId={index > 0 ? nodes[index - 1].id : null}
           editableBlocks={editableBlocks}
           onNodeChange={onNodeChange}
+          onNodeConvert={onNodeConvert}
           onNodeInsert={onNodeInsert}
           onNodeDelete={onNodeDelete}
           onGenerateBlockImage={onGenerateBlockImage}
@@ -1417,9 +1451,68 @@ export const RenderNoteNodes = ({
 };
 
 /**
+ * One table cell: a static (read-only) div by default, swapped for a
+ * Textarea only while this specific cell is being edited. Every cell
+ * previously mounted its own always-on `Textarea autosize`, and each of
+ * those registers a resize observer — with a table of any real size that
+ * meant dozens of simultaneous observers, which is what caused the reported
+ * "resize handler took 250ms+" / forced-reflow slowdown affecting the whole
+ * page (scrolling included). Only ever mounting one Textarea (the cell
+ * currently focused) keeps that count at 0 or 1.
+ */
+const TableCellEditor = ({
+  value,
+  onChange,
+  placeholder,
+  bold = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  bold?: boolean;
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+
+  if (isEditing) {
+    return (
+      <Textarea
+        className={`table-node-input${bold ? " table-node-input--header" : ""}`}
+        autosize
+        minRows={1}
+        autoFocus
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => setIsEditing(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setIsEditing(false);
+          }
+        }}
+        styles={tableCellTextareaStyles}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`table-node-static-cell${bold ? " table-node-static-cell--header" : ""}${
+        value ? "" : " table-node-static-cell--empty"
+      }`}
+      tabIndex={0}
+      onClick={() => setIsEditing(true)}
+      onFocus={() => setIsEditing(true)}
+    >
+      {value || placeholder}
+    </div>
+  );
+};
+
+/**
  * Grid editor for a table node. Parses the node's markdown into headers/rows,
- * renders one input per cell, and re-serializes the whole table back to
- * markdown on every edit — the node's `content` stays plain GFM markdown,
+ * renders one cell editor per cell, and re-serializes the whole table back
+ * to markdown on every edit — the node's `content` stays plain GFM markdown,
  * this is purely a nicer way to read/write it than the raw-text editor.
  *
  * Keeps its own local `table` state (synced from `content` when the node
@@ -1537,11 +1630,11 @@ const TableNodeEditor = ({
               {table.headers.map((header, col) => (
                 <th key={col}>
                   <div className="table-node-cell">
-                    <input
-                      className="table-node-input table-node-input--header"
+                    <TableCellEditor
+                      bold
                       value={header}
                       placeholder={t("title")}
-                      onChange={(e) => setHeaderCell(col, e.target.value)}
+                      onChange={(value) => setHeaderCell(col, value)}
                     />
                     <Tooltip label={t("delete")} withArrow openDelay={400} position="top">
                       <ActionIcon
@@ -1579,10 +1672,9 @@ const TableNodeEditor = ({
               <tr key={ri}>
                 {row.map((cell, ci) => (
                   <td key={ci}>
-                    <input
-                      className="table-node-input"
+                    <TableCellEditor
                       value={cell}
-                      onChange={(e) => setBodyCell(ri, ci, e.target.value)}
+                      onChange={(value) => setBodyCell(ri, ci, value)}
                     />
                   </td>
                 ))}
@@ -1624,11 +1716,92 @@ const TableNodeEditor = ({
   );
 };
 
+/**
+ * Editor for an image node. Content is either "" (nothing generated yet) or
+ * a single `![alt](attachment:id)` reference — the same format images
+ * already use inline in markdown nodes, so once generated it's just handed
+ * to the existing RenderMarkdown/img resolver (attachment lookup, pending
+ * placeholder, storage-change hydration) with no rendering code of its own.
+ */
+const ImageNodeEditor = ({
+  content,
+  onChange,
+  onGenerateBlockImage,
+}: {
+  content: string;
+  onChange: (newMarkdown: string) => void;
+  onGenerateBlockImage?: TGenerateBlockImage;
+}) => {
+  const { t } = useTranslation();
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const generate = async () => {
+    if (!prompt.trim() || !onGenerateBlockImage) return;
+    setIsGenerating(true);
+    try {
+      const altText = prompt.trim().slice(0, 120);
+      const imageMarkdown = await onGenerateBlockImage(
+        prompt.trim(),
+        altText,
+        "1024x1024"
+      );
+      if (!imageMarkdown) {
+        toast.error(t("couldNotGenerateImage"));
+        return;
+      }
+      setPrompt("");
+      onChange(imageMarkdown);
+    } catch {
+      toast.error(t("couldNotGenerateImage"));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (content.trim()) {
+    return (
+      <div className="image-node-editor image-node-editor--filled" onClick={(e) => e.stopPropagation()}>
+        <RenderMarkdown markdown={content} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="image-node-editor" onClick={(e) => e.stopPropagation()}>
+      <Textarea
+        autosize
+        minRows={2}
+        maxRows={4}
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void generate();
+          }
+        }}
+        disabled={isGenerating}
+        placeholder={t("describeImageToInsert")}
+        styles={modalTextareaStyles()}
+      />
+      <Button
+        className="padding-5 w-auto justify-center"
+        text={isGenerating ? t("generatingImage") : t("generateAndInsertImage")}
+        svg={SVGS.image}
+        disabled={isGenerating || !prompt.trim()}
+        onClick={() => void generate()}
+      />
+    </div>
+  );
+};
+
 const NodeBlock = ({
   node,
   previousNodeId = null,
   editableBlocks = false,
   onNodeChange,
+  onNodeConvert,
   onNodeInsert,
   onNodeDelete,
   onGenerateBlockImage,
@@ -1637,6 +1810,7 @@ const NodeBlock = ({
   previousNodeId?: string | null;
   editableBlocks?: boolean;
   onNodeChange?: (nodeId: string, newMarkdown: string) => void;
+  onNodeConvert?: (nodeId: string, nodeType: TNodeType, content: string) => void;
   onNodeInsert?: (afterNodeId: string | null, newMarkdown: string, nodeType?: TNodeType, nodeId?: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
@@ -1650,6 +1824,7 @@ const NodeBlock = ({
   const displayMarkdown = isEditingText
     ? inlineEdit!.session!.revertTo
     : node.content;
+  const isBlankText = node.type === "markdown" && node.content.trim() === "";
 
   const openModal = (mode: "edit-ai" | "edit-image") => {
     setDraftMarkdown(node.content);
@@ -1660,6 +1835,12 @@ const NodeBlock = ({
     if (!inlineEdit) return;
     setConfirmDelete(false);
     inlineEdit.startEdit(node.id, node.content);
+  };
+
+  const convertTo = (nodeType: "table" | "image") => {
+    if (isEditingText) inlineEdit?.discard();
+    const content = nodeType === "table" ? createDefaultTableMarkdown() : "";
+    onNodeConvert?.(node.id, nodeType, content);
   };
 
   const saveModalChanges = (overrideValue?: string) => {
@@ -1691,6 +1872,12 @@ const NodeBlock = ({
         content={node.content}
         onChange={(next) => onNodeChange?.(node.id, next)}
       />
+    ) : node.type === "image" ? (
+      <ImageNodeEditor
+        content={node.content}
+        onChange={(next) => onNodeChange?.(node.id, next)}
+        onGenerateBlockImage={onGenerateBlockImage}
+      />
     ) : (
       <RenderMarkdown
         markdown={displayMarkdown}
@@ -1702,13 +1889,15 @@ const NodeBlock = ({
     return body;
   }
 
-  const isTable = node.type === "table";
+  // Table/image nodes have their own dedicated editor (grid / generate
+  // prompt) — the generic text/AI/image-modal block actions don't apply.
+  const usesCustomEditor = node.type === "table" || node.type === "image";
 
   return (
     <EditableBlockShell
       isEditing={isEditingText}
       confirmDelete={confirmDelete}
-      onEditText={isTable ? undefined : openInlineEdit}
+      onEditText={usesCustomEditor ? undefined : openInlineEdit}
       onRequestDelete={() => setConfirmDelete(true)}
       onConfirmDelete={deleteBlock}
       onCancelDelete={() => setConfirmDelete(false)}
@@ -1717,13 +1906,15 @@ const NodeBlock = ({
       ariaLabel={t("editAsText")}
       actions={
         <BlockActionBar
-          onEditText={isTable ? undefined : openInlineEdit}
+          onEditText={usesCustomEditor ? undefined : openInlineEdit}
           onEditAI={() => openModal("edit-ai")}
-          onEditImage={isTable ? undefined : () => openModal("edit-image")}
+          onEditImage={usesCustomEditor ? undefined : () => openModal("edit-image")}
+          onConvertToTable={isBlankText && onNodeConvert ? () => convertTo("table") : undefined}
+          onConvertToImage={isBlankText && onNodeConvert ? () => convertTo("image") : undefined}
           onRequestDelete={() => setConfirmDelete(true)}
           onConfirmDelete={deleteBlock}
           confirmDelete={confirmDelete}
-          onGenerateBlockImage={isTable ? undefined : onGenerateBlockImage}
+          onGenerateBlockImage={usesCustomEditor ? undefined : onGenerateBlockImage}
           blockMarkdown={node.content}
         />
       }
@@ -1744,7 +1935,7 @@ const NodeBlock = ({
             setConfirmDelete(false);
           }}
           onDelete={deleteBlock}
-          onGenerateBlockImage={isTable ? undefined : onGenerateBlockImage}
+          onGenerateBlockImage={usesCustomEditor ? undefined : onGenerateBlockImage}
           initialMode={modalMode ?? "edit-ai"}
         />
       }

@@ -5,7 +5,7 @@ import { generateRandomId } from "./lib";
 import { saveImageJob, type TGenerateNoteImageMessage } from "./imageJobs";
 
 const normalizeNodeType = (value: string | undefined): TNodeType =>
-  value === "table" ? "table" : "markdown";
+  value === "table" || value === "image" ? value : "markdown";
 
 type TImageSizeOption = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 
@@ -115,7 +115,7 @@ export const createNoteAssistantTools = (
       nodeType: {
         type: "string",
         description:
-          "Optional. Either \"markdown\" or \"table\". Omit to keep the node's current type; pass \"table\" to convert this node into a table (content must then be a GFM markdown table).",
+          "Optional. One of \"markdown\", \"table\", or \"image\". Omit to keep the node's current type; pass \"table\" to convert this node into a table (content must then be a GFM markdown table); pass \"image\" with content `![alt](attachment:id)` referencing an existing attachment, or \"\" to leave it as an empty image placeholder for the user to fill in.",
       },
     }
   );
@@ -157,7 +157,7 @@ export const createNoteAssistantTools = (
       nodeType: {
         type: "string",
         description:
-          "Either \"markdown\" (default) or \"table\". Use \"table\" when the user asks for a table.",
+          "One of \"markdown\" (default), \"table\", or \"image\". Use \"table\" when the user asks for a table. For a new image, prefer appendGeneratedImageToNote instead — it generates the image for you; only use insertNode with nodeType \"image\" if you already have an attachment id to reference.",
       },
     }
   );
@@ -229,7 +229,7 @@ export const createNoteAssistantTools = (
       const markdown = `![${label}](attachment:${attachmentId})`;
       const newNode = {
         id: generateRandomId("node"),
-        type: "markdown" as const,
+        type: "image" as const,
         content: markdown,
       };
 
@@ -266,7 +266,7 @@ export const createNoteAssistantTools = (
       });
     },
     "appendGeneratedImageToNote",
-    "Generate an image attachment and append it inside the note content as markdown. Use this when the user asks for a visual/image in the note. You should provide a detailed generation instruction based on user intent.",
+    "Generate an image and append it to the note as a new image node. Use this when the user asks for a visual/image in the note. You should provide a detailed generation instruction based on user intent.",
     {
       instruction: {
         type: "string",

@@ -29,7 +29,7 @@ ${JSON.stringify(note)}
 \`\`\`
 
 ## NOTE STRUCTURE
-The note body is a list of nodes (see "nodes" above), each one block. A node's "type" is either "markdown" (a paragraph, heading, list, code block, etc) or "table" (a GFM markdown table). Edit it with updateNode/insertNode/deleteNode, addressing nodes by their "id" — never regenerate the whole note as one string.
+The note body is a list of nodes (see "nodes" above), each one block. A node's "type" is "markdown" (a paragraph, heading, list, code block, etc), "table" (a GFM markdown table), or "image" (a single "![alt](attachment:id)" reference). Edit it with updateNode/insertNode/deleteNode, addressing nodes by their "id" — never regenerate the whole note as one string.
 
 ## RULES
 - Use the right tool depending on the task in hand.
@@ -40,7 +40,7 @@ The note body is a list of nodes (see "nodes" above), each one block. A node's "
 - Provide useful insights about the note and the changes you are making.
 - Ask for clarification if needed.
 - When generating content that includes diagrams, flowcharts, sequences, or graphs, use Mermaid syntax inside a mermaid code block (\`\`\`mermaid ... \`\`\`). Mermaid diagrams are fully supported and rendered in this note.
-- If the user asks for an image/visual inside the note, use appendGeneratedImageToNote. Do not ask the user to write a detailed generation prompt; craft it yourself from intent.
+- If the user asks for an image/visual inside the note, use appendGeneratedImageToNote — it creates a new "image" node for you. Do not ask the user to write a detailed generation prompt; craft it yourself from intent.
 - Choose image size based on user intent: portrait for vertical compositions, landscape for wide scenes, square for icons/avatars.
 `;
 };

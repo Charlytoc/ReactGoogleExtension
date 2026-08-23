@@ -12,12 +12,16 @@ export type TAttachment = {
   createdAt: string;
 };
 
-export type TNodeType = "markdown" | "table";
+export type TNodeType = "markdown" | "table" | "image";
 
 export type TNode = {
   id: string;
   type: TNodeType;
-  /** Raw markdown. For type "table" this is a GFM table (header + rows). */
+  /**
+   * Raw markdown. For type "table" this is a GFM table (header + rows).
+   * For type "image" this is "" (not generated yet) or a single
+   * `![alt](attachment:id)` image reference.
+   */
   content: string;
 };
 

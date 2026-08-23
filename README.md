@@ -12,7 +12,6 @@ A Chrome extension that brings AI-powered productivity tools directly into your 
 | `/tasks` | Task manager with priorities, status, estimated time, and reminders |
 | `/chat` | AI chat interface |
 | `/snapties` | Saved snippets / bookmarks |
-| `/calendar` | Calendar view |
 | `/formatters` | Text formatters |
 | `/config` | Extension settings (OpenAI API key, theme, etc.) |
 

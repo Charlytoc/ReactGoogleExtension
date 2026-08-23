@@ -7,7 +7,6 @@ import {
   IconListCheck,
   IconBookmark,
   IconCode,
-  IconCalendar,
   IconKeyboard,
   IconSettings,
 } from "@tabler/icons-react";
@@ -53,7 +52,6 @@ const topItems: NavItem[] = [
     path: "/formatters",
     shortcut: "Ctrl/Cmd + F",
   },
-  { icon: <IconCalendar size={18} />, label: "Calendar", path: "/calendar" },
 ];
 
 const bottomItems: NavItem[] = [
