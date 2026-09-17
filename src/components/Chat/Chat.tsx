@@ -29,7 +29,7 @@ import {
   fillElementBySelector,
   generateRandomId,
 } from "../../utils/lib";
-import { migrateTask } from "../../utils/tags";
+import { migrateNote, migrateTask } from "../../utils/tags";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel, TAIConfig } from "../../types";
 import {
@@ -338,7 +338,10 @@ export const Chat = () => {
   const createCreateTool = toolify(
     async (args: { title: string; content: string }) => {
       try {
-        const notes: TNote[] = (await ChromeStorageManager.get("notes")) || [];
+        const storedNotes = (await ChromeStorageManager.get("notes")) || [];
+        const notes: TNote[] = Array.isArray(storedNotes)
+          ? storedNotes.map(migrateNote)
+          : [];
         const note: TNote = {
           id: generateRandomId("note"),
           title: (args.title || "").trim() || "Untitled note",

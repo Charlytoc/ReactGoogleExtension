@@ -1428,13 +1428,14 @@ export const RenderNoteNodes = ({
   onNodeDelete?: (nodeId: string) => void;
   onGenerateBlockImage?: TGenerateBlockImage;
 }) => {
+  const list = nodes ?? [];
   return (
     <ActiveInlineEditProvider onNodeChange={onNodeChange}>
-      {nodes.map((node, index) => (
+      {list.map((node, index) => (
         <NodeBlock
           key={node.id}
           node={node}
-          previousNodeId={index > 0 ? nodes[index - 1].id : null}
+          previousNodeId={index > 0 ? list[index - 1].id : null}
           editableBlocks={editableBlocks}
           onNodeChange={onNodeChange}
           onNodeConvert={onNodeConvert}
@@ -1443,7 +1444,7 @@ export const RenderNoteNodes = ({
           onGenerateBlockImage={onGenerateBlockImage}
         />
       ))}
-      {editableBlocks && onNodeInsert && nodes.length === 0 && (
+      {editableBlocks && onNodeInsert && list.length === 0 && (
         <MarkdownInsertZone afterNodeId={null} onNodeInsert={onNodeInsert} variant="end" />
       )}
     </ActiveInlineEditProvider>

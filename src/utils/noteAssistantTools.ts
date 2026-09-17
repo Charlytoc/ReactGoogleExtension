@@ -3,6 +3,7 @@ import type { TNode, TNodeType, TNote } from "../types";
 import { toolify, TTool } from "./ai";
 import { generateRandomId } from "./lib";
 import { saveImageJob, type TGenerateNoteImageMessage } from "./imageJobs";
+import { migrateNote, nodesToMarkdown } from "./tags";
 
 const normalizeNodeType = (value: string | undefined): TNodeType =>
   value === "table" || value === "image" ? value : "markdown";
@@ -24,7 +25,7 @@ const normalizeImageSize = (size: string): TImageSizeOption => {
 const getNotesFromStorage = async (): Promise<TNote[]> => {
   const result = await chrome.storage.local.get("notes");
   const notes = result.notes;
-  return Array.isArray(notes) ? (notes as TNote[]) : [];
+  return Array.isArray(notes) ? notes.map(migrateNote) : [];
 };
 
 const saveNotesToStorage = async (notes: TNote[]): Promise<void> => {
@@ -56,7 +57,7 @@ const buildNoteImageContext = (note: TNote, blockContext?: string): string => {
   const noteContext = `Note title: ${note.title || "Untitled"}
 
 Note content (excerpt):
-${note.nodes.map((n) => n.content).join("\n\n").slice(0, 1500)}`;
+${nodesToMarkdown(note.nodes).slice(0, 1500)}`;
 
   const block = blockContext?.trim();
   if (!block) {

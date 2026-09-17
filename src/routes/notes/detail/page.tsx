@@ -18,9 +18,11 @@ import { Select } from "../../../components/Select/Select";
 import {
   collectAllTags,
   migrateFormatter,
+  migrateNote,
   migrateSnaptie,
   migrateTask,
   nodesToMarkdown,
+  noteNeedsRepair,
 } from "../../../utils/tags";
 import { NOTE_FONT_OPTIONS } from "../../../utils/noteTheme";
 import {
@@ -452,11 +454,12 @@ export default function NoteDetail() {
         ? stored.find((n) => n.id === id)
         : undefined;
       if (!storedNote || !mounted) return;
+      const migrated = migrateNote(storedNote);
       setNote((prev) => ({
         ...prev,
-        title: storedNote.title,
-        nodes: storedNote.nodes,
-        color: storedNote.color,
+        title: migrated.title,
+        nodes: migrated.nodes,
+        color: migrated.color,
       }));
     };
 
@@ -515,12 +518,18 @@ export default function NoteDetail() {
       navigate("/notes");
       return;
     }
-    const note = notes.find((note) => note.id === id);
-    if (!note) {
+    const found = notes.find((note: TNote) => note.id === id);
+    if (!found) {
       cacheLocation("/notes");
       navigate("/notes");
     } else {
-      setNotes(notes);
+      const shouldRepair = notes.some(noteNeedsRepair);
+      const migratedNotes = notes.map(migrateNote);
+      const note = migratedNotes.find((n) => n.id === id) ?? migrateNote(found);
+      if (shouldRepair) {
+        await ChromeStorageManager.add("notes", migratedNotes);
+      }
+      setNotes(migratedNotes);
       setNote(note);
       isLoaded.current = true;
       const tasks = Array.isArray(tasksRaw) ? tasksRaw.map(migrateTask) : [];
@@ -532,7 +541,7 @@ export default function NoteDetail() {
         : [];
       setTagSuggestions(
         collectAllTags({
-          notes,
+          notes: migratedNotes,
           tasks,
           snapties,
           formatters,
@@ -707,7 +716,7 @@ ${noteContext}`;
     const normalizedMarkdown = newMarkdown.replace(/\r\n/g, "\n");
     setNote((prev) => ({
       ...prev,
-      nodes: prev.nodes.map((n) =>
+      nodes: (prev.nodes ?? []).map((n) =>
         n.id === nodeId ? { ...n, content: normalizedMarkdown } : n
       ),
     }));
@@ -720,7 +729,7 @@ ${noteContext}`;
   ) => {
     setNote((prev) => ({
       ...prev,
-      nodes: prev.nodes.map((n) =>
+      nodes: (prev.nodes ?? []).map((n) =>
         n.id === nodeId ? { ...n, type: nodeType, content } : n
       ),
     }));
@@ -739,10 +748,11 @@ ${noteContext}`;
       content: normalizedMarkdown,
     };
     setNote((prev) => {
+      const current = prev.nodes ?? [];
       const index = afterNodeId
-        ? prev.nodes.findIndex((n) => n.id === afterNodeId)
+        ? current.findIndex((n) => n.id === afterNodeId)
         : -1;
-      const nodes = [...prev.nodes];
+      const nodes = [...current];
       nodes.splice(index + 1, 0, newNode);
       return { ...prev, nodes };
     });
@@ -751,7 +761,7 @@ ${noteContext}`;
   const handleNodeDelete = (nodeId: string) => {
     setNote((prev) => ({
       ...prev,
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
+      nodes: (prev.nodes ?? []).filter((n) => n.id !== nodeId),
     }));
   };
 

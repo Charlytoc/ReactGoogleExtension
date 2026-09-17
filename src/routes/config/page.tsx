@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../../components/Button/Button";
 import { SVGS } from "../../assets/svgs.tsx";
 import { ChromeStorageManager } from "../../managers/Storage.ts";
+import { repairStoredNotes } from "../../utils/tags";
 import { useEffect, useRef, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
@@ -259,6 +260,15 @@ export default function Config() {
   const copySetupSql = () => {
     navigator.clipboard.writeText(BACKUPS_TABLE_SETUP_SQL);
     toast.success(t("sqlCopiedToClipboard"));
+  };
+
+  const handleRepairNotes = async () => {
+    const { repaired } = await repairStoredNotes();
+    if (repaired === 0) {
+      toast.success(t("notesAlreadyHealthy"));
+      return;
+    }
+    toast.success(t("notesRepaired").replace("%s", String(repaired)));
   };
 
   const handleExportData = async () => {
@@ -540,6 +550,19 @@ export default function Config() {
             text={t("importData")}
             svg={SVGS.read}
             onClick={() => importFileInputRef.current?.click()}
+          />
+          <Button
+            className="padding-10 justify-center active-on-hover"
+            text={t("repairNotes")}
+            svg={SVGS.repair}
+            title={t("repairNotesConfirm")}
+            onClick={handleRepairNotes}
+            confirmations={[
+              {
+                text: t("repairNotesConfirm"),
+                className: "bg-danger",
+              },
+            ]}
           />
           <input
             ref={importFileInputRef}

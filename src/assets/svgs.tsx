@@ -35,6 +35,7 @@ import {
   IconHelp,
   IconExternalLink,
   IconPhoto,
+  IconTool,
 } from "@tabler/icons-react";
 
 /**
@@ -81,4 +82,5 @@ export const SVGS = {
   help: <IconHelp size={20} />,
   openExternal: <IconExternalLink size={20} />,
   image: <IconPhoto size={20} />,
+  repair: <IconTool size={20} />,
 };

@@ -15,9 +15,12 @@ import { Select } from "../Select/Select";
 import {
   collectAllTags,
   migrateFormatter,
+  migrateNote,
   migrateSnaptie,
   migrateTask,
   noteMatchesTextFilter,
+  noteNeedsRepair,
+  repairStoredNotes,
 } from "../../utils/tags";
 // import { useStore } from "../../managers/store"
 
@@ -105,14 +108,18 @@ export const NotesManager = () => {
   }, []);
 
   const getNotes = async () => {
-    const [notes, tasksRaw, snaptiesRaw, formattersRaw] = await Promise.all([
+    const [notesRaw, tasksRaw, snaptiesRaw, formattersRaw] = await Promise.all([
       ChromeStorageManager.get("notes"),
       ChromeStorageManager.get("tasks"),
       ChromeStorageManager.get("snapties"),
       ChromeStorageManager.get("formatters"),
     ]);
 
-    if (notes) {
+    if (Array.isArray(notesRaw)) {
+      const notes = notesRaw.map(migrateNote);
+      if (notesRaw.some(noteNeedsRepair)) {
+        await ChromeStorageManager.add("notes", notes);
+      }
       allNotesRef.current = notes;
       setNotes(notes);
       const tasks = Array.isArray(tasksRaw) ? tasksRaw.map(migrateTask) : [];
@@ -131,6 +138,17 @@ export const NotesManager = () => {
         })
       );
     }
+  };
+
+  const repairNotes = async () => {
+    const { repaired, notes } = await repairStoredNotes();
+    allNotesRef.current = notes;
+    setNotes(notes);
+    if (repaired === 0) {
+      toast.success(t("notesAlreadyHealthy"));
+      return;
+    }
+    toast.success(t("notesRepaired").replace("%s", String(repaired)));
   };
 
   const applyFilters = (notes: TNote[]): TNote[] => {
@@ -167,6 +185,18 @@ export const NotesManager = () => {
             onClick={addNote}
             className="justify-center padding-5 "
             svg={SVGS.plus}
+          />
+          <Button
+            onClick={repairNotes}
+            className="justify-center padding-5 "
+            svg={SVGS.repair}
+            title={t("repairNotes")}
+            confirmations={[
+              {
+                text: t("repairNotesConfirm"),
+                className: "bg-danger",
+              },
+            ]}
           />
           <Button
             onClick={() => setShowFilters(!showFilters)}

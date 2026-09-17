@@ -5,6 +5,7 @@ import { cacheLocation } from "../../utils/lib";
 import { ChromeStorageManager } from "../../managers/Storage";
 import {
   migrateFormatter,
+  migrateNote,
   migrateSnaptie,
   migrateTask,
   noteMatchesTextFilter,
@@ -78,7 +79,9 @@ export const Content = () => {
       ChromeStorageManager.get("formatters"),
     ]);
 
-    const notes: TNote[] = Array.isArray(notesRaw) ? notesRaw : [];
+    const notes: TNote[] = Array.isArray(notesRaw)
+      ? notesRaw.map(migrateNote)
+      : [];
     const tasks: TTask[] = Array.isArray(tasksRaw) ? tasksRaw.map(migrateTask) : [];
     const snapties: TSnaptie[] = Array.isArray(snaptiesRaw)
       ? snaptiesRaw.map(migrateSnaptie)

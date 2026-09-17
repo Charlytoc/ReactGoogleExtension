@@ -10,7 +10,7 @@
  */
 
 import type { TAttachment, TNote, TTask } from "./types";
-import { mergeNoteTags, migrateTask } from "./utils/tags";
+import { mergeNoteTags, migrateNote, migrateTask, nodesToMarkdown } from "./utils/tags";
 import {
   clampAiNoteThemeJson,
   formatFontCatalogForPrompt,
@@ -403,7 +403,8 @@ const runNoteAssistantJob = async (
       throw new Error("No API key found");
     }
 
-    const notes = (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const storedNotes = (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const notes = Array.isArray(storedNotes) ? storedNotes.map(migrateNote) : [];
     const note = notes.find((item) => item.id === request.noteId);
     if (!note) {
       throw new Error("Note not found");
@@ -502,7 +503,8 @@ const runNoteCoverJob = async (
       throw new Error("No API key found");
     }
 
-    const notes = (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const storedNotes = (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const notes = Array.isArray(storedNotes) ? storedNotes.map(migrateNote) : [];
     const note = notes.find((n) => n.id === request.noteId);
     if (!note) {
       throw new Error("Note not found");
@@ -526,7 +528,7 @@ ${formatFontCatalogForPrompt()}`;
     const userContent = `Title: ${note.title || "Untitled"}
 
 Content (excerpt):
-${note.nodes.map((n) => n.content).join("\n\n").slice(0, 1000)}
+${nodesToMarkdown(note.nodes).slice(0, 1000)}
 
 User hint for styling/cover: ${request.hint.trim() || "none"}
 
@@ -571,8 +573,11 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(
 
     // Re-read and merge only the theme/cover fields: the user may have kept
     // editing the note content while the job was running.
-    const currentNotes =
+    const latestStoredNotes =
       (await ChromeStorageManager.get<TNote[]>("notes")) ?? [];
+    const currentNotes = Array.isArray(latestStoredNotes)
+      ? latestStoredNotes.map(migrateNote)
+      : [];
     const updatedNotes = currentNotes.map((n) => {
       if (n.id !== request.noteId) return n;
       return {

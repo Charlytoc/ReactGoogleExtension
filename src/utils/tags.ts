@@ -1,4 +1,14 @@
-import type { TFormatter, TNode, TNote, TSnaptie, TTask } from "../types";
+import type {
+  TBackgroundType,
+  TFormatter,
+  TNode,
+  TNodeType,
+  TNote,
+  TSnaptie,
+  TTask,
+} from "../types";
+import { ChromeStorageManager } from "../managers/Storage";
+import { generateRandomId } from "./lib";
 import {
   formatterInputsFromPrompt,
   migrateLegacyFormatterPrompt,
@@ -70,6 +80,102 @@ export function collectAllTags(payload: {
 }
 
 type LegacyRecord = Record<string, unknown>;
+
+const NODE_TYPES = new Set<TNodeType>(["markdown", "table", "image"]);
+const BACKGROUND_TYPES = new Set<TBackgroundType>([
+  "gradient",
+  "solid",
+  "none",
+  "image",
+]);
+
+function migrateNode(raw: unknown): TNode {
+  const o = (raw ?? {}) as LegacyRecord;
+  const type = NODE_TYPES.has(o.type as TNodeType)
+    ? (o.type as TNodeType)
+    : "markdown";
+  const id =
+    typeof o.id === "string" && o.id ? o.id : generateRandomId("node");
+  return {
+    id,
+    type,
+    content: typeof o.content === "string" ? o.content : "",
+  };
+}
+
+function migrateNoteNodes(o: LegacyRecord): TNode[] {
+  if (Array.isArray(o.nodes)) {
+    return o.nodes.map(migrateNode);
+  }
+  const legacyContent = typeof o.content === "string" ? o.content.trim() : "";
+  if (!legacyContent) return [];
+  return [
+    {
+      id: generateRandomId("node"),
+      type: "markdown",
+      content: typeof o.content === "string" ? o.content : legacyContent,
+    },
+  ];
+}
+
+/** True when stored note data would crash the editor (`nodes.map`). */
+export function noteNeedsRepair(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return true;
+  const o = raw as LegacyRecord;
+  if ("content" in o && typeof o.content === "string") return true;
+  if (!Array.isArray(o.nodes)) return true;
+  return o.nodes.some((node) => {
+    if (!node || typeof node !== "object") return true;
+    const n = node as LegacyRecord;
+    return typeof n.id !== "string" || !n.id;
+  });
+}
+
+export function migrateNote(raw: unknown): TNote {
+  const o = (raw ?? {}) as LegacyRecord;
+  const tags = Array.isArray(o.tags)
+    ? (o.tags as unknown[])
+        .map((x) => normalizeTag(String(x)))
+        .filter((x) => x !== "")
+    : undefined;
+
+  return {
+    id: String(o.id ?? ""),
+    title: typeof o.title === "string" ? o.title : undefined,
+    color: typeof o.color === "string" ? o.color : undefined,
+    nodes: migrateNoteNodes(o),
+    backgroundType: BACKGROUND_TYPES.has(o.backgroundType as TBackgroundType)
+      ? (o.backgroundType as TBackgroundType)
+      : undefined,
+    color2: typeof o.color2 === "string" ? o.color2 : undefined,
+    tags,
+    font: typeof o.font === "string" ? o.font : undefined,
+    archived: o.archived === true,
+    createdAt: typeof o.createdAt === "string" ? o.createdAt : undefined,
+    imageURL: typeof o.imageURL === "string" ? o.imageURL : undefined,
+    opacity: typeof o.opacity === "number" ? o.opacity : undefined,
+    coverImage: typeof o.coverImage === "string" ? o.coverImage : undefined,
+  };
+}
+
+export async function repairStoredNotes(): Promise<{
+  repaired: number;
+  notes: TNote[];
+}> {
+  const raw = await ChromeStorageManager.get("notes");
+  if (!Array.isArray(raw)) {
+    return { repaired: 0, notes: [] };
+  }
+  let repaired = 0;
+  const notes = raw.map((item) => {
+    if (noteNeedsRepair(item)) repaired += 1;
+    return migrateNote(item);
+  });
+  if (repaired > 0) {
+    await ChromeStorageManager.add("notes", notes);
+  }
+  return { repaired, notes };
+}
 
 export function migrateSnaptie(raw: unknown): TSnaptie {
   const o = raw as LegacyRecord;
@@ -246,8 +352,8 @@ export function noteMatchesTextFilter(note: TNote, q: string): boolean {
 }
 
 /** Flattens a note's nodes into a single markdown string (for copy/export). */
-export function nodesToMarkdown(nodes: TNode[]): string {
-  return nodes.map((n) => n.content).join("\n\n");
+export function nodesToMarkdown(nodes: TNode[] | undefined): string {
+  return (nodes ?? []).map((n) => n.content).join("\n\n");
 }
 
 export function taskMatchesTextFilter(task: TTask, q: string): boolean {
