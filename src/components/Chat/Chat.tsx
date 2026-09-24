@@ -16,7 +16,7 @@ import {
 } from "../../utils/aiConfigStorage";
 import { ChromeStorageManager } from "../../managers/Storage";
 import { Button } from "../Button/Button";
-import { TMessage } from "../../types";
+import { TChatAttachment, TMessage } from "../../types";
 import { extractVariables, fillVariables } from "../../utils/promptVariables";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
@@ -71,11 +71,20 @@ const defaultMessages: TMessage[] = [
   { role: "system", content: "You are a helpful assistant." },
 ];
 
-type TAttachment = {
-  url: string;
-  content: string;
-  type: "text" | "image" | "video" | "audio" | "file";
-  name: string;
+const readFileAsAttachment = (file: File): Promise<TChatAttachment> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: generateRandomId("attachment"),
+        name: file.name || "pasted-file",
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: String(reader.result ?? ""),
+      });
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 };
 
 type TChatTab = "history" | "config" | "chat" | "prompts";
@@ -115,7 +124,7 @@ export const Chat = () => {
   const [activeTab, setActiveTab] = useState<TChatTab>("chat");
   const [conversations, setConversations] = useState<TConversation[]>([]);
   const [error, setError] = useState<string>("");
-  const [attachments, setAttachments] = useState<TAttachment[]>([]);
+  const [attachments, setAttachments] = useState<TChatAttachment[]>([]);
   const [prompts, setPrompts] = useState<TPrompt[]>([]);
   const [promptPicker, setPromptPicker] = useState<{
     selected: TPrompt | null;
@@ -245,23 +254,10 @@ export const Chat = () => {
     }
   };
 
-  // const addAttachment = (attachment: TAttachment) => {
-  //   setAttachments([...attachments, attachment]);
-  // };
-
-  // const uploadFile = async (file: File) => {
-  //   const reader = new FileReader();
-  //   reader.onload = (e) => {
-  //     const attachment: TAttachment = {
-  //       url: e.target?.result as string,
-  //       content: "",
-  //       type: "file",
-  //       name: file.name,
-  //     };
-  //     addAttachment(attachment);
-  //   };
-  //   reader.readAsDataURL(file);
-  // };
+  const addFiles = async (files: File[]) => {
+    const next = await Promise.all(files.map(readFileAsAttachment));
+    setAttachments((current) => [...current, ...next]);
+  };
 
   const getWebsiteContent = toolify(
     async (args: { start: number; end: number }) => {
@@ -437,7 +433,8 @@ export const Chat = () => {
   );
 
   const handleSendMessage = async () => {
-    if (!input) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput && attachments.length === 0) return;
 
     let url = "";
 
@@ -450,7 +447,8 @@ export const Chat = () => {
     const systemPrompt = `${aiConfig.systemPrompt}\n${url ? `Current URL: ${url}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer.`;
     const message: TMessage = {
       role: "user",
-      content: input,
+      content: trimmedInput,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
 
     const assistantMessage: TMessage = {
@@ -461,6 +459,7 @@ export const Chat = () => {
     const newMessages = [...messages, message, assistantMessage];
     setMessages(newMessages);
     setInput("");
+    setAttachments([]);
     await createStreamingResponseWithFunctions(
       {
         messages: appendSystemPrompt(systemPrompt, newMessages).map(
@@ -541,9 +540,8 @@ export const Chat = () => {
     setActiveTab("chat");
   };
 
-  const deleteAttachment = (attachment: TAttachment) => {
-    const newAttachments = attachments.filter((a) => a.url !== attachment.url);
-    setAttachments(newAttachments);
+  const deleteAttachment = (attachment: TChatAttachment) => {
+    setAttachments((current) => current.filter((item) => item.id !== attachment.id));
   };
 
   return (
@@ -627,20 +625,24 @@ export const Chat = () => {
             ))}
           </section>
 
-          <div className="flex-row gap-10">
-            {attachments.map((a) => {
-              return (
-                <div key={a.url} className="flex-row gap-10">
-                  <span>{a.name}</span>
+          {attachments.length > 0 && (
+            <div className="flex-row gap-10 chat-pending-files">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="chat-attachment">
+                  {attachment.mimeType.startsWith("image/") ? (
+                    <img src={attachment.dataUrl} alt={attachment.name} />
+                  ) : (
+                    <span>{attachment.name}</span>
+                  )}
                   <Button
                     className="padding-5"
                     svg={SVGS.trash}
-                    onClick={() => deleteAttachment(a)}
+                    onClick={() => deleteAttachment(attachment)}
                   />
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
           <VariableFillerModal
             prompt={promptPicker.selected}
             values={promptPicker.variableValues}
@@ -705,6 +707,7 @@ export const Chat = () => {
                 value={input}
                 onChange={setInput}
                 onSubmit={handleSendMessage}
+                onAttachFiles={addFiles}
                 placeholder={t("commandOrPrompt")}
                 autoFocus
                 multiline
@@ -1176,7 +1179,16 @@ export const Message = ({ message }: { message: TMessage }) => {
           )}
         </div>
       )}
-      <StyledMarkdown markdown={message.content} />
+      {(message.attachments ?? []).map((attachment) => (
+        <div key={attachment.id} className="message-attachment">
+          {attachment.mimeType.startsWith("image/") ? (
+            <img src={attachment.dataUrl} alt={attachment.name} />
+          ) : (
+            <span>{attachment.name}</span>
+          )}
+        </div>
+      ))}
+      {message.content && <StyledMarkdown markdown={message.content} />}
     </div>
   );
 };

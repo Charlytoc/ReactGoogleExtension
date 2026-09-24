@@ -41,9 +41,17 @@ export type TNote = {
   coverImage?: string;
 };
 
+export type TChatAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+};
+
 export type TMessage = {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  attachments?: TChatAttachment[];
   tool_call_id?: string;
   hidden?: boolean;
 };

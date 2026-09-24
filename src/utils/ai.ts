@@ -5,6 +5,7 @@ import type {
   Response,
   ResponseFunctionToolCall,
   ResponseInput,
+  ResponseInputContent,
   ResponseInputItem,
   ResponseOutputItem,
   ResponseTextConfig,
@@ -34,6 +35,34 @@ export type TTool = {
 type TToolArguments = {
   type: string;
   description: string;
+};
+
+const messageToInputContent = (
+  message: TMessage
+): EasyInputMessage["content"] => {
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) return message.content;
+
+  const parts: ResponseInputContent[] = [];
+  if (message.content.trim()) {
+    parts.push({ type: "input_text", text: message.content });
+  }
+  for (const attachment of attachments) {
+    if (attachment.mimeType.startsWith("image/")) {
+      parts.push({
+        type: "input_image",
+        detail: "auto",
+        image_url: attachment.dataUrl,
+      });
+      continue;
+    }
+    parts.push({
+      type: "input_file",
+      filename: attachment.name,
+      file_data: attachment.dataUrl,
+    });
+  }
+  return parts;
 };
 
 const mapResponseTextFormat = (
@@ -240,7 +269,7 @@ export const convertToMessage = (
 
   return {
     role,
-    content: m.content,
+    content: messageToInputContent(m),
   };
 };
 

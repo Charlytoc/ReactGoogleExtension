@@ -226,6 +226,7 @@
     "command": "Comando",
     "commandOrPrompt": "Comando o prompt",
     "send": "Enviar",
+    "attachFile": "Adjuntar archivo",
     "summarizeWebsite": "Resumir página web",
     "backgroundType": "Tipo de fondo",
     "gradient": "Gradiente",
