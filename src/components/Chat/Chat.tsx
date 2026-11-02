@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   convertToMessage,
   createCompletion,
-  // createStreamingResponse,
-  createStreamingResponseWithFunctions,
-  createToolsMap,
   listModels,
-  toolify,
 } from "../../utils/ai";
 import { MODEL_CHAT_SMALL } from "../../utils/models";
 import {
@@ -21,18 +17,21 @@ import { extractVariables, fillVariables } from "../../utils/promptVariables";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
-import {
-  clickElementBySelector,
-  extractClickableElements,
-  extractEditableElements,
-  extractPageData,
-  fillElementBySelector,
-  generateRandomId,
-} from "../../utils/lib";
-import { migrateNote, migrateTask } from "../../utils/tags";
+import { generateRandomId } from "../../utils/lib";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel, TAIConfig } from "../../types";
 import {
+  AI_CHAT_JOBS_KEY,
+  deleteChatJob,
+  enqueueChatJob,
+  getChatJobs,
+  getLastMainConversationId,
+  isChatJobStale,
+  setLastMainConversationId,
+  type TChatJobMap,
+} from "../../utils/chatJobs";
+import {
+  CONVERSATIONS_STORAGE_KEY,
   createMainConversation,
   deleteConversationsByIds,
   getMainConversations,
@@ -43,7 +42,6 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
-import { TNote, TTask } from "../../types";
 import { AIInput } from "../AIInput/AIInput";
 import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Select as MantineSelect, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
@@ -96,25 +94,33 @@ type TPrompt = {
   pinned?: boolean;
 };
 
-const appendSystemPrompt = (
-  systemPrompt: string,
-  messages: TMessage[]
-): TMessage[] => {
-  console.log("appendSystemPrompt", systemPrompt, messages);
-  
-  const systemMessageIndex = messages.findIndex(
-    (message) => message.role === "system"
-  );
-  if (systemMessageIndex === -1) {
-    return [{ role: "system", content: systemPrompt }, ...messages];
-  }
-  return messages.map((message) => {
-    if (message.role === "system") {
-      return { ...message, content: systemPrompt };
+const getPageTab = (): Promise<{ tabId?: number; pageUrl?: string }> => {
+  return new Promise((resolve) => {
+    if (typeof chrome === "undefined" || !chrome.tabs?.query) {
+      resolve({});
+      return;
     }
-    return message;
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        resolve({});
+        return;
+      }
+      const tab = tabs[0];
+      const pageUrl = tab?.url || tab?.pendingUrl || "";
+      if (
+        tab?.id == null ||
+        !pageUrl ||
+        pageUrl.startsWith("chrome-extension://") ||
+        pageUrl.startsWith("chrome://")
+      ) {
+        resolve({});
+        return;
+      }
+      resolve({ tabId: tab.id, pageUrl });
+    });
   });
 };
+
 export const Chat = () => {
   const [messages, setMessages] = useState<TMessage[]>(defaultMessages);
   const [conversation, setConversation] = useState<TConversation | null>(null);
@@ -126,6 +132,13 @@ export const Chat = () => {
   const [error, setError] = useState<string>("");
   const [attachments, setAttachments] = useState<TChatAttachment[]>([]);
   const [prompts, setPrompts] = useState<TPrompt[]>([]);
+  const [isChatPending, setIsChatPending] = useState(false);
+  const conversationIdRef = useRef<string | null>(null);
+  const chatPendingRef = useRef(false);
+  const skipSaveRef = useRef(false);
+  const conversationReadyRef = useRef(false);
+  const sendLockRef = useRef(false);
+  const handleSendMessageRef = useRef<() => Promise<void>>(async () => {});
   const [promptPicker, setPromptPicker] = useState<{
     selected: TPrompt | null;
     variableValues: Record<string, string>;
@@ -171,11 +184,12 @@ export const Chat = () => {
 
   useEffect(() => {
     if (input.includes("/send")) {
-      handleSendMessage();
+      void handleSendMessageRef.current();
     }
   }, [input]);
 
   useEffect(() => {
+    if (!conversationReadyRef.current || chatPendingRef.current) return;
     const systemMessageIndex = messages.findIndex(
       (message) => message.role === "system"
     );
@@ -184,19 +198,22 @@ export const Chat = () => {
         ...messages,
         { role: "system", content: aiConfig.systemPrompt },
       ]);
-    } else {
-      const newMessages = messages.map((message) => {
-        if (message.role === "system") {
-          return { ...message, content: aiConfig.systemPrompt };
-        }
-        return message;
-      });
-      setMessages(newMessages);
+      return;
     }
+    if (messages[systemMessageIndex].content === aiConfig.systemPrompt) return;
+    const newMessages = messages.map((message) => {
+      if (message.role === "system") {
+        return { ...message, content: aiConfig.systemPrompt };
+      }
+      return message;
+    });
+    setMessages(newMessages);
   }, [aiConfig.systemPrompt]);
 
   useEffect(() => {
-    if (aiConfig.autoSaveConversations) {
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+    } else if (!chatPendingRef.current && aiConfig.autoSaveConversations) {
       saveConversation();
     }
     if (autoScroll) {
@@ -206,6 +223,59 @@ export const Chat = () => {
       }
     }
   }, [messages]);
+
+  useEffect(() => {
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "local") return;
+
+      if (changes[CONVERSATIONS_STORAGE_KEY]) {
+        const all = (changes[CONVERSATIONS_STORAGE_KEY].newValue ??
+          []) as TConversation[];
+        const main = getMainConversations(Array.isArray(all) ? all : []);
+        setConversations(main);
+        const id = conversationIdRef.current;
+        const updated = id ? main.find((item) => item.id === id) : undefined;
+        if (updated) {
+          skipSaveRef.current = true;
+          setConversation(updated);
+          setMessages(updated.messages);
+        }
+      }
+
+      if (!changes[AI_CHAT_JOBS_KEY]) return;
+      const id = conversationIdRef.current;
+      if (!id) return;
+      const nextJobs = (changes[AI_CHAT_JOBS_KEY].newValue ?? {}) as TChatJobMap;
+      const prevJobs = (changes[AI_CHAT_JOBS_KEY].oldValue ?? {}) as TChatJobMap;
+      const job = nextJobs[id];
+      const prevJob = prevJobs[id];
+
+      if (!job && prevJob?.status === "pending") {
+        chatPendingRef.current = false;
+        setIsChatPending(false);
+        toast.success(t("chatDone"));
+        return;
+      }
+      if (job?.status === "error" && prevJob?.status !== "error") {
+        chatPendingRef.current = false;
+        setIsChatPending(false);
+        toast.error(job.error || t("chatFailed"));
+        return;
+      }
+      if (job?.status === "pending" && !isChatJobStale(job)) {
+        chatPendingRef.current = true;
+        setIsChatPending(true);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => {
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
+  }, [t]);
 
   const getApiKey = async () => {
     const apiKey = await ChromeStorageManager.get("openaiApiKey");
@@ -228,30 +298,70 @@ export const Chat = () => {
     setActiveTab("chat");
   };
 
+  const showConversation = (
+    next: TConversation,
+    pending: boolean
+  ) => {
+    conversationIdRef.current = next.id;
+    conversationReadyRef.current = true;
+    chatPendingRef.current = pending;
+    setIsChatPending(pending);
+    skipSaveRef.current = true;
+    setConversation(next);
+    setMessages(next.messages.length > 0 ? next.messages : defaultMessages);
+  };
+
   const createNewConversation = async () => {
     const newConversation = createMainConversation();
+    conversationIdRef.current = newConversation.id;
+    conversationReadyRef.current = true;
+    chatPendingRef.current = false;
+    setIsChatPending(false);
     setConversation(newConversation);
-    setMessages(defaultMessages);
+    setMessages([{ role: "system", content: aiConfig.systemPrompt }]);
   };
 
   const getConversations = async () => {
     const all = await loadAllConversations();
     const mainConversations = getMainConversations(all);
+    const jobs = await getChatJobs();
+    const pendingJob = Object.values(jobs).find(
+      (job) => job.status === "pending" && !isChatJobStale(job)
+    );
 
     if (mainConversations.length === 0) {
       setConversations([]);
+      conversationReadyRef.current = true;
       createNewConversation();
       return;
     }
 
     setConversations(mainConversations);
 
+    const pendingConversation = pendingJob
+      ? mainConversations.find(
+          (item) => item.id === pendingJob.conversationId
+        )
+      : undefined;
+    if (pendingConversation) {
+      showConversation(pendingConversation, true);
+      return;
+    }
+
+    const lastId = await getLastMainConversationId();
+    const lastConversation = mainConversations.find((item) => item.id === lastId);
+    if (lastConversation) {
+      showConversation(lastConversation, false);
+      return;
+    }
+
     const conversation = mainConversations.find((c) => c.messages.length <= 1);
     if (conversation) {
-      setConversation(conversation);
-    } else {
-      createNewConversation();
+      showConversation(conversation, false);
+      return;
     }
+    conversationReadyRef.current = true;
+    createNewConversation();
   };
 
   const addFiles = async (files: File[]) => {
@@ -259,253 +369,67 @@ export const Chat = () => {
     setAttachments((current) => [...current, ...next]);
   };
 
-  const getWebsiteContent = toolify(
-    async (args: { start: number; end: number }) => {
-      console.log(args, "IA is trying to get website content");
-      
-      try {
-        const { url, content } = await extractPageData(Number(args.start), Number(args.end));
-        return JSON.stringify({ url, content });
-      } catch (error) {
-        console.log("error trying to get website content", error);
-        return "There was an error trying to get the website content. the error was: " + error;
-      }
-    },
-    "getWebsiteContent",
-    "Get the content of the current website, you can decide how much content to access using the start and end parameters. The start and end parameters are the percentage of the content to access from 0 to 1. For example, if you want to access the first 50% of the content, you can use the start parameter as 0 and the end parameter as 0.5. If you want to access the last 50% of the content, you can use the start parameter as 0.5 and the end parameter as 1. You will never be able of extracting more than 30 percent at once for safety reasons. So the maximun different between start and end is 0.3",
-    {
-      start: { type: "number", description: "The percentage of the content to access from 0 to 1" },
-      end: { type: "number", description: "The percentage of the content to access from 0 to 1" },
-    }
-  );
-
-  const clickElementBySelectorTool = toolify(
-    (args: { selector: string }) => {
-      clickElementBySelector(args.selector);
-      console.log("AI tried to click element", args.selector);
-
-      return "Element clicked successfully";
-    },
-    "clickElementBySelector",
-    "Click on the element with the given selector",
-    {
-      selector: { type: "string", description: "The selector of the element" },
-    }
-  );
-
-  const getClickableElements = toolify(
-    async () => {
-      const elements = await extractClickableElements();
-      return JSON.stringify(elements);
-    },
-    "getClickableElements",
-    "Get the clickable elements of the current website",
-    {}
-  );
-
-  const getEditableElements = toolify(
-    async () => {
-      console.log("AI tried to get editable elements");
-      const elements = await extractEditableElements();
-      return JSON.stringify(elements);
-    },
-    "getEditableElements",
-    "Get the editable elements of the current website",
-    {}
-  );
-
-  const fillElementBySelectorTool = toolify(
-    (args: { selector: string; text: string }) => {
-      fillElementBySelector(args.selector, args.text);
-      console.log("AI tried to fill element", args.selector, args.text);
-      return "Element filled successfully";
-    },
-    "fillElementBySelector",
-    "Fill the element with the given selector with the given text",
-    {
-      selector: { type: "string", description: "The selector of the element" },
-      text: {
-        type: "string",
-        description: "The text to fill the element with",
-      },
-    }
-  );
-
-  const createCreateTool = toolify(
-    async (args: { title: string; content: string }) => {
-      try {
-        const storedNotes = (await ChromeStorageManager.get("notes")) || [];
-        const notes: TNote[] = Array.isArray(storedNotes)
-          ? storedNotes.map(migrateNote)
-          : [];
-        const note: TNote = {
-          id: generateRandomId("note"),
-          title: (args.title || "").trim() || "Untitled note",
-          nodes: args.content
-            ? [{ id: generateRandomId("node"), type: "markdown", content: args.content }]
-            : [],
-          color: "var(--bg-color)",
-          backgroundType: "solid",
-          color2: "var(--bg-color-secondary)",
-          tags: [],
-          archived: false,
-          createdAt: new Date().toISOString(),
-          imageURL: "",
-        };
-        await ChromeStorageManager.add("notes", [...notes, note]);
-        return JSON.stringify({
-          success: true,
-          message: "Note created successfully",
-          noteId: note.id,
-          title: note.title,
-          link: `note:${note.id}`,
-          markdownLink: `[${note.title || "Open note"}](note:${note.id})`,
-        });
-      } catch (error) {
-        return JSON.stringify({
-          success: false,
-          message: "Failed to create note",
-          error: String(error),
-        });
-      }
-    },
-    "createCreate",
-    "Create a new note. Use this only when the user asks to create/save a note from the current conversation.",
-    {
-      title: {
-        type: "string",
-        description: "Title of the note",
-      },
-      content: {
-        type: "string",
-        description: "Main content/body of the note",
-      },
-    }
-  );
-
-  const createTaskTool = toolify(
-    async (args: { title: string; description: string }) => {
-      try {
-        const tasksRaw = (await ChromeStorageManager.get("tasks")) || [];
-        const tasks: TTask[] = Array.isArray(tasksRaw)
-          ? tasksRaw.map(migrateTask)
-          : [];
-        const task: TTask = {
-          id: generateRandomId("task"),
-          title: (args.title || "").trim() || "New task",
-          description: args.description || "",
-          priority: "medium",
-          status: "TODO",
-          createdAt: new Date().toISOString(),
-          motivationText: "",
-          estimatedTimeUnit: "minutes",
-          tags: [],
-        };
-        await ChromeStorageManager.add("tasks", [...tasks, task]);
-        return JSON.stringify({
-          success: true,
-          message: "Task created successfully",
-          taskId: task.id,
-          title: task.title,
-          link: `task:${task.id}`,
-          markdownLink: `[${task.title || "Open task"}](task:${task.id})`,
-        });
-      } catch (error) {
-        return JSON.stringify({
-          success: false,
-          message: "Failed to create task",
-          error: String(error),
-        });
-      }
-    },
-    "create_task",
-    "Create a new task. Use this only when the user asks to create/save a task from the current conversation.",
-    {
-      title: {
-        type: "string",
-        description: "Title of the task",
-      },
-      description: {
-        type: "string",
-        description: "Task details/description",
-      },
-    }
-  );
-
   const handleSendMessage = async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput && attachments.length === 0) return;
-
-    let url = "";
-
-    try {
-      const { url: _url } = await extractPageData(0, 0.01);
-      url = _url;
-    } catch (error) {
-      console.log("error trying to get url", error);
+    if (sendLockRef.current || chatPendingRef.current) return;
+    if (!apiKey) {
+      setError("No API key found");
+      return;
     }
-    const systemPrompt = `${aiConfig.systemPrompt}\n${url ? `Current URL: ${url}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer.`;
+
+    sendLockRef.current = true;
+    const previousMessages = messages;
+    const previousInput = input;
+    const previousAttachments = attachments;
+    let current = conversation ?? createMainConversation();
+    conversationIdRef.current = current.id;
+    conversationReadyRef.current = true;
+    chatPendingRef.current = true;
+    setIsChatPending(true);
+
     const message: TMessage = {
       role: "user",
       content: trimmedInput,
       attachments: attachments.length > 0 ? attachments : undefined,
     };
-
-    const assistantMessage: TMessage = {
-      role: "assistant",
-      content: "",
-    };
-
-    const newMessages = [...messages, message, assistantMessage];
-    setMessages(newMessages);
+    const nextMessages = [...messages, message];
+    skipSaveRef.current = true;
+    setConversation(current);
+    setMessages(nextMessages);
     setInput("");
     setAttachments([]);
-    await createStreamingResponseWithFunctions(
-      {
-        messages: appendSystemPrompt(systemPrompt, newMessages).map(
-          convertToMessage
-        ),
-        model: aiConfig.model.slug,
-        max_completion_tokens: 4000,
-        tools: [
-          getWebsiteContent.schema,
-          getClickableElements.schema,
-          clickElementBySelectorTool.schema,
-          fillElementBySelectorTool.schema,
-          getEditableElements.schema,
-          createCreateTool.schema,
-          createTaskTool.schema,
-        ],
-        functionMap: createToolsMap([
-          getWebsiteContent,
-          getClickableElements,
-          clickElementBySelectorTool,
-          fillElementBySelectorTool,
-          getEditableElements,
-          createCreateTool,
-          createTaskTool,
-        ]),
-        apiKey,
-      },
-      (textDelta) => {
-        if (!textDelta) return;
-        setMessages((prevMessages) => {
-          return prevMessages.map((m, index, arr) => {
-            if (
-              m.role === "assistant" &&
-              index === arr.map((msg) => msg.role).lastIndexOf("assistant")
-            ) {
-              return {
-                ...m,
-                content: m.content + textDelta,
-              };
-            }
-            return m;
-          });
-        });
-      }
-    );
+
+    try {
+      const nextMain = await saveMainConversation(current, nextMessages);
+      const saved =
+        nextMain.find((item) => item.id === current.id) ?? {
+          ...current,
+          messages: nextMessages,
+        };
+      setConversations(nextMain);
+      setConversation(saved);
+      current = saved;
+      const page = await getPageTab();
+      await enqueueChatJob({
+        conversationId: current.id,
+        tabId: page.tabId,
+        pageUrl: page.pageUrl,
+      });
+    } catch (error) {
+      console.error("Error starting chat job:", error);
+      chatPendingRef.current = false;
+      setIsChatPending(false);
+      skipSaveRef.current = true;
+      setMessages(previousMessages);
+      setInput(previousInput);
+      setAttachments(previousAttachments);
+      toast.error(t("chatFailed"));
+    } finally {
+      sendLockRef.current = false;
+    }
   };
+  handleSendMessageRef.current = handleSendMessage;
 
   const saveConversation = async () => {
     if (!conversation) return;
@@ -527,16 +451,29 @@ export const Chat = () => {
     setConversation(updatedConversation);
   };
 
-  const deleteConversation = async (conversation: TConversation) => {
-    const nextMain = await deleteConversationsByIds([conversation.id]);
+  const deleteConversation = async (target: TConversation) => {
+    const nextMain = await deleteConversationsByIds([target.id]);
+    await deleteChatJob(target.id);
     setConversations(nextMain);
+    if (conversationIdRef.current === target.id) {
+      chatPendingRef.current = false;
+      setIsChatPending(false);
+    }
   };
 
-  const loadConversation = (conversation: TConversation) => {
-    console.log(conversation, "conversation from loadConversation");
-
-    setMessages(conversation.messages);
-    setConversation(conversation);
+  const loadConversation = (next: TConversation) => {
+    conversationIdRef.current = next.id;
+    void setLastMainConversationId(next.id);
+    void getChatJobs().then((jobs) => {
+      const job = jobs[next.id];
+      const pending = !!job && job.status === "pending" && !isChatJobStale(job);
+      if (conversationIdRef.current !== next.id) return;
+      chatPendingRef.current = pending;
+      setIsChatPending(pending);
+    });
+    skipSaveRef.current = true;
+    setMessages(next.messages);
+    setConversation(next);
     setActiveTab("chat");
   };
 
@@ -623,6 +560,9 @@ export const Chat = () => {
             {messages.map((message, index) => (
               <Message key={index} message={message} />
             ))}
+            {isChatPending && (
+              <div className="padding-10 text-secondary">{t("chatWorking")}</div>
+            )}
           </section>
 
           {attachments.length > 0 && (
@@ -711,6 +651,7 @@ export const Chat = () => {
                 placeholder={t("commandOrPrompt")}
                 autoFocus
                 multiline
+                isLoading={isChatPending}
               />
             </div>
 

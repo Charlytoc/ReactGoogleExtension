@@ -47,6 +47,28 @@ export const transformToMinutes = (amount: number, unit: string) => {
   return amount;
 };
 
+const resolveTab = async (
+  tabId?: number
+): Promise<{ id: number; url: string }> => {
+  if (typeof tabId === "number") {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab?.id) {
+      throw new Error("No active tab found");
+    }
+    return { id: tab.id, url: tab.url || "" };
+  }
+
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]?.id) {
+        reject(new Error("No active tab found"));
+        return;
+      }
+      resolve({ id: tabs[0].id, url: tabs[0].url || "" });
+    });
+  });
+};
+
 const getSlicedContent = (content: string, start: number, end: number) => {
   // Calcukate the percentage of the content based in the start, that is a float from 0 to 1
   const startIndex = Math.floor(content.length * start);
@@ -60,49 +82,39 @@ const getSlicedContent = (content: string, start: number, end: number) => {
   return content.slice(startIndex, endIndex);
 };
 
-export const extractPageData = (start: number, end: number): Promise<{
+export const extractPageData = async (
+  start: number,
+  end: number,
+  tabId?: number
+): Promise<{
   url: string;
   content: string;
   html: string;
 }> => {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.id) return reject("No active tab found");
-
-      const url = tabs[0].url || "";
-
-      chrome.scripting
-        .executeScript({
-          target: { tabId: tabs[0].id },
-          func: () => ({
-            content: document.body.innerText, // Extract visible text
-            html: document.documentElement.outerHTML, // Extract full HTML
-          }),
-        })
-        .then((results) => {
-          if (results && results[0] && results[0].result) {
-            const slicedContent = getSlicedContent(
-              results[0].result.content,
-              start,
-              end
-            );
-            const slicedHtml = getSlicedContent(
-              results[0].result.html,
-              start,
-              end
-            );
-            resolve({ url, content: slicedContent, html: slicedHtml });
-          } else {
-            console.log(results, "results");
-            reject("Failed to extract content");
-          }
-        })
-        .catch(reject);
-    });
+  const tab = await resolveTab(tabId);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => ({
+      content: document.body.innerText, // Extract visible text
+      html: document.documentElement.outerHTML, // Extract full HTML
+    }),
   });
+
+  if (results && results[0] && results[0].result) {
+    return {
+      url: tab.url,
+      content: getSlicedContent(results[0].result.content, start, end),
+      html: getSlicedContent(results[0].result.html, start, end),
+    };
+  }
+
+  console.log(results, "results");
+  throw new Error("Failed to extract content");
 };
 
-export const extractClickableElements = (): Promise<
+export const extractClickableElements = async (
+  tabId?: number
+): Promise<
   {
     text: string;
     tag: string;
@@ -110,14 +122,10 @@ export const extractClickableElements = (): Promise<
     outerHTML: string;
   }[]
 > => {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.id) return reject("No active tab found");
-
-      chrome.scripting
-        .executeScript({
-          target: { tabId: tabs[0].id },
-          func: () => {
+  const tab = await resolveTab(tabId);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
             const elements = Array.from(
               document.querySelectorAll(
                 "a, button, [onclick], input[type='submit'], input[type='button']"
@@ -142,20 +150,17 @@ export const extractClickableElements = (): Promise<
               };
             });
           },
-        })
-        .then((results) => {
-          if (results && results[0] && results[0].result) {
-            resolve(results[0].result);
-          } else {
-            reject("Failed to extract clickable elements");
-          }
-        })
-        .catch(reject);
-    });
   });
+
+  if (results && results[0] && results[0].result) {
+    return results[0].result;
+  }
+  throw new Error("Failed to extract clickable elements");
 };
 
-export const extractEditableElements = (): Promise<
+export const extractEditableElements = async (
+  tabId?: number
+): Promise<
   {
     text: string;
     tag: string;
@@ -163,14 +168,10 @@ export const extractEditableElements = (): Promise<
     outerHTML: string;
   }[]
 > => {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.id) return reject("No active tab found");
-
-      chrome.scripting
-        .executeScript({
-          target: { tabId: tabs[0].id },
-          func: () => {
+  const tab = await resolveTab(tabId);
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
             const elements = Array.from(
               document.querySelectorAll(
                 "input, textarea, [contenteditable='true']"
@@ -196,29 +197,22 @@ export const extractEditableElements = (): Promise<
               };
             });
           },
-        })
-        .then((results) => {
-          if (results && results[0] && results[0].result) {
-            resolve(results[0].result);
-          } else {
-            reject("Failed to extract editable elements");
-          }
-        })
-        .catch(reject);
-    });
   });
+
+  if (results && results[0] && results[0].result) {
+    return results[0].result;
+  }
+  throw new Error("Failed to extract editable elements");
 };
 
-export const clickElementBySelector = (selector: string) => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (!tabs[0]?.id) {
-      console.error("No active tab found");
-      return;
-    }
-
-    chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      func: (selector) => {
+export const clickElementBySelector = async (
+  selector: string,
+  tabId?: number
+) => {
+  const tab = await resolveTab(tabId);
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (selector) => {
         let element: Element | null = null;
         try {
           element = document.querySelector(selector);
@@ -235,19 +229,17 @@ export const clickElementBySelector = (selector: string) => {
       },
       args: [selector],
     });
-  });
 };
 
-export const fillElementBySelector = (selector: string, text: string) => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (!tabs[0]?.id) {
-      console.error("No active tab found");
-      return;
-    }
-
-    chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      func: (selector, text) => {
+export const fillElementBySelector = async (
+  selector: string,
+  text: string,
+  tabId?: number
+) => {
+  const tab = await resolveTab(tabId);
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (selector, text) => {
         let element: HTMLInputElement | HTMLTextAreaElement | null = null;
         try {
           element = document.querySelector(selector) as
@@ -273,7 +265,6 @@ export const fillElementBySelector = (selector: string, text: string) => {
       },
       args: [selector, text],
     });
-  });
 };
 
 export const buildBackground = (

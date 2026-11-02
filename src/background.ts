@@ -24,9 +24,23 @@ import {
 import { MODEL_CHAT_SMALL, MODEL_IMAGE_GENERATION } from "./utils/models";
 import { createResponseWithFunctionsFetch } from "./utils/backgroundResponses";
 import { createToolsMap } from "./utils/ai";
-import { getNotesAssistantModelSlug } from "./utils/aiConfigStorage";
+import { getAiConfig, getNotesAssistantModelSlug } from "./utils/aiConfigStorage";
+import {
+  buildChatSystemPrompt,
+  createChatTools,
+  messagesToChatResponsesInput,
+} from "./utils/chatTools";
+import {
+  AI_CHAT_JOBS_KEY,
+  deleteChatJob,
+  getChatJobs,
+  saveChatJob,
+  type TGenerateChatTurnMessage,
+} from "./utils/chatJobs";
 import {
   getNoteConversation,
+  loadAllConversations,
+  saveMainConversation,
   saveNoteConversation,
   withUpdatedSystemPrompt,
 } from "./utils/conversationsStorage";
@@ -115,7 +129,8 @@ type ExtensionMessage =
   | ExtensionToolCompletionMessage
   | TGenerateNoteImageMessage
   | TGenerateNoteCoverMessage
-  | TGenerateNoteAssistantTurnMessage;
+  | TGenerateNoteAssistantTurnMessage
+  | TGenerateChatTurnMessage;
 
 // ─── Chrome Storage Manager ─────────────────────────────────────────────────
 
@@ -477,6 +492,174 @@ const runNoteAssistantJob = async (
   }
 };
 
+const CHAT_PARTIAL_SAVE_MS = 300;
+
+const findMainConversation = async (conversationId: string) => {
+  const all = await loadAllConversations();
+  return all.find(
+    (conversation) => conversation.id === conversationId && !conversation.noteId
+  );
+};
+
+const runChatJob = async (
+  request: TGenerateChatTurnMessage
+): Promise<void> => {
+  startImageJobKeepalive();
+  let assistantText = "";
+  let persistedText = "";
+  let persistQueue: Promise<void> = Promise.resolve();
+  let lastFlushAt = 0;
+  let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const persistAssistantText = (text: string) => {
+    persistQueue = persistQueue.catch(() => undefined).then(async () => {
+      if (!text || text === persistedText) return;
+      const existing = await findMainConversation(request.conversationId);
+      if (!existing) {
+        throw new Error("Conversation not found");
+      }
+      const messages = existing.messages.slice();
+      const last = messages[messages.length - 1];
+      if (last?.role === "assistant") {
+        messages[messages.length - 1] = { ...last, content: text };
+      } else {
+        messages.push({ role: "assistant", content: text });
+      }
+      await saveMainConversation(existing, messages);
+      persistedText = text;
+    });
+    return persistQueue;
+  };
+
+  const scheduleFlush = () => {
+    const elapsed = Date.now() - lastFlushAt;
+    const run = () => {
+      lastFlushAt = Date.now();
+      flushTimer = undefined;
+      void persistAssistantText(assistantText).catch(() => undefined);
+    };
+    if (elapsed >= CHAT_PARTIAL_SAVE_MS) {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = undefined;
+      }
+      run();
+      return;
+    }
+    if (flushTimer) return;
+    flushTimer = setTimeout(run, CHAT_PARTIAL_SAVE_MS - elapsed);
+  };
+
+  try {
+    await saveChatJob({
+      conversationId: request.conversationId,
+      tabId: request.tabId,
+      pageUrl: request.pageUrl,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    const apiKey = await ChromeStorageManager.get<string>("openaiApiKey");
+    if (!apiKey) {
+      throw new Error("No API key found");
+    }
+
+    const existing = await findMainConversation(request.conversationId);
+    if (!existing) {
+      throw new Error("Conversation not found");
+    }
+
+    const config = await getAiConfig();
+    const systemPrompt = buildChatSystemPrompt(
+      config.systemPrompt,
+      request.pageUrl ?? ""
+    );
+    const inputMessages = withUpdatedSystemPrompt(systemPrompt, existing.messages);
+    const tools = createChatTools({ tabId: request.tabId });
+    const functionMap = createToolsMap(tools);
+
+    const finalRoundText = await createResponseWithFunctionsFetch({
+      apiKey,
+      model: config.model.slug,
+      input: messagesToChatResponsesInput(inputMessages),
+      tools: tools.map((tool) => tool.schema),
+      functionMap,
+      maxOutputTokens: 4000,
+      onTextDelta: (delta) => {
+        assistantText += delta;
+        scheduleFlush();
+      },
+    });
+
+    if (!assistantText && finalRoundText) {
+      assistantText = finalRoundText;
+    }
+
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+    }
+    await persistAssistantText(assistantText);
+
+    const saved = await findMainConversation(request.conversationId);
+    if (!saved) {
+      throw new Error("Conversation not found");
+    }
+
+    let title = saved.title;
+    if (!title && saved.messages.length >= 3) {
+      try {
+        const generated = await createCompletion({
+          model: MODEL_CHAT_SMALL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a helpful assistant. Your job is to generate a title for a conversation based on the context provided. Return only the title, no other text. The title must start with an emoji and should be in the same language as the messages in the context.",
+            },
+            {
+              role: "user",
+              content: saved.messages.map((message) => message.content).join("\n"),
+            },
+          ],
+          max_completion_tokens: 4000,
+          response_format: { type: "text" },
+        });
+        title = generated.trim();
+        if (title) {
+          await saveMainConversation({ ...saved, title }, saved.messages);
+        }
+      } catch (error) {
+        console.error("Error generating chat title:", error);
+      }
+    }
+
+    await deleteChatJob(request.conversationId);
+    notify(
+      "Chat",
+      title?.trim() ? `${title.trim()} — reply ready` : "Your chat reply is ready"
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error running chat job:", error);
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+    }
+    await saveChatJob({
+      conversationId: request.conversationId,
+      tabId: request.tabId,
+      pageUrl: request.pageUrl,
+      status: "error",
+      error: message,
+      createdAt: new Date().toISOString(),
+    });
+    notify("Chat", "Failed: " + message);
+  } finally {
+    stopImageJobKeepalive();
+  }
+};
+
 /** Parses model JSON output, tolerating markdown code fences. */
 const parseJsonResponse = (raw: string): unknown => {
   const cleaned = raw
@@ -649,6 +832,7 @@ const cleanUpStaleJobs = async <
       AI_NOTE_ASSISTANT_JOBS_KEY,
       await getNoteAssistantJobs()
     );
+    await cleanUpStaleJobs(AI_CHAT_JOBS_KEY, await getChatJobs());
   } catch (error) {
     console.error("Could not clean up stale image jobs:", error);
   }
@@ -1159,6 +1343,12 @@ chrome.runtime.onMessage.addListener(
 
     if (request.action === "generateNoteAssistantTurn") {
       void runNoteAssistantJob(request);
+      sendResponse({ accepted: true });
+      return undefined;
+    }
+
+    if (request.action === "generateChatTurn") {
+      void runChatJob(request);
       sendResponse({ accepted: true });
       return undefined;
     }

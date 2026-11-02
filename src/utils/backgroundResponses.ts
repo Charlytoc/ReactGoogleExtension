@@ -1,6 +1,14 @@
 import type { FunctionTool } from "openai/resources/responses/responses";
 
-type TResponseMessage = { role: string; content: string };
+export type TInputContentPart =
+  | { type: "input_text"; text: string }
+  | { type: "input_image"; detail: "auto"; image_url: string }
+  | { type: "input_file"; filename: string; file_data: string };
+
+type TResponseMessage = {
+  role: string;
+  content: string | TInputContentPart[];
+};
 
 type TFunctionCallOutput = {
   type: "function_call_output";
@@ -37,6 +45,14 @@ type TResponseOutputItem = {
 type TResponsesApiBody = {
   output_text?: string;
   output?: TResponseOutputItem[];
+};
+
+type TStreamEvent = {
+  type?: string;
+  delta?: string;
+  response?: TResponsesApiBody;
+  item?: TResponseOutputItem;
+  error?: { message?: string };
 };
 
 const isFunctionCall = (
@@ -101,6 +117,62 @@ const toStatelessReplayInput = (
   return items;
 };
 
+const readResponsesStream = async (
+  response: Response,
+  onTextDelta: (delta: string) => void
+): Promise<TResponsesApiBody> => {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Empty stream");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let outputText = "";
+  const items: TResponseOutputItem[] = [];
+  let completed: TResponsesApiBody | undefined;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split(/\r?\n\r?\n/);
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      const data = chunk
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data || data === "[DONE]") continue;
+
+      let event: TStreamEvent;
+      try {
+        event = JSON.parse(data) as TStreamEvent;
+      } catch {
+        continue;
+      }
+
+      if (event.type === "error") {
+        throw new Error(event.error?.message || "OpenAI stream error");
+      }
+      if (event.type === "response.output_text.delta" && event.delta) {
+        outputText += event.delta;
+        onTextDelta(event.delta);
+      }
+      if (event.type === "response.output_item.done" && event.item) {
+        items.push(event.item);
+      }
+      if (event.type === "response.completed" && event.response) {
+        completed = event.response;
+      }
+    }
+  }
+
+  return completed ?? { output_text: outputText, output: items };
+};
+
 export type TCreateResponseWithFunctionsFetchParams = {
   apiKey: string;
   model: string;
@@ -108,6 +180,7 @@ export type TCreateResponseWithFunctionsFetchParams = {
   tools: FunctionTool[];
   functionMap: Record<string, (args: Record<string, unknown>) => Promise<string>>;
   maxOutputTokens: number;
+  onTextDelta?: (delta: string) => void;
 };
 
 export const createResponseWithFunctionsFetch = async ({
@@ -117,6 +190,7 @@ export const createResponseWithFunctionsFetch = async ({
   tools,
   functionMap,
   maxOutputTokens,
+  onTextDelta,
 }: TCreateResponseWithFunctionsFetchParams): Promise<string> => {
   let conversationInput: TResponsesFetchInputItem[] = [...input];
   let assistantText = "";
@@ -135,6 +209,7 @@ export const createResponseWithFunctionsFetch = async ({
         tool_choice: "auto",
         max_output_tokens: maxOutputTokens,
         store: false,
+        ...(onTextDelta ? { stream: true } : {}),
       }),
     });
 
@@ -145,9 +220,22 @@ export const createResponseWithFunctionsFetch = async ({
       );
     }
 
-    const body = (await response.json()) as TResponsesApiBody;
+    let roundStreamed = "";
+    const body = onTextDelta
+      ? await readResponsesStream(response, (delta) => {
+          roundStreamed += delta;
+          onTextDelta(delta);
+        })
+      : ((await response.json()) as TResponsesApiBody);
     const turnOutput = body.output ?? [];
     assistantText = extractAssistantText(body);
+    if (
+      onTextDelta &&
+      assistantText.startsWith(roundStreamed) &&
+      assistantText.length > roundStreamed.length
+    ) {
+      onTextDelta(assistantText.slice(roundStreamed.length));
+    }
 
     const functionCalls = turnOutput.filter(isFunctionCall);
     if (functionCalls.length === 0) {
