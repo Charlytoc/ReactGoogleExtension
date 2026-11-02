@@ -219,7 +219,14 @@ export const clickElementBySelector = (selector: string) => {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       func: (selector) => {
-        const element = document.querySelector(selector);
+        let element: Element | null = null;
+        try {
+          element = document.querySelector(selector);
+        } catch {
+          if (selector.startsWith("#")) {
+            element = document.getElementById(selector.slice(1).replace(/\\/g, ""));
+          }
+        }
         if (element) {
           (element as HTMLElement).click();
         } else {
@@ -241,9 +248,20 @@ export const fillElementBySelector = (selector: string, text: string) => {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       func: (selector, text) => {
-        const element = document.querySelector(selector) as
-          | HTMLInputElement
-          | HTMLTextAreaElement;
+        let element: HTMLInputElement | HTMLTextAreaElement | null = null;
+        try {
+          element = document.querySelector(selector) as
+            | HTMLInputElement
+            | HTMLTextAreaElement
+            | null;
+        } catch {
+          if (selector.startsWith("#")) {
+            element = document.getElementById(selector.slice(1).replace(/\\/g, "")) as
+              | HTMLInputElement
+              | HTMLTextAreaElement
+              | null;
+          }
+        }
         if (element) {
           element.focus();
           element.value = text;
