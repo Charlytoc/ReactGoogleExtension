@@ -28,7 +28,9 @@ export const Section = ({
           className="flex-row gap-10 align-center justify-between padding-10"
           style={{ position: "relative", flexShrink: 0 }}
         >
-          <div style={{ flex: "1 1 0%", minWidth: 0 }}>{headerLeft}</div>
+          <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
+            {headerLeft}
+          </div>
           {headerCenter && (
             <div
               style={{

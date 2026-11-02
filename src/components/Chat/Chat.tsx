@@ -816,38 +816,38 @@ const History = ({
     <Section
       className="bg-gradient"
       headerLeft={<h3 className="font-mono">{t("history")}</h3>}
-      headerRight={
-        <>
-          {sortedConversations.length > 0 && !allSelected ? (
-            <Button
-              className="justify-center padding-5"
-              text={t("selectAll")}
-              title={t("selectAll")}
-              onClick={selectAll}
-            />
-          ) : null}
-          {selectedCount > 0 ? (
-            <>
-              <Button
-                className="justify-center padding-5"
-                text={t("clearSelection")}
-                title={t("clearSelection")}
-                onClick={clearSelection}
-              />
-              <Button
-                className="justify-center padding-5"
-                text={t("deleteSelected")}
-                title={t("deleteSelected")}
-                svg={SVGS.trash}
-                onClick={deleteSelected}
-              />
-            </>
-          ) : null}
-        </>
-      }
       close={close}
     >
       <div className="flex-column gap-10 padding-10">
+        {sortedConversations.length > 0 && (
+          <div className="history-bulk-actions">
+            {!allSelected && (
+              <Button
+                className="justify-center padding-5"
+                text={t("selectAll")}
+                title={t("selectAll")}
+                onClick={selectAll}
+              />
+            )}
+            {selectedCount > 0 && (
+              <>
+                <Button
+                  className="justify-center padding-5"
+                  text={t("clearSelection")}
+                  title={t("clearSelection")}
+                  onClick={clearSelection}
+                />
+                <Button
+                  className="justify-center padding-5"
+                  text={t("deleteSelected")}
+                  title={t("deleteSelected")}
+                  svg={SVGS.trash}
+                  onClick={deleteSelected}
+                />
+              </>
+            )}
+          </div>
+        )}
         {sortedConversations.map((conversation) => {
           const isSelected = selectedIds.has(conversation.id);
           return (

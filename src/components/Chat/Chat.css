@@ -68,6 +68,18 @@
   height: auto;
 }
 
+.history-bulk-actions {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  background: var(--bg-color);
+  padding-bottom: 4px;
+}
+
 .floating-buttons {
   position: absolute;
   bottom: 100px;
