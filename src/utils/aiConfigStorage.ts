@@ -1,6 +1,12 @@
 import { ChromeStorageManager } from "../managers/Storage";
 import { TAIConfig, TModel } from "../types";
-import { MODEL_CHAT_CAPABLE, MODEL_CHAT_NANO, MODEL_CHAT_SMALL } from "./models";
+import {
+  MODEL_CHAT_CAPABLE,
+  MODEL_CHAT_NANO,
+  MODEL_CHAT_SMALL,
+  MODEL_IMAGE_GENERATION,
+  MODEL_IMAGE_PROMPT,
+} from "./models";
 
 const AI_CONFIG_KEY = "aiConfig";
 
@@ -24,11 +30,18 @@ export const modelFromSlug = (slug: string): TModel => ({
   hasReasoning: isReasoningModel(slug),
 });
 
+const mergeModel = (stored: TModel | undefined, fallback: TModel): TModel => {
+  if (stored?.slug == null) return fallback;
+  return { ...fallback, ...stored, slug: stored.slug };
+};
+
 export const createDefaultAiConfig = (): TAIConfig => ({
   systemPrompt: "You are a helpful assistant. ",
   model: modelFromSlug(MODEL_CHAT_SMALL),
   notesAssistantModel: modelFromSlug(MODEL_CHAT_CAPABLE),
   formatterModel: modelFromSlug(MODEL_CHAT_NANO),
+  imagePromptModel: modelFromSlug(MODEL_IMAGE_PROMPT),
+  imageModel: modelFromSlug(MODEL_IMAGE_GENERATION),
   autoSaveConversations: true,
   setTitleAtMessage: 0,
 });
@@ -39,35 +52,20 @@ const mergeWithDefaults = (stored: Partial<TAIConfig> | null | undefined): TAICo
     return defaults;
   }
 
-  const model =
-    stored.model?.slug != null
-      ? { ...defaults.model, ...stored.model, slug: stored.model.slug }
-      : defaults.model;
-
-  const notesAssistantModel =
-    stored.notesAssistantModel?.slug != null
-      ? {
-          ...defaults.notesAssistantModel!,
-          ...stored.notesAssistantModel,
-          slug: stored.notesAssistantModel.slug,
-        }
-      : defaults.notesAssistantModel!;
-
-  const formatterModel =
-    stored.formatterModel?.slug != null
-      ? {
-          ...defaults.formatterModel!,
-          ...stored.formatterModel,
-          slug: stored.formatterModel.slug,
-        }
-      : defaults.formatterModel!;
-
   return {
     ...defaults,
     ...stored,
-    model,
-    notesAssistantModel,
-    formatterModel,
+    model: mergeModel(stored.model, defaults.model),
+    notesAssistantModel: mergeModel(
+      stored.notesAssistantModel,
+      defaults.notesAssistantModel!
+    ),
+    formatterModel: mergeModel(stored.formatterModel, defaults.formatterModel!),
+    imagePromptModel: mergeModel(
+      stored.imagePromptModel,
+      defaults.imagePromptModel!
+    ),
+    imageModel: mergeModel(stored.imageModel, defaults.imageModel!),
   };
 };
 
@@ -93,4 +91,14 @@ export async function getNotesAssistantModelSlug(): Promise<string> {
 export async function getFormatterModelSlug(): Promise<string> {
   const config = await getAiConfig();
   return config.formatterModel?.slug ?? MODEL_CHAT_NANO;
+}
+
+export async function getImagePromptModelSlug(): Promise<string> {
+  const config = await getAiConfig();
+  return config.imagePromptModel?.slug ?? MODEL_IMAGE_PROMPT;
+}
+
+export async function getImageModelSlug(): Promise<string> {
+  const config = await getAiConfig();
+  return config.imageModel?.slug ?? MODEL_IMAGE_GENERATION;
 }

@@ -21,10 +21,15 @@ import {
   fillAutocompleteTemplate,
   resolvePrompt,
 } from "./commandPrompts";
-import { MODEL_CHAT_SMALL, MODEL_IMAGE_GENERATION } from "./utils/models";
+import { MODEL_CHAT_SMALL } from "./utils/models";
 import { createResponseWithFunctionsFetch } from "./utils/backgroundResponses";
 import { createToolsMap } from "./utils/ai";
-import { getAiConfig, getNotesAssistantModelSlug } from "./utils/aiConfigStorage";
+import {
+  getAiConfig,
+  getImageModelSlug,
+  getImagePromptModelSlug,
+  getNotesAssistantModelSlug,
+} from "./utils/aiConfigStorage";
 import {
   buildChatSystemPrompt,
   createChatTools,
@@ -266,7 +271,8 @@ const generateImageBase64 = async (
   apiKey: string,
   prompt: string,
   size: string,
-  outputCompression: number
+  outputCompression: number,
+  model: string
 ): Promise<string> => {
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -275,7 +281,7 @@ const generateImageBase64 = async (
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL_IMAGE_GENERATION,
+      model,
       prompt,
       size,
       quality: "medium",
@@ -308,7 +314,7 @@ const generateImagePrompt = async (
   const rawPrompt = request.prompt.trim();
   try {
     const refined = await createCompletion({
-      model: MODEL_CHAT_SMALL,
+      model: await getImagePromptModelSlug(),
       messages: [
         {
           role: "system",
@@ -361,7 +367,14 @@ const runNoteImageJob = async (
     }
 
     const imagePrompt = await generateImagePrompt(request);
-    const b64 = await generateImageBase64(apiKey, imagePrompt, request.size, 60);
+    const imageModel = await getImageModelSlug();
+    const b64 = await generateImageBase64(
+      apiKey,
+      imagePrompt,
+      request.size,
+      60,
+      imageModel
+    );
 
     const attachment: TAttachment = {
       id: request.attachmentId,
@@ -752,7 +765,14 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(
       note.title?.trim() ||
       "abstract wide landscape cover art";
 
-    const b64 = await generateImageBase64(apiKey, imagePrompt, "1536x1024", 70);
+    const imageModel = await getImageModelSlug();
+    const b64 = await generateImageBase64(
+      apiKey,
+      imagePrompt,
+      "1536x1024",
+      70,
+      imageModel
+    );
 
     // Re-read and merge only the theme/cover fields: the user may have kept
     // editing the note content while the job was running.

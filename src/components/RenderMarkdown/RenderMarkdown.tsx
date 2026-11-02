@@ -814,6 +814,8 @@ const MarkdownInsertZone = ({
 
 const BlockActionBar = ({
   onEditText,
+  editLabel,
+  editActive = false,
   onEditAI,
   onEditImage,
   onConvertToTable,
@@ -825,6 +827,8 @@ const BlockActionBar = ({
   blockMarkdown,
 }: {
   onEditText?: () => void;
+  editLabel?: string;
+  editActive?: boolean;
   onEditAI?: () => void;
   onEditImage?: () => void;
   /** Only offered on a blank text node — turns it into a table/image node. */
@@ -839,6 +843,7 @@ const BlockActionBar = ({
   blockMarkdown: string;
 }) => {
   const { t } = useTranslation();
+  const editTextLabel = editLabel ?? t("editAsText");
 
   const copyBlock = () => {
     void navigator.clipboard.writeText(blockMarkdown).then(() => {
@@ -876,16 +881,16 @@ const BlockActionBar = ({
       className={`markdown-block-actions${confirmDelete ? " markdown-block-actions--confirming" : ""}`}
     >
       {onEditText && (
-        <Tooltip label={t("editAsText")} withArrow openDelay={400} position="top">
+        <Tooltip label={editTextLabel} withArrow openDelay={400} position="top">
           <ActionIcon
             size="sm"
             variant="subtle"
             color="gray"
             tabIndex={-1}
             onClick={onEditText}
-            aria-label={t("editAsText")}
+            aria-label={editTextLabel}
           >
-            {SVGS.edit}
+            {editActive ? SVGS.check : SVGS.edit}
           </ActionIcon>
         </Tooltip>
       )}
@@ -2004,6 +2009,8 @@ const NodeBlock = ({
       actions={
         <BlockActionBar
           onEditText={editThisBlock}
+          editLabel={node.type === "table" && isTableEditing ? t("done") : undefined}
+          editActive={node.type === "table" && isTableEditing}
           onEditAI={() => openModal("edit-ai")}
           onEditImage={usesCustomEditor ? undefined : () => openModal("edit-image")}
           onConvertToTable={isBlankText && onNodeConvert ? () => convertTo("table") : undefined}

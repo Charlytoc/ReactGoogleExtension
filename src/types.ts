@@ -166,6 +166,8 @@ export type TAIConfig = {
   model: TModel;
   notesAssistantModel?: TModel;
   formatterModel?: TModel;
+  imagePromptModel?: TModel;
+  imageModel?: TModel;
   autoSaveConversations: boolean;
   setTitleAtMessage?: number;
   reasoningTag?: TReasoningTag;

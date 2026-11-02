@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { LabeledInput } from "../../components/LabeledInput/LabeledInput.tsx";
 import { Section } from "../../components/Section/Section.tsx";
 import toast from "react-hot-toast";
-import { createCompletion, listModels } from "../../utils/ai.ts";
+import { createCompletion, listModelCatalog } from "../../utils/ai.ts";
 import { MODEL_CHAT_SMALL } from "../../utils/models.ts";
 import {
   createDefaultAiConfig,
@@ -42,6 +42,13 @@ import {
   uploadBackupToCloud,
   type TCloudUser,
 } from "../../utils/cloudSync.ts";
+const modelOptions = (models: TModel[], current: TModel) => {
+  const list = models.some((model) => model.slug === current.slug)
+    ? models
+    : [current, ...models];
+  return list.map((model) => ({ label: model.name, value: model.slug }));
+};
+
 const generateRandomTheme = async (
   apiKey: string,
   userPreferences: string = ""
@@ -132,7 +139,14 @@ export default function Config() {
   const [formatterModel, setFormatterModel] = useState<TModel>(
     () => createDefaultAiConfig().formatterModel!
   );
+  const [imagePromptModel, setImagePromptModel] = useState<TModel>(
+    () => createDefaultAiConfig().imagePromptModel!
+  );
+  const [imageModel, setImageModel] = useState<TModel>(
+    () => createDefaultAiConfig().imageModel!
+  );
   const [availableModels, setAvailableModels] = useState<TModel[]>([]);
+  const [availableImageModels, setAvailableImageModels] = useState<TModel[]>([]);
 
   const [cloudUser, setCloudUser] = useState<TCloudUser | null>(null);
   const [authEmail, setAuthEmail] = useState("");
@@ -167,13 +181,21 @@ export default function Config() {
     if (aiConfig.formatterModel) {
       setFormatterModel(aiConfig.formatterModel);
     }
+    if (aiConfig.imagePromptModel) {
+      setImagePromptModel(aiConfig.imagePromptModel);
+    }
+    if (aiConfig.imageModel) {
+      setImageModel(aiConfig.imageModel);
+    }
 
     if (apiKey) {
       try {
-        const models = await listModels(apiKey as string);
-        setAvailableModels(models);
+        const catalog = await listModelCatalog(apiKey as string);
+        setAvailableModels(catalog.chat);
+        setAvailableImageModels(catalog.image);
       } catch {
         setAvailableModels([]);
+        setAvailableImageModels([]);
       }
     }
 
@@ -361,16 +383,7 @@ export default function Config() {
             <Select
               name="notesAssistantModel"
               id="notesAssistantModel"
-              options={
-                availableModels.length > 0
-                  ? availableModels.map((m) => ({ label: m.name, value: m.slug }))
-                  : [
-                      {
-                        label: notesAssistantModel.name,
-                        value: notesAssistantModel.slug,
-                      },
-                    ]
-              }
+              options={modelOptions(availableModels, notesAssistantModel)}
               defaultValue={notesAssistantModel.slug}
               onChange={(value) => {
                 const model = availableModels.find((m) => m.slug === value);
@@ -388,20 +401,47 @@ export default function Config() {
             <Select
               name="formatterModel"
               id="formatterModel"
-              options={
-                availableModels.length > 0
-                  ? availableModels.map((m) => ({ label: m.name, value: m.slug }))
-                  : [
-                      {
-                        label: formatterModel.name,
-                        value: formatterModel.slug,
-                      },
-                    ]
-              }
+              options={modelOptions(availableModels, formatterModel)}
               defaultValue={formatterModel.slug}
               onChange={(value) => {
                 const model = availableModels.find((m) => m.slug === value);
                 setFormatterModel(model ?? modelFromSlug(value));
+              }}
+            />
+          </div>
+        <div className="flex-column gap-5">
+            <label className="color-secondary text-left" htmlFor="imagePromptModel">
+              {t("imagePromptModel")}
+            </label>
+            <span className="color-secondary text-left text-sm">
+              {t("imagePromptModelDescription")}
+            </span>
+            <Select
+              name="imagePromptModel"
+              id="imagePromptModel"
+              options={modelOptions(availableModels, imagePromptModel)}
+              defaultValue={imagePromptModel.slug}
+              onChange={(value) => {
+                const model = availableModels.find((m) => m.slug === value);
+                setImagePromptModel(model ?? modelFromSlug(value));
+              }}
+            />
+          </div>
+        <div className="flex-column gap-5">
+            <label className="color-secondary text-left" htmlFor="imageModel">
+              {t("imageModel")}
+            </label>
+            <span className="color-secondary text-left text-sm">
+              {t("imageModelDescription")}
+            </span>
+            <Select
+              name="imageModel"
+              id="imageModel"
+              options={modelOptions(availableImageModels, imageModel)}
+              defaultValue={imageModel.slug}
+              onChange={(value) => {
+                const model = availableImageModels.find((m) => m.slug === value);
+                setImageModel(model ?? modelFromSlug(value));
               }}
             />
           </div>
@@ -682,7 +722,12 @@ export default function Config() {
         onClick={async () => {
           await ChromeStorageManager.add("colorPreferences", colors);
           await ChromeStorageManager.add("openaiApiKey", apiKey);
-          await saveAiConfig({ notesAssistantModel, formatterModel });
+          await saveAiConfig({
+            notesAssistantModel,
+            formatterModel,
+            imagePromptModel,
+            imageModel,
+          });
           setConfig({ auth: { openaiApiKey: apiKey } });
           toast.success(t("settingsSaved"));
         }}

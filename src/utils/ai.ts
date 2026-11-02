@@ -361,11 +361,7 @@ type TImageBackground = "transparent" | "opaque" | "auto";
 type TGenerateImageRequest = {
   prompt: string;
   apiKey: string;
-  model?:
-    | "gpt-image-2"
-    | "gpt-image-1.5"
-    | "gpt-image-1"
-    | "gpt-image-1-mini";
+  model?: string;
   size?: TImageSize;
   quality?: TImageQuality;
   background?: TImageBackground;
@@ -422,8 +418,10 @@ const titlelify = (slug: string) => {
   return title.charAt(0).toUpperCase() + title.slice(1);
 };
 
+const isImageModel = (slug: string) => slug.startsWith("gpt-image");
+
 const isLLM = (slug: string) => {
-  if (slug.startsWith("gpt-image")) return false;
+  if (isImageModel(slug)) return false;
   return (
     slug.startsWith("gpt-") ||
     slug.startsWith("o") ||
@@ -440,21 +438,35 @@ const isReasoningModel = (slug: string) => {
   return false;
 };
 
-export const listModels = async (apiKey: string) => {
+export const listModelCatalog = async (apiKey: string) => {
   const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
   const list = await openai.models.list();
 
-  const models: TModel[] = [];
+  const chat: TModel[] = [];
+  const image: TModel[] = [];
 
   for await (const model of list) {
-    if (model.owned_by === "system" && isLLM(model.id)) {
-      models.push({
+    if (model.owned_by !== "system") continue;
+    if (isLLM(model.id)) {
+      chat.push({
         name: titlelify(model.id),
         slug: model.id,
         hasReasoning: isReasoningModel(model.id),
       });
+    } else if (isImageModel(model.id)) {
+      image.push({
+        name: titlelify(model.id),
+        slug: model.id,
+        hasReasoning: false,
+      });
     }
   }
-  return models;
+
+  return { chat, image };
+};
+
+export const listModels = async (apiKey: string) => {
+  const { chat } = await listModelCatalog(apiKey);
+  return chat;
 };

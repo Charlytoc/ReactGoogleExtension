@@ -12,5 +12,8 @@ export const MODEL_CHAT_SMALL = "gpt-5.4-mini";
 /** Cheapest completions (strict formatting, trivial transforms) */
 export const MODEL_CHAT_NANO = "gpt-5.4-nano";
 
+/** Writes the image prompt before a picture is drawn */
+export const MODEL_IMAGE_PROMPT = "gpt-6-luna";
+
 /** Image generation (covers, inline attachments) */
-export const MODEL_IMAGE_GENERATION = "gpt-image-2";
+export const MODEL_IMAGE_GENERATION = "gpt-image-2.5-flare";
