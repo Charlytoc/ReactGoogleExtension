@@ -650,6 +650,22 @@ button:focus-visible {
     background: rgba(255, 255, 255, 0.06);
   }
 
+  & .table-node-view-cell {
+    min-width: 80px;
+    max-width: 200px;
+    padding: 6px 8px;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  & .table-node-view-cell p {
+    margin: 0;
+  }
+
+  & .table-node-view-cell--header {
+    font-weight: 600;
+  }
+
   & .table-node-cell-action {
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -816,6 +832,14 @@ button:focus-visible {
     padding: 2px 5px;
     border-radius: 3px;
     font-family: monospace;
+  }
+
+  & code.markdown-inline-code {
+    cursor: pointer;
+  }
+
+  & code.markdown-inline-code:hover {
+    background-color: rgba(161, 161, 161, 0.35);
   }
 
   & pre code {

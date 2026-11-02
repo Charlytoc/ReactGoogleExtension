@@ -1314,6 +1314,38 @@ const Tasky = ({
   );
 };
 
+const inlineCodeText = (children: ReactNode): string => {
+  if (typeof children === "string" || typeof children === "number") {
+    return String(children);
+  }
+  if (Array.isArray(children)) {
+    return children.map((child) => inlineCodeText(child)).join("");
+  }
+  return "";
+};
+
+const InlineCode = ({ children }: { children?: ReactNode }) => {
+  const { t } = useTranslation();
+
+  return (
+    <code
+      className="markdown-inline-code"
+      title={t("copyCode")}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = inlineCodeText(children);
+        if (!text) return;
+        void navigator.clipboard.writeText(text).then(() => {
+          toast.success(t("codeCopied"));
+        });
+      }}
+    >
+      {children}
+    </code>
+  );
+};
+
 const MermaidBlock = ({ code }: { code: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const renderIdRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 10)}`);
@@ -1525,12 +1557,26 @@ const TableCellEditor = ({
  * keystroke's stale (pre-delete) table win once its timer fired, silently
  * reverting the delete and leaving indices misaligned for the next click.
  */
+const TableCellView = ({
+  value,
+  header = false,
+}: {
+  value: string;
+  header?: boolean;
+}) => (
+  <div className={`table-node-view-cell${header ? " table-node-view-cell--header" : ""}`}>
+    {value ? <RenderMarkdown markdown={value} /> : null}
+  </div>
+);
+
 const TableNodeEditor = ({
   content,
   onChange,
+  editing = false,
 }: {
   content: string;
   onChange: (newMarkdown: string) => void;
+  editing?: boolean;
 }) => {
   const { t } = useTranslation();
   const parseTable = (raw: string): TParsedTable =>
@@ -1539,6 +1585,17 @@ const TableNodeEditor = ({
   const [table, setTable] = useState<TParsedTable>(() => parseTable(content));
   const lastContentRef = useRef(content);
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const tableRef = useRef(table);
+  tableRef.current = table;
+
+  useEffect(() => {
+    if (editing || !pendingTimerRef.current) return;
+    clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = undefined;
+    const markdown = serializeMarkdownTable(tableRef.current);
+    lastContentRef.current = markdown;
+    onChange(markdown);
+  }, [editing, onChange]);
 
   // Re-sync from `content` only when it changed for a reason other than our
   // own commit (e.g. the AI assistant updated this node) — avoids clobbering
@@ -1621,6 +1678,37 @@ const TableNodeEditor = ({
   };
 
   const columnCount = table.headers.length;
+
+  if (!editing) {
+    return (
+      <div className="table-node-editor" onClick={(e) => e.stopPropagation()}>
+        <div className="table-node-scroll">
+          <table className="table-node-grid table-node-grid--view">
+            <thead>
+              <tr>
+                {table.headers.map((header, col) => (
+                  <th key={col}>
+                    <TableCellView header value={header} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((cell, ci) => (
+                    <td key={ci}>
+                      <TableCellView value={cell} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="table-node-editor" onClick={(e) => e.stopPropagation()}>
@@ -1821,6 +1909,7 @@ const NodeBlock = ({
   const [modalMode, setModalMode] = useState<TBlockEditorMode | null>(null);
   const [draftMarkdown, setDraftMarkdown] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isTableEditing, setIsTableEditing] = useState(false);
   const isEditingText = inlineEdit?.session?.nodeId === node.id;
   const displayMarkdown = isEditingText
     ? inlineEdit!.session!.revertTo
@@ -1871,6 +1960,7 @@ const NodeBlock = ({
     node.type === "table" ? (
       <TableNodeEditor
         content={node.content}
+        editing={editableBlocks && isTableEditing}
         onChange={(next) => onNodeChange?.(node.id, next)}
       />
     ) : node.type === "image" ? (
@@ -1893,12 +1983,18 @@ const NodeBlock = ({
   // Table/image nodes have their own dedicated editor (grid / generate
   // prompt) — the generic text/AI/image-modal block actions don't apply.
   const usesCustomEditor = node.type === "table" || node.type === "image";
+  const editThisBlock =
+    node.type === "table"
+      ? () => setIsTableEditing((prev) => !prev)
+      : usesCustomEditor
+        ? undefined
+        : openInlineEdit;
 
   return (
     <EditableBlockShell
       isEditing={isEditingText}
       confirmDelete={confirmDelete}
-      onEditText={usesCustomEditor ? undefined : openInlineEdit}
+      onEditText={editThisBlock}
       onRequestDelete={() => setConfirmDelete(true)}
       onConfirmDelete={deleteBlock}
       onCancelDelete={() => setConfirmDelete(false)}
@@ -1907,7 +2003,7 @@ const NodeBlock = ({
       ariaLabel={t("editAsText")}
       actions={
         <BlockActionBar
-          onEditText={usesCustomEditor ? undefined : openInlineEdit}
+          onEditText={editThisBlock}
           onEditAI={() => openModal("edit-ai")}
           onEditImage={usesCustomEditor ? undefined : () => openModal("edit-image")}
           onConvertToTable={isBlankText && onNodeConvert ? () => convertTo("table") : undefined}
@@ -2112,6 +2208,7 @@ export const RenderMarkdown = ({
               />
             );
           },
+          code: ({ children }) => <InlineCode>{children}</InlineCode>,
           pre: (props) => <CustomCode node={props.node} />,
           li: (props) => {
             if (hasTaskListItemClassName(props.className)) {
