@@ -20,6 +20,55 @@ type TResponsesBody = {
   }>;
 };
 
+const readApiKey = async (): Promise<string> => {
+  const apiKey = await ChromeStorageManager.get("openaiApiKey");
+  if (typeof apiKey !== "string" || !apiKey) {
+    throw new Error("No API key found");
+  }
+  return apiKey;
+};
+
+const readImageBody = async (response: Response): Promise<string> => {
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `OpenAI API error: ${response.statusText}${detail ? `: ${detail.slice(0, 300)}` : ""}`
+    );
+  }
+  const body: { data?: Array<{ b64_json?: string }> } = await response.json();
+  const b64 = body.data?.[0]?.b64_json;
+  if (!b64) {
+    throw new Error("No image returned by the API");
+  }
+  return b64;
+};
+
+const dataUrlToBlob = (dataUrl: string): Blob => {
+  const match = dataUrl.match(/^data:([^;,]+)?;base64,([\s\S]*)$/);
+  if (!match) {
+    throw new Error("Image data is missing");
+  }
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: match[1] || "image/jpeg" });
+};
+
+const saveAttachment = async (
+  attachment: TAttachment,
+  altText: string
+): Promise<{ attachmentId: string; markdownLink: string }> => {
+  const stored = await ChromeStorageManager.get("attachments");
+  const attachments: TAttachment[] = Array.isArray(stored) ? stored : [];
+  await ChromeStorageManager.add("attachments", [...attachments, attachment]);
+  return {
+    attachmentId: attachment.id,
+    markdownLink: `![${altText}](attachment:${attachment.id})`,
+  };
+};
+
 const readOutputText = (body: TResponsesBody): string => {
   if (body.output_text) return body.output_text;
   for (const item of body.output ?? []) {
@@ -36,10 +85,7 @@ const completeText = async (
   messages: Array<{ role: string; content: string }>,
   maxCompletionTokens: number
 ): Promise<string> => {
-  const apiKey = await ChromeStorageManager.get("openaiApiKey");
-  if (typeof apiKey !== "string" || !apiKey) {
-    throw new Error("No API key found");
-  }
+  const apiKey = await readApiKey();
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -86,16 +132,7 @@ export const fetchImageBase64 = async (
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
-  }
-
-  const body: { data?: Array<{ b64_json?: string }> } = await response.json();
-  const b64 = body.data?.[0]?.b64_json;
-  if (!b64) {
-    throw new Error("No image returned by the API");
-  }
-  return b64;
+  return readImageBody(response);
 };
 
 const expandImagePrompt = async (
@@ -149,11 +186,7 @@ export type TCreateStoredImageParams = {
 export const createStoredImage = async (
   params: TCreateStoredImageParams
 ): Promise<{ attachmentId: string; markdownLink: string }> => {
-  const apiKey = await ChromeStorageManager.get("openaiApiKey");
-  if (typeof apiKey !== "string" || !apiKey) {
-    throw new Error("No API key found");
-  }
-
+  const apiKey = await readApiKey();
   const size = normalizeStoredImageSize(params.size);
   const altText = params.altText.trim() || "generated image";
   const imagePrompt = await expandImagePrompt(params.prompt, size, params.context);
@@ -167,23 +200,75 @@ export const createStoredImage = async (
   );
 
   const attachmentId = params.attachmentId ?? generateRandomId("attachment");
-  const attachment: TAttachment = {
-    id: attachmentId,
-    type: "image",
-    name: `ai-image-${new Date().toISOString()}`,
-    dataUrl: `data:image/jpeg;base64,${b64}`,
-    mimeType: "image/jpeg",
-    sourceNoteId: params.sourceNoteId,
-    sourceConversationId: params.sourceConversationId,
-    createdAt: new Date().toISOString(),
-  };
+  return saveAttachment(
+    {
+      id: attachmentId,
+      type: "image",
+      name: `ai-image-${new Date().toISOString()}`,
+      dataUrl: `data:image/jpeg;base64,${b64}`,
+      mimeType: "image/jpeg",
+      sourceNoteId: params.sourceNoteId,
+      sourceConversationId: params.sourceConversationId,
+      createdAt: new Date().toISOString(),
+    },
+    altText
+  );
+};
+
+export const editStoredImage = async (params: {
+  sourceAttachmentId: string;
+  prompt: string;
+  altText: string;
+  size?: string;
+  sourceConversationId?: string;
+}): Promise<{ attachmentId: string; markdownLink: string }> => {
+  const apiKey = await readApiKey();
+  const prompt = params.prompt.trim();
+  if (!prompt) {
+    throw new Error("No instruction provided");
+  }
 
   const stored = await ChromeStorageManager.get("attachments");
   const attachments: TAttachment[] = Array.isArray(stored) ? stored : [];
-  await ChromeStorageManager.add("attachments", [...attachments, attachment]);
+  const source = attachments.find((item) => item.id === params.sourceAttachmentId);
+  if (!source?.dataUrl) {
+    throw new Error("Image not found");
+  }
 
-  return {
-    attachmentId,
-    markdownLink: `![${altText}](attachment:${attachmentId})`,
-  };
+  const blob = dataUrlToBlob(source.dataUrl);
+  const extension = blob.type.includes("png") ? "png" : "jpg";
+  const form = new FormData();
+  form.append("model", await getImageModelSlug());
+  form.append("prompt", prompt);
+  form.append("image[]", blob, `source.${extension}`);
+  const size = params.size?.trim();
+  if (size && size !== "auto") {
+    form.append("size", normalizeStoredImageSize(size));
+  }
+  form.append("quality", "medium");
+  form.append("output_format", "jpeg");
+  form.append("output_compression", "60");
+
+  const response = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: form,
+  });
+  const b64 = await readImageBody(response);
+  const altText = params.altText.trim() || "edited image";
+
+  return saveAttachment(
+    {
+      id: generateRandomId("attachment"),
+      type: "image",
+      name: `ai-image-${new Date().toISOString()}`,
+      dataUrl: `data:image/jpeg;base64,${b64}`,
+      mimeType: "image/jpeg",
+      sourceConversationId: params.sourceConversationId,
+      createdAt: new Date().toISOString(),
+    },
+    altText
+  );
 };

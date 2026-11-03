@@ -11,13 +11,13 @@ import {
   generateRandomId,
 } from "./lib";
 import { migrateNote, migrateTask } from "./tags";
-import { createStoredImage } from "./storedImages";
+import { createStoredImage, editStoredImage } from "./storedImages";
 
 export const buildChatSystemPrompt = (
   systemPrompt: string,
   pageUrl: string
 ): string => {
-  return `${systemPrompt}\n${pageUrl ? `Current URL: ${pageUrl}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task. If the user asks for an image or picture, call generate_image.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer. After generate_image, include the markdownLink returned by the tool in your answer unchanged.`;
+  return `${systemPrompt}\n${pageUrl ? `Current URL: ${pageUrl}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task. You can generate pictures and edit pictures already in this chat. If the user asks for a new image or picture, call generate_image. If the user asks to change or edit a picture already in the chat, call edit_image with its attachment id from attachment:ID. If they do not name one, leave attachmentId empty and the latest picture is used.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer. After generate_image or edit_image, include the markdownLink returned by the tool in your answer unchanged.`;
 };
 
 const messageContent = (message: TMessage): string | TInputContentPart[] => {
@@ -68,6 +68,10 @@ export const createChatTools = (deps: {
   imageContext?: string;
 }): TTool[] => {
   const { tabId, conversationId, imageContext } = deps;
+  const attachmentIds = Array.from(
+    (imageContext || "").matchAll(/attachments?:([A-Za-z0-9_-]+)/gi)
+  ).map((match) => match[1]);
+  const latestImageId = attachmentIds[attachmentIds.length - 1] || "";
 
   const getWebsiteContent = toolify(
     async (args: { start: number; end: number }) => {
@@ -351,6 +355,72 @@ export const createChatTools = (deps: {
     }
   );
 
+  const editImageTool = toolify(
+    async (args: {
+      attachmentId: string;
+      instruction: string;
+      altText: string;
+      size: string;
+    }) => {
+      const instruction = args.instruction?.trim();
+      const attachmentId = args.attachmentId?.trim() || latestImageId;
+      if (!instruction) {
+        return JSON.stringify({
+          success: false,
+          message: "No instruction provided",
+        });
+      }
+      if (!attachmentId) {
+        return JSON.stringify({
+          success: false,
+          message: "No image to edit",
+        });
+      }
+      try {
+        const stored = await editStoredImage({
+          sourceAttachmentId: attachmentId,
+          prompt: instruction,
+          altText: args.altText?.trim() || "edited image",
+          size: args.size,
+          sourceConversationId: conversationId,
+        });
+        return JSON.stringify({
+          success: true,
+          attachmentId: stored.attachmentId,
+          markdownLink: stored.markdownLink,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          success: false,
+          message: "Failed to edit image",
+          error: String(error),
+        });
+      }
+    },
+    "edit_image",
+    "Edit a picture already in the chat. Use this when the user wants to change an existing image. Pass the attachment id from attachment:ID, or leave it empty to edit the latest picture. Describe only the change. Paste markdownLink into the reply unchanged.",
+    {
+      attachmentId: {
+        type: "string",
+        description:
+          "Id from attachment:ID in the chat. Leave empty to edit the latest picture.",
+      },
+      instruction: {
+        type: "string",
+        description: "What to change in the existing picture.",
+      },
+      altText: {
+        type: "string",
+        description: "Short label for the edited image.",
+      },
+      size: {
+        type: "string",
+        description:
+          "Image size. Use auto to keep the current shape, or one of: 1024x1024, 1024x1536, 1536x1024.",
+      },
+    }
+  );
+
   return [
     getWebsiteContent,
     getClickableElements,
@@ -358,6 +428,7 @@ export const createChatTools = (deps: {
     fillElementBySelectorTool,
     getEditableElements,
     generateImageTool,
+    editImageTool,
     createCreateTool,
     createTaskTool,
   ];
