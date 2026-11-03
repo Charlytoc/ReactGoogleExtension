@@ -9,7 +9,7 @@
  * remain fully self-contained — no module-level references allowed inside them.
  */
 
-import type { TAttachment, TNote, TTask } from "./types";
+import type { TNote, TTask } from "./types";
 import { mergeNoteTags, migrateNote, migrateTask, nodesToMarkdown } from "./utils/tags";
 import {
   clampAiNoteThemeJson,
@@ -27,9 +27,9 @@ import { createToolsMap } from "./utils/ai";
 import {
   getAiConfig,
   getImageModelSlug,
-  getImagePromptModelSlug,
   getNotesAssistantModelSlug,
 } from "./utils/aiConfigStorage";
+import { createStoredImage, fetchImageBase64 } from "./utils/storedImages";
 import {
   buildChatSystemPrompt,
   createChatTools,
@@ -267,82 +267,6 @@ const stopImageJobKeepalive = (): void => {
   }
 };
 
-const generateImageBase64 = async (
-  apiKey: string,
-  prompt: string,
-  size: string,
-  outputCompression: number,
-  model: string
-): Promise<string> => {
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size,
-      quality: "medium",
-      output_format: "jpeg",
-      output_compression: outputCompression,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
-  }
-
-  const body: { data?: Array<{ b64_json?: string }> } = await response.json();
-  const b64 = body.data?.[0]?.b64_json;
-  if (!b64) {
-    throw new Error("No image returned by the API");
-  }
-  return b64;
-};
-
-/**
- * Stage 1 of every image job: expand the raw intent into a final image
- * generation prompt, informed by the surrounding note/block context. Falls
- * back to the raw intent if the chat model fails, so a prompt-step outage
- * never blocks image generation.
- */
-const generateImagePrompt = async (
-  request: TGenerateNoteImageMessage
-): Promise<string> => {
-  const rawPrompt = request.prompt.trim();
-  try {
-    const refined = await createCompletion({
-      model: await getImagePromptModelSlug(),
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert image prompt engineer.
-Write a single, vivid, detailed image generation prompt based on the user's request.
-Use the provided context (surrounding note or block text) to inform the subject, style, and mood when relevant — but the request always wins over the context.
-Tailor the composition to the requested size/aspect ratio.
-Respond with the final prompt only — no quotes, no preamble, no explanations.`,
-        },
-        {
-          role: "user",
-          content: `Request: ${rawPrompt}
-
-Size/aspect ratio: ${request.size}
-
-Context:
-${(request.context || "none").slice(0, 6000)}`,
-        },
-      ],
-      max_completion_tokens: 400,
-    });
-    return refined.trim() || rawPrompt;
-  } catch (error) {
-    console.warn("Image prompt generation failed, using raw prompt:", error);
-    return rawPrompt;
-  }
-};
-
 const runNoteImageJob = async (
   request: TGenerateNoteImageMessage
 ): Promise<void> => {
@@ -361,36 +285,14 @@ const runNoteImageJob = async (
       createdAt: new Date().toISOString(),
     });
 
-    const apiKey = await ChromeStorageManager.get<string>("openaiApiKey");
-    if (!apiKey) {
-      throw new Error("No API key found");
-    }
-
-    const imagePrompt = await generateImagePrompt(request);
-    const imageModel = await getImageModelSlug();
-    const b64 = await generateImageBase64(
-      apiKey,
-      imagePrompt,
-      request.size,
-      60,
-      imageModel
-    );
-
-    const attachment: TAttachment = {
-      id: request.attachmentId,
-      type: "image",
-      name: `ai-image-${new Date().toISOString()}`,
-      dataUrl: `data:image/jpeg;base64,${b64}`,
-      mimeType: "image/jpeg",
+    await createStoredImage({
+      prompt: request.prompt,
+      context: request.context,
+      altText: request.altText,
+      size: request.size,
+      attachmentId: request.attachmentId,
       sourceNoteId: request.noteId,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save the attachment before deleting the job so renderers never observe
-    // "no attachment + no job" for an in-flight generation.
-    const attachments =
-      (await ChromeStorageManager.get<TAttachment[]>("attachments")) ?? [];
-    await ChromeStorageManager.add("attachments", [...attachments, attachment]);
+    });
     await deleteImageJob(request.attachmentId);
 
     notify("Image ready", request.altText || "Generated image attached to note");
@@ -588,7 +490,16 @@ const runChatJob = async (
       request.pageUrl ?? ""
     );
     const inputMessages = withUpdatedSystemPrompt(systemPrompt, existing.messages);
-    const tools = createChatTools({ tabId: request.tabId });
+    const imageContext = existing.messages
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .map((message) => message.content)
+      .join("\n")
+      .slice(-6000);
+    const tools = createChatTools({
+      tabId: request.tabId,
+      conversationId: request.conversationId,
+      imageContext,
+    });
     const functionMap = createToolsMap(tools);
 
     const finalRoundText = await createResponseWithFunctionsFetch({
@@ -766,7 +677,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(
       "abstract wide landscape cover art";
 
     const imageModel = await getImageModelSlug();
-    const b64 = await generateImageBase64(
+    const b64 = await fetchImageBase64(
       apiKey,
       imagePrompt,
       "1536x1024",

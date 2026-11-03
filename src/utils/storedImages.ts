@@ -1,0 +1,189 @@
+import type { TAttachment } from "../types";
+import { ChromeStorageManager } from "../managers/Storage";
+import { generateRandomId } from "./lib";
+import { getImageModelSlug, getImagePromptModelSlug } from "./aiConfigStorage";
+
+const IMAGE_SIZES = ["1024x1024", "1024x1536", "1536x1024", "auto"] as const;
+
+export type TStoredImageSize = (typeof IMAGE_SIZES)[number];
+
+export const normalizeStoredImageSize = (size: string): TStoredImageSize =>
+  (IMAGE_SIZES as readonly string[]).includes(size)
+    ? (size as TStoredImageSize)
+    : "1024x1024";
+
+type TResponsesBody = {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+};
+
+const readOutputText = (body: TResponsesBody): string => {
+  if (body.output_text) return body.output_text;
+  for (const item of body.output ?? []) {
+    if (item.type !== "message" || !item.content) continue;
+    for (const part of item.content) {
+      if (part.type === "output_text" && part.text) return part.text;
+    }
+  }
+  return "";
+};
+
+const completeText = async (
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  maxCompletionTokens: number
+): Promise<string> => {
+  const apiKey = await ChromeStorageManager.get("openaiApiKey");
+  if (typeof apiKey !== "string" || !apiKey) {
+    throw new Error("No API key found");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: messages,
+      max_output_tokens: maxCompletionTokens,
+      store: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.statusText}`);
+  }
+
+  const completion: TResponsesBody = await response.json();
+  return readOutputText(completion);
+};
+
+export const fetchImageBase64 = async (
+  apiKey: string,
+  prompt: string,
+  size: string,
+  outputCompression: number,
+  model: string
+): Promise<string> => {
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      prompt,
+      size,
+      quality: "medium",
+      output_format: "jpeg",
+      output_compression: outputCompression,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.statusText}`);
+  }
+
+  const body: { data?: Array<{ b64_json?: string }> } = await response.json();
+  const b64 = body.data?.[0]?.b64_json;
+  if (!b64) {
+    throw new Error("No image returned by the API");
+  }
+  return b64;
+};
+
+const expandImagePrompt = async (
+  prompt: string,
+  size: string,
+  context?: string
+): Promise<string> => {
+  const rawPrompt = prompt.trim();
+  try {
+    const refined = await completeText(
+      await getImagePromptModelSlug(),
+      [
+        {
+          role: "system",
+          content: `You are an expert image prompt engineer.
+Write a single, vivid, detailed image generation prompt based on the user's request.
+Use the provided context (surrounding note or block text) to inform the subject, style, and mood when relevant — but the request always wins over the context.
+Tailor the composition to the requested size/aspect ratio.
+Respond with the final prompt only — no quotes, no preamble, no explanations.`,
+        },
+        {
+          role: "user",
+          content: `Request: ${rawPrompt}
+
+Size/aspect ratio: ${size}
+
+Context:
+${(context || "none").slice(0, 6000)}`,
+        },
+      ],
+      400
+    );
+    return refined.trim() || rawPrompt;
+  } catch (error) {
+    console.warn("Image prompt generation failed, using raw prompt:", error);
+    return rawPrompt;
+  }
+};
+
+export type TCreateStoredImageParams = {
+  prompt: string;
+  context?: string;
+  altText: string;
+  size: string;
+  attachmentId?: string;
+  sourceNoteId?: string;
+  sourceConversationId?: string;
+  outputCompression?: number;
+};
+
+export const createStoredImage = async (
+  params: TCreateStoredImageParams
+): Promise<{ attachmentId: string; markdownLink: string }> => {
+  const apiKey = await ChromeStorageManager.get("openaiApiKey");
+  if (typeof apiKey !== "string" || !apiKey) {
+    throw new Error("No API key found");
+  }
+
+  const size = normalizeStoredImageSize(params.size);
+  const altText = params.altText.trim() || "generated image";
+  const imagePrompt = await expandImagePrompt(params.prompt, size, params.context);
+  const imageModel = await getImageModelSlug();
+  const b64 = await fetchImageBase64(
+    apiKey,
+    imagePrompt,
+    size,
+    params.outputCompression ?? 60,
+    imageModel
+  );
+
+  const attachmentId = params.attachmentId ?? generateRandomId("attachment");
+  const attachment: TAttachment = {
+    id: attachmentId,
+    type: "image",
+    name: `ai-image-${new Date().toISOString()}`,
+    dataUrl: `data:image/jpeg;base64,${b64}`,
+    mimeType: "image/jpeg",
+    sourceNoteId: params.sourceNoteId,
+    sourceConversationId: params.sourceConversationId,
+    createdAt: new Date().toISOString(),
+  };
+
+  const stored = await ChromeStorageManager.get("attachments");
+  const attachments: TAttachment[] = Array.isArray(stored) ? stored : [];
+  await ChromeStorageManager.add("attachments", [...attachments, attachment]);
+
+  return {
+    attachmentId,
+    markdownLink: `![${altText}](attachment:${attachmentId})`,
+  };
+};

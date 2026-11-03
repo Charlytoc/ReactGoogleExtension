@@ -9,6 +9,7 @@ export type TAttachment = {
   dataUrl: string;
   mimeType?: string;
   sourceNoteId?: string;
+  sourceConversationId?: string;
   createdAt: string;
 };
 

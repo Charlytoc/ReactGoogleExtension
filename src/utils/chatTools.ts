@@ -11,12 +11,13 @@ import {
   generateRandomId,
 } from "./lib";
 import { migrateNote, migrateTask } from "./tags";
+import { createStoredImage } from "./storedImages";
 
 export const buildChatSystemPrompt = (
   systemPrompt: string,
   pageUrl: string
 ): string => {
-  return `${systemPrompt}\n${pageUrl ? `Current URL: ${pageUrl}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer.`;
+  return `${systemPrompt}\n${pageUrl ? `Current URL: ${pageUrl}` : ""}\nIf the user explicitly asks to create/save a note, call createCreate. If the user explicitly asks to create/save a task, call create_task. If the user asks for an image or picture, call generate_image.\nWhen referring to notes and tasks, include clickable markdown links using these formats:\n- [label](note:note-id)\n- [label](task:task-id)\nAfter createCreate/create_task, include the markdownLink returned by the tool in your answer. After generate_image, include the markdownLink returned by the tool in your answer unchanged.`;
 };
 
 const messageContent = (message: TMessage): string | TInputContentPart[] => {
@@ -61,8 +62,12 @@ export const messagesToChatResponsesInput = (
     }));
 };
 
-export const createChatTools = (deps: { tabId?: number }): TTool[] => {
-  const { tabId } = deps;
+export const createChatTools = (deps: {
+  tabId?: number;
+  conversationId?: string;
+  imageContext?: string;
+}): TTool[] => {
+  const { tabId, conversationId, imageContext } = deps;
 
   const getWebsiteContent = toolify(
     async (args: { start: number; end: number }) => {
@@ -296,12 +301,63 @@ export const createChatTools = (deps: { tabId?: number }): TTool[] => {
     }
   );
 
+  const generateImageTool = toolify(
+    async (args: { instruction: string; altText: string; size: string }) => {
+      const instruction = args.instruction?.trim();
+      if (!instruction) {
+        return JSON.stringify({
+          success: false,
+          message: "No instruction provided",
+        });
+      }
+      try {
+        const stored = await createStoredImage({
+          prompt: instruction,
+          context: imageContext,
+          altText: args.altText?.trim() || "generated image",
+          size: args.size,
+          sourceConversationId: conversationId,
+        });
+        return JSON.stringify({
+          success: true,
+          attachmentId: stored.attachmentId,
+          markdownLink: stored.markdownLink,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          success: false,
+          message: "Failed to generate image",
+          error: String(error),
+        });
+      }
+    },
+    "generate_image",
+    "Generate an image when the user asks for a picture. Wait for this tool, then paste markdownLink into the reply unchanged.",
+    {
+      instruction: {
+        type: "string",
+        description:
+          "Detailed image instruction. Expand the user's intent with subject, style, and composition.",
+      },
+      altText: {
+        type: "string",
+        description: "Short label for the image.",
+      },
+      size: {
+        type: "string",
+        description:
+          "Image size. Must be one of: 1024x1024 (square), 1024x1536 (portrait), 1536x1024 (landscape), auto.",
+      },
+    }
+  );
+
   return [
     getWebsiteContent,
     getClickableElements,
     clickElementBySelectorTool,
     fillElementBySelectorTool,
     getEditableElements,
+    generateImageTool,
     createCreateTool,
     createTaskTool,
   ];

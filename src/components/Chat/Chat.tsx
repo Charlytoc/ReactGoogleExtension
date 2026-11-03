@@ -17,6 +17,7 @@ import { extractVariables, fillVariables } from "../../utils/promptVariables";
 import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
+import { PreviewImage } from "../RenderMarkdown/RenderMarkdown";
 import { generateRandomId } from "../../utils/lib";
 import { notify } from "../../utils/chromeFunctions";
 import { TConversation, TModel, TAIConfig } from "../../types";
@@ -1123,7 +1124,7 @@ export const Message = ({ message }: { message: TMessage }) => {
       {(message.attachments ?? []).map((attachment) => (
         <div key={attachment.id} className="message-attachment">
           {attachment.mimeType.startsWith("image/") ? (
-            <img src={attachment.dataUrl} alt={attachment.name} />
+            <PreviewImage src={attachment.dataUrl} alt={attachment.name} />
           ) : (
             <span>{attachment.name}</span>
           )}

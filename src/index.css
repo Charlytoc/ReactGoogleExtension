@@ -1511,3 +1511,24 @@ input:focus,
   border-color: var(--danger-color);
   color: var(--danger-color);
 }
+
+.preview-image {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 4px 0;
+}
+
+.preview-image img {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.preview-image-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}

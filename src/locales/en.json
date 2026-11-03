@@ -290,6 +290,8 @@
     "imageGenerationFailed": "Image generation failed",
     "downloadImage": "Download image",
     "couldNotDownloadImage": "Could not download image",
+    "openImage": "Open image",
+    "couldNotOpenImage": "Could not open image",
     "applyingAI": "Applying...",
     "apply": "Apply",
     "savedPrompts": "Saved Prompts",

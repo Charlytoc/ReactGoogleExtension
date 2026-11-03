@@ -14,7 +14,7 @@ import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
 import { ActionIcon, Loader, Textarea, Tooltip } from "@mantine/core";
-import { IconDownload } from "@tabler/icons-react";
+import { IconDownload, IconExternalLink } from "@tabler/icons-react";
 import { useShallow } from "zustand/shallow";
 import { Button } from "../Button/Button";
 import { SVGS } from "../../assets/svgs";
@@ -89,6 +89,64 @@ const downloadImageFromSrc = async (
     console.error("Could not download image", error);
     return false;
   }
+};
+
+const openImageFromSrc = (src: string): boolean => {
+  const opened = window.open("", "_blank");
+  if (!opened) return false;
+  opened.document.title = "Image";
+  const image = opened.document.createElement("img");
+  image.src = src;
+  image.alt = "image";
+  image.style.maxWidth = "100%";
+  opened.document.body.style.margin = "0";
+  opened.document.body.style.background = "#111";
+  opened.document.body.appendChild(image);
+  return true;
+};
+
+export const PreviewImage = ({ src, alt }: { src: string; alt: string }) => {
+  const { t } = useTranslation();
+
+  const download = () => {
+    void downloadImageFromSrc(src, alt).then((ok) => {
+      if (!ok) toast.error(t("couldNotDownloadImage"));
+    });
+  };
+
+  const open = () => {
+    if (!openImageFromSrc(src)) toast.error(t("couldNotOpenImage"));
+  };
+
+  return (
+    <span className="preview-image">
+      <img src={src} alt={alt || "attachment"} />
+      <span className="preview-image-actions">
+        <Tooltip label={t("downloadImage")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="filled"
+            color="dark"
+            onClick={download}
+            aria-label={t("downloadImage")}
+          >
+            <IconDownload size={14} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label={t("openImage")} withArrow openDelay={400} position="top">
+          <ActionIcon
+            size="sm"
+            variant="filled"
+            color="dark"
+            onClick={open}
+            aria-label={t("openImage")}
+          >
+            <IconExternalLink size={14} />
+          </ActionIcon>
+        </Tooltip>
+      </span>
+    </span>
+  );
 };
 
 let mermaidInitialized = false;
@@ -2207,13 +2265,7 @@ export const RenderMarkdown = ({
               return null;
             }
 
-            return (
-              <img
-                src={resolvedSrc}
-                alt={props.alt || "attachment"}
-                style={{ maxWidth: "100%", borderRadius: "8px" }}
-              />
-            );
+            return <PreviewImage src={resolvedSrc} alt={props.alt || "attachment"} />;
           },
           code: ({ children }) => <InlineCode>{children}</InlineCode>,
           pre: (props) => <CustomCode node={props.node} />,
