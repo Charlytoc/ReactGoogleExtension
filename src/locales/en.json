@@ -209,6 +209,7 @@
     "history": "History",
     "conversationsConfig": "Conversations configuration",
     "autoSaveConversations": "Auto save conversations",
+    "notifyChatFinished": "Notify when the chat finishes",
     "chatConfig": "Chat configuration",
     "untitledConversation": "Untitled conversation",
     "generating": "Generating...",

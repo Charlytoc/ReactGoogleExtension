@@ -209,6 +209,7 @@
     "history": "Historial",
     "conversationsConfig": "Configuración de conversaciones",
     "autoSaveConversations": "Guardar automáticamente las conversaciones",
+    "notifyChatFinished": "Avisar cuando el chat termina",
     "chatConfig": "Configuración de Chat",
     "untitledConversation": "Conversación sin título",
     "generating": "Generando...",

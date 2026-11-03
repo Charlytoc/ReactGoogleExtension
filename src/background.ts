@@ -559,10 +559,13 @@ const runChatJob = async (
     }
 
     await deleteChatJob(request.conversationId);
-    notify(
-      "Chat",
-      title?.trim() ? `${title.trim()} — reply ready` : "Your chat reply is ready"
-    );
+    const latestConfig = await getAiConfig();
+    if (latestConfig.notifyChatFinished) {
+      notify(
+        "Chat",
+        title?.trim() ? `${title.trim()} — reply ready` : "Your chat reply is ready"
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Error running chat job:", error);

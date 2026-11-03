@@ -170,6 +170,7 @@ export type TAIConfig = {
   imagePromptModel?: TModel;
   imageModel?: TModel;
   autoSaveConversations: boolean;
+  notifyChatFinished: boolean;
   setTitleAtMessage?: number;
   reasoningTag?: TReasoningTag;
 };

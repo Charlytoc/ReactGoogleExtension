@@ -43,6 +43,7 @@ export const createDefaultAiConfig = (): TAIConfig => ({
   imagePromptModel: modelFromSlug(MODEL_IMAGE_PROMPT),
   imageModel: modelFromSlug(MODEL_IMAGE_GENERATION),
   autoSaveConversations: true,
+  notifyChatFinished: true,
   setTitleAtMessage: 0,
 });
 

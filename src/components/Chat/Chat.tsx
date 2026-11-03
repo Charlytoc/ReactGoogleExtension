@@ -140,6 +140,8 @@ export const Chat = () => {
   const conversationReadyRef = useRef(false);
   const sendLockRef = useRef(false);
   const handleSendMessageRef = useRef<() => Promise<void>>(async () => {});
+  const notifyChatFinishedRef = useRef(aiConfig.notifyChatFinished);
+  notifyChatFinishedRef.current = aiConfig.notifyChatFinished;
   const [promptPicker, setPromptPicker] = useState<{
     selected: TPrompt | null;
     variableValues: Record<string, string>;
@@ -257,7 +259,9 @@ export const Chat = () => {
       if (!job && prevJob?.status === "pending") {
         chatPendingRef.current = false;
         setIsChatPending(false);
-        toast.success(t("chatDone"));
+        if (notifyChatFinishedRef.current) {
+          toast.success(t("chatDone"));
+        }
         return;
       }
       if (job?.status === "error" && prevJob?.status !== "error") {
@@ -739,6 +743,11 @@ const AIConfig = ({
             label={t("autoSaveConversations")}
             checked={_aiConfig.autoSaveConversations}
             onChange={(e) => setAiConfig({ ..._aiConfig, autoSaveConversations: e.target.checked })}
+          />
+          <Switch
+            label={t("notifyChatFinished")}
+            checked={_aiConfig.notifyChatFinished}
+            onChange={(e) => setAiConfig({ ..._aiConfig, notifyChatFinished: e.target.checked })}
           />
         </Stack>
 
