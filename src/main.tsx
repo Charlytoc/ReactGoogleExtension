@@ -52,6 +52,14 @@ async function mountApp() {
   } else {
     const shell = await resolveExtensionShellClass();
     document.body.classList.add(shell);
+    if (shell === "extension-tab" && chrome.tabs?.getCurrent) {
+      chrome.tabs.getCurrent((tab) => {
+        if (!tab?.id) return;
+        void chrome.storage.local.set({
+          lastExtensionTab: { tabId: tab.id, windowId: tab.windowId },
+        });
+      });
+    }
   }
 
   createRoot(document.getElementById("root")!).render(

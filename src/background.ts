@@ -563,7 +563,8 @@ const runChatJob = async (
     if (latestConfig.notifyChatFinished) {
       notify(
         "Chat",
-        title?.trim() ? `${title.trim()} — reply ready` : "Your chat reply is ready"
+        title?.trim() ? `${title.trim()} — reply ready` : "Your chat reply is ready",
+        { openChat: true }
       );
     }
   } catch (error) {
@@ -581,7 +582,7 @@ const runChatJob = async (
       error: message,
       createdAt: new Date().toISOString(),
     });
-    notify("Chat", "Failed: " + message);
+    notify("Chat", "Failed: " + message, { openChat: true });
   } finally {
     stopImageJobKeepalive();
   }
@@ -781,13 +782,15 @@ const createRandomId = (): string => {
   );
 };
 
-/** Text that can be copied when clicking a notification. */
+const LAST_EXTENSION_TAB_KEY = "lastExtensionTab";
+
 const pendingCopies = new Map<string, string>();
+const pendingChatOpens = new Set<string>();
 
 const notify = (
   title: string,
   message: string,
-  { copyable = false }: { copyable?: boolean } = {}
+  { copyable = false, openChat = false }: { copyable?: boolean; openChat?: boolean } = {}
 ): void => {
   const id = createRandomId();
   chrome.notifications.create(id, {
@@ -799,11 +802,79 @@ const notify = (
   if (copyable) {
     pendingCopies.set(id, message);
   }
+  if (openChat) {
+    pendingChatOpens.add(id);
+  }
+};
+
+const focusExtensionChat = async (): Promise<void> => {
+  const url = `${chrome.runtime.getURL("index.html")}#/chat`;
+  const stored = await chrome.storage.local.get(LAST_EXTENSION_TAB_KEY);
+  const saved = stored[LAST_EXTENSION_TAB_KEY] as
+    | { tabId?: number; windowId?: number }
+    | undefined;
+
+  const focusTab = async (tabId: number, windowId?: number) => {
+    await chrome.tabs.update(tabId, { active: true, url });
+    if (windowId != null) {
+      await chrome.windows.update(windowId, { focused: true });
+    }
+    await chrome.storage.local.set({
+      [LAST_EXTENSION_TAB_KEY]: { tabId, windowId },
+    });
+  };
+
+  if (saved?.tabId != null) {
+    try {
+      const tab = await chrome.tabs.get(saved.tabId);
+      if (tab?.id != null) {
+        await focusTab(tab.id, tab.windowId);
+        return;
+      }
+    } catch {
+      // The saved tab was closed.
+    }
+  }
+
+  const popupUrl = chrome.runtime.getURL("index.html");
+  const existing = await chrome.tabs.query({ url: `${popupUrl}*` });
+  const match = existing.find((tab) => tab.id != null);
+  if (match?.id != null) {
+    await focusTab(match.id, match.windowId);
+    return;
+  }
+
+  let windowId = saved?.windowId;
+  if (windowId != null) {
+    try {
+      await chrome.windows.get(windowId);
+    } catch {
+      windowId = undefined;
+    }
+  }
+  if (windowId == null) {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+    windowId = win.id;
+  }
+
+  const created = await chrome.tabs.create({ url, windowId });
+  if (created.id != null) {
+    await chrome.storage.local.set({
+      [LAST_EXTENSION_TAB_KEY]: { tabId: created.id, windowId: created.windowId },
+    });
+  }
 };
 
 // ─── Notification Click → Copy to Clipboard ─────────────────────────────────
 
 chrome.notifications.onClicked.addListener(async (notificationId: string) => {
+  if (pendingChatOpens.has(notificationId)) {
+    pendingChatOpens.delete(notificationId);
+    chrome.notifications.clear(notificationId);
+    await focusExtensionChat();
+    return;
+  }
+
   const textToCopy = pendingCopies.get(notificationId);
   if (!textToCopy) return;
 
