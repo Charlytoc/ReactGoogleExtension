@@ -1,8 +1,8 @@
+/// <reference types="chrome" />
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   convertToMessage,
   createCompletion,
-  listModels,
 } from "../../utils/ai";
 import { MODEL_CHAT_SMALL } from "../../utils/models";
 import {
@@ -18,9 +18,9 @@ import { SVGS } from "../../assets/svgs";
 import "./Chat.css";
 import { StyledMarkdown } from "../RenderMarkdown/StyledMarkdown";
 import { PreviewImage } from "../RenderMarkdown/RenderMarkdown";
-import { generateRandomId } from "../../utils/lib";
+import { cacheLocation, generateRandomId } from "../../utils/lib";
 import { notify } from "../../utils/chromeFunctions";
-import { TConversation, TModel, TAIConfig } from "../../types";
+import { TConversation, TAIConfig } from "../../types";
 import {
   AI_CHAT_JOBS_KEY,
   deleteChatJob,
@@ -44,7 +44,8 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { Section } from "../Section/Section";
 import { AIInput } from "../AIInput/AIInput";
-import { ActionIcon, Button as MantineButton, Divider, Group, Modal, Select as MantineSelect, Stack, Switch, Text, Textarea as MantineTextarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Button as MantineButton, Group, Modal, Stack, Text, Textarea as MantineTextarea, TextInput, Tooltip } from "@mantine/core";
+import { useNavigate } from "react-router";
 import { IconCheck } from "@tabler/icons-react";
 
 const generateConversationTitle = async (context: string, apiKey: string) => {
@@ -123,6 +124,7 @@ const getPageTab = (): Promise<{ tabId?: number; pageUrl?: string }> => {
 };
 
 export const Chat = () => {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<TMessage[]>(defaultMessages);
   const [conversation, setConversation] = useState<TConversation | null>(null);
   const [apiKey, setApiKey] = useState<string>("");
@@ -276,9 +278,11 @@ export const Chat = () => {
       }
     };
 
-    chrome.storage.onChanged.addListener(onStorageChanged);
+    const onChanged = chrome.storage?.onChanged;
+    if (!onChanged) return;
+    onChanged.addListener(onStorageChanged);
     return () => {
-      chrome.storage.onChanged.removeListener(onStorageChanged);
+      onChanged.removeListener(onStorageChanged);
     };
   }, [t]);
 
@@ -525,8 +529,17 @@ export const Chat = () => {
           <Button
             className={`padding-5 ${activeTab === "config" ? "bg-active" : ""}`}
             onClick={() => setActiveTab("config")}
+            svg={SVGS.ai}
+            title={t("systemPrompt")}
+          />
+          <Button
+            className="padding-5"
+            onClick={() => {
+              void cacheLocation("/config?section=ai");
+              navigate("/config?section=ai");
+            }}
             svg={SVGS.gear}
-            title={t("showConfig")}
+            title={t("settings")}
           />
         </>
       }
@@ -679,78 +692,27 @@ const AIConfig = ({
   close: () => void;
 }) => {
   const { t } = useTranslation();
-  const [_aiConfig, setAiConfig] = useState<TAIConfig>(aiConfig);
-
-  const [ models, setModels ] = useState<TModel[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState(aiConfig.systemPrompt);
 
   const finishConfig = () => {
-    updateAiConfig({ ..._aiConfig });
+    updateAiConfig({ ...aiConfig, systemPrompt });
   };
-
-  useEffect(() => {
-    const getModels = async () => {
-      const apiKey = await ChromeStorageManager.get("openaiApiKey");  
-      if (!apiKey) {
-        toast.error(t("noApiKeyError"));
-        return;
-      }
-      const models = await listModels(apiKey as string);
-      setModels(models);
-    };
-    getModels();
-  }, []);
-
-  console.log(aiConfig, "aiConfig");
 
   return (
     <Section
       className="bg-gradient"
-      headerLeft={<h3 className="font-mono">{t("chatConfig")}</h3>}
+      headerLeft={<h3 className="font-mono">{t("systemPrompt")}</h3>}
       close={close}
     >
       <Stack p="md" gap="lg">
-        <Stack gap="xs">
-          <Title order={5}>{t("systemPrompt")}</Title>
-          <MantineTextarea
-            variant="filled"
-            defaultValue={_aiConfig.systemPrompt}
-            autosize
-            minRows={4}
-            maxRows={10}
-            onChange={(e) => setAiConfig({ ..._aiConfig, systemPrompt: e.target.value })}
-          />
-        </Stack>
-
-        <Divider />
-
-        <Stack gap="xs">
-          <Title order={5}>{t("model")}</Title>
-          <MantineSelect
-            variant="filled"
-            data={models.map((m) => ({ label: m.name, value: m.slug }))}
-            value={_aiConfig.model.slug}
-            onChange={(value) => {
-              const model = models.find((m) => m.slug === value);
-              if (model) setAiConfig({ ..._aiConfig, model });
-            }}
-            searchable
-          />
-        </Stack>
-
-        <Stack gap="xs">
-          <Title order={5}>{t("conversationsConfig")}</Title>
-          <Switch
-            label={t("autoSaveConversations")}
-            checked={_aiConfig.autoSaveConversations}
-            onChange={(e) => setAiConfig({ ..._aiConfig, autoSaveConversations: e.target.checked })}
-          />
-          <Switch
-            label={t("notifyChatFinished")}
-            checked={_aiConfig.notifyChatFinished}
-            onChange={(e) => setAiConfig({ ..._aiConfig, notifyChatFinished: e.target.checked })}
-          />
-        </Stack>
-
+        <MantineTextarea
+          variant="filled"
+          value={systemPrompt}
+          autosize
+          minRows={4}
+          maxRows={10}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+        />
         <MantineButton fullWidth leftSection={SVGS.save} onClick={finishConfig}>
           {t("finishConfig")}
         </MantineButton>

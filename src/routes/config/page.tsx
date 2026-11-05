@@ -42,12 +42,45 @@ import {
   uploadBackupToCloud,
   type TCloudUser,
 } from "../../utils/cloudSync.ts";
+import { useSearchParams } from "react-router";
+import { Switch } from "@mantine/core";
+import { IconChevronRight } from "@tabler/icons-react";
+import "./page.css";
+
+const SETTINGS_SECTIONS = ["general", "ai", "look", "data"] as const;
+type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+const SECTION_COPY: Record<
+  SettingsSection,
+  { title: string; hint: string }
+> = {
+  general: { title: "settingsGeneral", hint: "settingsGeneralHint" },
+  ai: { title: "settingsAi", hint: "settingsAiHint" },
+  look: { title: "settingsLook", hint: "settingsLookHint" },
+  data: { title: "settingsData", hint: "settingsDataHint" },
+};
+
+const COLOR_FIELDS = [
+  ["activeColor", "active"],
+  ["fontColor", "font"],
+  ["fontColorSecondary", "font-secondary"],
+  ["fontColorTertiary", "font-tertiary"],
+  ["backgroundColor", "background"],
+  ["backgroundColorSecondary", "gradient"],
+] as const;
+
+const isSettingsSection = (value: string | null): value is SettingsSection =>
+  SETTINGS_SECTIONS.some((section) => section === value);
+
 const modelOptions = (models: TModel[], current: TModel) => {
   const list = models.some((model) => model.slug === current.slug)
     ? models
     : [current, ...models];
   return list.map((model) => ({ label: model.name, value: model.slug }));
 };
+
+const pickModel = (models: TModel[], slug: string) =>
+  models.find((model) => model.slug === slug) ?? modelFromSlug(slug);
 
 const generateRandomTheme = async (
   apiKey: string,
@@ -79,23 +112,18 @@ const generateRandomTheme = async (
   Your response should be a valid JSON with the colors in the format specified above.
   `;
 
-  const response = await createCompletion(
-    {
-      messages: [
-        {
-          role: "system",
-          content: prompt,
-        },
-      ],
-      model: MODEL_CHAT_SMALL,
-      response_format: { type: "json_object" },
-      max_completion_tokens: 100,
-      apiKey,
-    },
-    (completion) => {
-      console.log(completion, "completion finished successfully");
-    }
-  );
+  const response = await createCompletion({
+    messages: [
+      {
+        role: "system",
+        content: prompt,
+      },
+    ],
+    model: MODEL_CHAT_SMALL,
+    response_format: { type: "json_object" },
+    max_completion_tokens: 100,
+    apiKey,
+  });
   if (!response) {
     throw new Error("No response from AI");
   }
@@ -127,12 +155,26 @@ const setColorsInDocument = (colors: TTheme) => {
   );
 };
 
+const applyGeneratedColors = (current: TTheme, generated: TTheme): TTheme => ({
+  ...current,
+  activeColor: generated.activeColor,
+  fontColor: generated.fontColor,
+  fontColorSecondary: generated.fontColorSecondary,
+  fontColorTertiary: generated.fontColorTertiary,
+  backgroundColor: generated.backgroundColor,
+  backgroundColorSecondary: generated.backgroundColorSecondary,
+});
+
 export default function Config() {
   const { i18n, t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get("section");
+  const section = isSettingsSection(sectionParam) ? sectionParam : null;
   const [apiKey, setApiKey] = useState<string>("");
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const [colors, setColors] = useState<TTheme>(DEFAULT_THEME);
+  const [savedColors, setSavedColors] = useState<TTheme>(DEFAULT_THEME);
   const [notesAssistantModel, setNotesAssistantModel] = useState<TModel>(
     () => createDefaultAiConfig().notesAssistantModel!
   );
@@ -145,6 +187,11 @@ export default function Config() {
   const [imageModel, setImageModel] = useState<TModel>(
     () => createDefaultAiConfig().imageModel!
   );
+  const [chatModel, setChatModel] = useState<TModel>(
+    () => createDefaultAiConfig().model
+  );
+  const [autoSaveConversations, setAutoSaveConversations] = useState(true);
+  const [notifyChatFinished, setNotifyChatFinished] = useState(true);
   const [availableModels, setAvailableModels] = useState<TModel[]>([]);
   const [availableImageModels, setAvailableImageModels] = useState<TModel[]>([]);
 
@@ -156,10 +203,35 @@ export default function Config() {
   const [tableMissing, setTableMissing] = useState(false);
 
   const setConfig = useStore(useShallow((state) => state.setConfig));
+  const lookDirty = JSON.stringify(colors) !== JSON.stringify(savedColors);
+
+  const openSection = (next: SettingsSection) => {
+    setSearchParams({ section: next });
+  };
+
+  const closeSection = () => {
+    setSearchParams({});
+  };
 
   const handleLanguageChange = (value: string) => {
     i18n.changeLanguage(value);
     ChromeStorageManager.add("language", value);
+  };
+
+  const loadModels = async (key: string) => {
+    if (!key) {
+      setAvailableModels([]);
+      setAvailableImageModels([]);
+      return;
+    }
+    try {
+      const catalog = await listModelCatalog(key);
+      setAvailableModels(catalog.chat);
+      setAvailableImageModels(catalog.image);
+    } catch {
+      setAvailableModels([]);
+      setAvailableImageModels([]);
+    }
   };
 
   useEffect(() => {
@@ -167,11 +239,14 @@ export default function Config() {
   }, []);
 
   const getStored = async () => {
-    const apiKey = await ChromeStorageManager.get("openaiApiKey");
-    setApiKey(apiKey ?? "");
+    const storedKey = await ChromeStorageManager.get("openaiApiKey");
+    const key = typeof storedKey === "string" ? storedKey : "";
+    setApiKey(key);
     const colorPreferences = await ChromeStorageManager.get("colorPreferences");
     if (colorPreferences && typeof colorPreferences === "object") {
-      setColors(mergeStoredTheme(colorPreferences as Partial<TTheme>));
+      const theme = mergeStoredTheme(colorPreferences as Partial<TTheme>);
+      setColors(theme);
+      setSavedColors(theme);
     }
 
     const aiConfig = await getAiConfig();
@@ -187,17 +262,11 @@ export default function Config() {
     if (aiConfig.imageModel) {
       setImageModel(aiConfig.imageModel);
     }
+    setChatModel(aiConfig.model);
+    setAutoSaveConversations(aiConfig.autoSaveConversations);
+    setNotifyChatFinished(aiConfig.notifyChatFinished);
 
-    if (apiKey) {
-      try {
-        const catalog = await listModelCatalog(apiKey as string);
-        setAvailableModels(catalog.chat);
-        setAvailableImageModels(catalog.image);
-      } catch {
-        setAvailableModels([]);
-        setAvailableImageModels([]);
-      }
-    }
+    await loadModels(key);
 
     if (isSupabaseConfigured()) {
       try {
@@ -332,6 +401,28 @@ export default function Config() {
     toast.success(t("colorsPastedToClipboard"));
   };
 
+  const saveAi = async () => {
+    await ChromeStorageManager.add("openaiApiKey", apiKey);
+    await saveAiConfig({
+      notesAssistantModel,
+      formatterModel,
+      imagePromptModel,
+      imageModel,
+      model: chatModel,
+      autoSaveConversations,
+      notifyChatFinished,
+    });
+    setConfig({ auth: { openaiApiKey: apiKey } });
+    await loadModels(apiKey);
+    toast.success(t("settingsSaved"));
+  };
+
+  const saveLook = async () => {
+    await ChromeStorageManager.add("colorPreferences", colors);
+    setSavedColors(colors);
+    toast.success(t("settingsSaved"));
+  };
+
   useEffect(() => {
     setColorsInDocument(colors);
     setConfig({
@@ -339,15 +430,82 @@ export default function Config() {
     });
   }, [colors]);
 
+  const modelFields = [
+    {
+      id: "notesAssistantModel",
+      label: t("settingsModelNotes"),
+      model: notesAssistantModel,
+      options: modelOptions(availableModels, notesAssistantModel),
+      onChange: (value: string) =>
+        setNotesAssistantModel(pickModel(availableModels, value)),
+    },
+    {
+      id: "formatterModel",
+      label: t("settingsModelFormatters"),
+      model: formatterModel,
+      options: modelOptions(availableModels, formatterModel),
+      onChange: (value: string) =>
+        setFormatterModel(pickModel(availableModels, value)),
+    },
+    {
+      id: "imagePromptModel",
+      label: t("settingsModelImagePrompt"),
+      model: imagePromptModel,
+      options: modelOptions(availableModels, imagePromptModel),
+      onChange: (value: string) =>
+        setImagePromptModel(pickModel(availableModels, value)),
+    },
+    {
+      id: "imageModel",
+      label: t("settingsModelImage"),
+      model: imageModel,
+      options: modelOptions(availableImageModels, imageModel),
+      onChange: (value: string) =>
+        setImageModel(pickModel(availableImageModels, value)),
+    },
+  ];
+
   return (
     <Section
       className="bg-gradient"
-      headerLeft={<h3 className="font-mono">{t("settings")}</h3>}
+      headerLeft={
+        <h3 className="font-mono">
+          {section ? t(SECTION_COPY[section].title) : t("settings")}
+        </h3>
+      }
+      close={section ? closeSection : undefined}
     >
-      <div className="flex-column gap-10">
-        <div className="flex-column ">
+      {!section && (
+        <div className="settings-menu">
+          {SETTINGS_SECTIONS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="settings-row"
+              onClick={() => openSection(id)}
+            >
+              <span className="flex-column gap-5">
+                <span>{t(SECTION_COPY[id].title)}</span>
+                <span className="settings-hint text-sm">
+                  {id === "look" && lookDirty
+                    ? t("unsaved")
+                    : t(SECTION_COPY[id].hint)}
+                </span>
+              </span>
+              <IconChevronRight size={18} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {section === "general" && (
+        <div className="settings-screen">
+          <label className="text-left" htmlFor="language">
+            {t("language")}
+          </label>
           <Select
             name="language"
+            id="language"
             options={[
               { label: t("english"), value: "en" },
               { label: t("spanish"), value: "es" },
@@ -356,382 +514,307 @@ export default function Config() {
             defaultValue={i18n.language}
           />
         </div>
-        <div className="flex-column">
+      )}
+
+      {section === "ai" && (
+        <div className="settings-screen">
           <LabeledInput
             label={t("openaiApiKey")}
-            type="text"
+            type="password"
             name="openaiApiKey"
             className="w-100"
             value={apiKey}
-            // TODO: IMPLEMENT IN THE FUTURE
-            // validator={() => {
-            //   if (apiKey.length < 10) {
-            //     return false;
-            //   }
-            //   return true;
-            // }}
             onChange={(value) => setApiKey(value)}
           />
-        </div>
-        <div className="flex-column gap-5">
-            <label className="color-secondary text-left" htmlFor="notesAssistantModel">
-              {t("notesAssistantModel")}
-            </label>
-            <span className="color-secondary text-left text-sm">
-              {t("notesAssistantModelDescription")}
-            </span>
-            <Select
-              name="notesAssistantModel"
-              id="notesAssistantModel"
-              options={modelOptions(availableModels, notesAssistantModel)}
-              defaultValue={notesAssistantModel.slug}
-              onChange={(value) => {
-                const model = availableModels.find((m) => m.slug === value);
-                setNotesAssistantModel(model ?? modelFromSlug(value));
-              }}
-            />
-          </div>
-        <div className="flex-column gap-5">
-            <label className="color-secondary text-left" htmlFor="formatterModel">
-              {t("formatterModel")}
-            </label>
-            <span className="color-secondary text-left text-sm">
-              {t("formatterModelDescription")}
-            </span>
-            <Select
-              name="formatterModel"
-              id="formatterModel"
-              options={modelOptions(availableModels, formatterModel)}
-              defaultValue={formatterModel.slug}
-              onChange={(value) => {
-                const model = availableModels.find((m) => m.slug === value);
-                setFormatterModel(model ?? modelFromSlug(value));
-              }}
-            />
-          </div>
-        <div className="flex-column gap-5">
-            <label className="color-secondary text-left" htmlFor="imagePromptModel">
-              {t("imagePromptModel")}
-            </label>
-            <span className="color-secondary text-left text-sm">
-              {t("imagePromptModelDescription")}
-            </span>
-            <Select
-              name="imagePromptModel"
-              id="imagePromptModel"
-              options={modelOptions(availableModels, imagePromptModel)}
-              defaultValue={imagePromptModel.slug}
-              onChange={(value) => {
-                const model = availableModels.find((m) => m.slug === value);
-                setImagePromptModel(model ?? modelFromSlug(value));
-              }}
-            />
-          </div>
-        <div className="flex-column gap-5">
-            <label className="color-secondary text-left" htmlFor="imageModel">
-              {t("imageModel")}
-            </label>
-            <span className="color-secondary text-left text-sm">
-              {t("imageModelDescription")}
-            </span>
-            <Select
-              name="imageModel"
-              id="imageModel"
-              options={modelOptions(availableImageModels, imageModel)}
-              defaultValue={imageModel.slug}
-              onChange={(value) => {
-                const model = availableImageModels.find((m) => m.slug === value);
-                setImageModel(model ?? modelFromSlug(value));
-              }}
-            />
-          </div>
-        <div className="flex-column gap-10">
-          {/* <h3 className="text-left">{t("colors")}</h3> */}
-          <div className="flex-row gap-10 justify-between wrap">
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("active")}</span>
-              <input
-                type="color"
-                name="activeColor"
-                value={colors.activeColor ? colors.activeColor : "#000000"}
-                onChange={(e) =>
-                  setColors({ ...colors, activeColor: e.target.value })
-                }
-              />
-            </div>
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("font")}</span>
-              <input
-                type="color"
-                name="fontColor"
-                value={colors.fontColor ? colors.fontColor : "#000000"}
-                onChange={(e) =>
-                  setColors({ ...colors, fontColor: e.target.value })
-                }
-              />
-            </div>
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("font-secondary")}</span>
-              <input
-                type="color"
-                name="fontColorSecondary"
-                value={
-                  colors.fontColorSecondary
-                    ? colors.fontColorSecondary
-                    : "#000000"
-                }
-                onChange={(e) => {
-                  setColors({ ...colors, fontColorSecondary: e.target.value });
-                }}
-              />
-            </div>
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("font-tertiary")}</span>
-              <input
-                type="color"
-                name="fontColorTertiary"
-                value={
-                  colors.fontColorTertiary
-                    ? colors.fontColorTertiary
-                    : "#000000"
-                }
-                onChange={(e) =>
-                  setColors({ ...colors, fontColorTertiary: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("background")}</span>
-              <input
-                type="color"
-                name="backgroundColor"
-                value={
-                  colors.backgroundColor ? colors.backgroundColor : "#000000"
-                }
-                onChange={(e) =>
-                  setColors({ ...colors, backgroundColor: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="flex-column gap-10 align-center justify-center">
-              <span className="text-left">{t("background")}</span>
-              <input
-                type="color"
-                name="backgroundColorSecondary"
-                value={
-                  colors.backgroundColorSecondary
-                    ? colors.backgroundColorSecondary
-                    : "#000000"
-                }
-                onChange={(e) =>
-                  setColors({
-                    ...colors,
-                    backgroundColorSecondary: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-row gap-10 padding-10 justify-between">
-        <LabeledInput
-          label={t("themePreferences")}
-          type="text"
-          placeholder={t("themePreferencesPlaceholder")}
-          name="themePreferences"
-          value={colors.themePreferences}
-          onChange={(value) =>
-            setColors({ ...colors, themePreferences: value })
-          }
-        />
-        <div className="flex-row gap-10">
-          <Button
-            // usesAI={true}
-            className="  padding-10 justify-center active-on-hover"
-            svg={SVGS.generate}
-            title={t("generateColorDescription")}
-            onClick={() => {
-              generateRandomTheme(apiKey, colors.themePreferences).then(
-                (colors) => {
-                  setColors((prev) => ({ ...prev, ...colors }));
-                }
-              );
-            }}
-          />
-          <Button
-            className="  padding-10 justify-center active-on-hover"
-            svg={SVGS.paste}
-            title={t("pasteColorsToClipboard")}
-            onClick={() => {
-              pasteColorsToClipboard();
-            }}
-          />
-        </div>
-      </div>
-
-      <div className="flex-column gap-10 padding-10">
-        <h3 className="text-left">{t("backupAndRestore")}</h3>
-        <span className="color-secondary text-left text-sm">
-          {t("backupAndRestoreDescription")}
-        </span>
-        <div className="flex-row gap-10 wrap">
-          <Button
-            className="padding-10 justify-center active-on-hover"
-            text={t("exportData")}
-            svg={SVGS.save}
-            onClick={handleExportData}
-          />
-          <Button
-            className="padding-10 justify-center active-on-hover"
-            text={t("importData")}
-            svg={SVGS.read}
-            onClick={() => importFileInputRef.current?.click()}
-          />
-          <Button
-            className="padding-10 justify-center active-on-hover"
-            text={t("repairNotes")}
-            svg={SVGS.repair}
-            title={t("repairNotesConfirm")}
-            onClick={handleRepairNotes}
-            confirmations={[
-              {
-                text: t("repairNotesConfirm"),
-                className: "bg-danger",
-              },
-            ]}
-          />
-          <input
-            ref={importFileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: "none" }}
-            onChange={handleImportFileSelected}
-          />
-        </div>
-      </div>
-
-      <div className="flex-column gap-10 padding-10">
-        <h3 className="text-left">{t("supabaseConfig")}</h3>
-        <span className="color-secondary text-left text-sm">
-          {t("supabaseConfigDescription")}
-        </span>
-
-        {isSupabaseConfigured() ? (
           <div className="flex-column gap-10">
-            {cloudUser ? (
-              <>
-                <span className="text-left text-sm">
-                  {t("signedInAs", { email: cloudUser.email ?? cloudUser.id })}
-                </span>
-                <div className="flex-row gap-10 wrap">
-                  <Button
-                    className="padding-10 justify-center active-on-hover"
-                    text={t("uploadToCloud")}
-                    svg={SVGS.save}
-                    disabled={cloudBusy}
-                    onClick={handleUploadToCloud}
-                  />
-                  <Button
-                    className="padding-10 justify-center active-on-hover"
-                    text={t("downloadFromCloud")}
-                    svg={SVGS.read}
-                    disabled={cloudBusy}
-                    onClick={handleDownloadFromCloud}
-                  />
-                  <Button
-                    className="padding-10 justify-center active-on-hover"
-                    text={t("signOut")}
-                    onClick={handleSignOut}
-                  />
-                </div>
-                {tableMissing && (
-                  <div className="flex-column gap-5">
-                    <span className="text-left text-sm color-secondary">
-                      {t("tableMissingHint")}
+            <span className="text-left">{t("settingsModels")}</span>
+            <span className="settings-hint text-left text-sm">
+              {t("settingsModelsHint")}
+            </span>
+            {modelFields.map((field) => (
+              <div key={field.id} className="flex-column gap-5">
+                <label className="text-left" htmlFor={field.id}>
+                  {field.label}
+                </label>
+                <Select
+                  name={field.id}
+                  id={field.id}
+                  options={field.options}
+                  defaultValue={field.model.slug}
+                  onChange={field.onChange}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex-column gap-10">
+            <label className="text-left" htmlFor="chatModel">
+              {t("chat")}
+            </label>
+            <Select
+              name="chatModel"
+              id="chatModel"
+              options={modelOptions(availableModels, chatModel)}
+              defaultValue={chatModel.slug}
+              onChange={(value) =>
+                setChatModel(pickModel(availableModels, value))
+              }
+            />
+            <Switch
+              label={t("autoSaveConversations")}
+              checked={autoSaveConversations}
+              onChange={(event) =>
+                setAutoSaveConversations(event.currentTarget.checked)
+              }
+            />
+            <Switch
+              label={t("notifyChatFinished")}
+              checked={notifyChatFinished}
+              onChange={(event) =>
+                setNotifyChatFinished(event.currentTarget.checked)
+              }
+            />
+          </div>
+          <Button
+            className="w-100 padding-10 justify-center active-on-hover"
+            text={t("save")}
+            svg={SVGS.save}
+            onClick={saveAi}
+          />
+        </div>
+      )}
+
+      {section === "look" && (
+        <div className="settings-screen">
+          <div className="settings-swatches">
+            {COLOR_FIELDS.map(([key, label]) => (
+              <label key={key} className="settings-swatch">
+                <span>{t(label)}</span>
+                <input
+                  type="color"
+                  name={key}
+                  value={colors[key] || "#000000"}
+                  onChange={(event) =>
+                    setColors({ ...colors, [key]: event.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <div
+            className="settings-preview"
+            style={{
+              background: `linear-gradient(90deg, ${colors.backgroundColor}, ${colors.backgroundColorSecondary})`,
+              borderLeftColor: colors.activeColor,
+            }}
+          >
+            <span style={{ color: colors.fontColor }}>{t("font")}</span>
+            <span style={{ color: colors.fontColorSecondary }}>
+              {t("font-secondary")}
+            </span>
+            <span style={{ color: colors.fontColorTertiary }}>
+              {t("font-tertiary")}
+            </span>
+          </div>
+          <LabeledInput
+            label={t("themePreferences")}
+            type="text"
+            placeholder={t("themePreferencesPlaceholder")}
+            name="themePreferences"
+            className="w-100 settings-theme"
+            value={colors.themePreferences}
+            onChange={(value) =>
+              setColors({ ...colors, themePreferences: value })
+            }
+          />
+          <div className="flex-row gap-10">
+            <Button
+              className="padding-10 justify-center active-on-hover"
+              svg={SVGS.generate}
+              title={t("generateColorDescription")}
+              onClick={() => {
+                if (!apiKey) {
+                  toast.error(t("noApiKeyError"));
+                  return;
+                }
+                generateRandomTheme(apiKey, colors.themePreferences).then(
+                  (generated) => {
+                    setColors((prev) => applyGeneratedColors(prev, generated));
+                  }
+                );
+              }}
+            />
+            <Button
+              className="padding-10 justify-center active-on-hover"
+              svg={SVGS.paste}
+              title={t("pasteColorsToClipboard")}
+              onClick={pasteColorsToClipboard}
+            />
+          </div>
+          <div className="flex-row gap-10 justify-between align-center">
+            <span className="settings-unsaved">
+              {lookDirty ? t("unsaved") : ""}
+            </span>
+            <Button
+              className="padding-10 justify-center active-on-hover"
+              text={t("save")}
+              svg={SVGS.save}
+              disabled={!lookDirty}
+              onClick={saveLook}
+            />
+          </div>
+        </div>
+      )}
+
+      {section === "data" && (
+        <div className="settings-screen">
+          <div className="flex-column gap-10">
+            <h3 className="text-left">{t("settingsFile")}</h3>
+            <span className="settings-hint text-left text-sm">
+              {t("backupAndRestoreDescription")}
+            </span>
+            <div className="flex-row gap-10 wrap">
+              <Button
+                className="padding-10 justify-center active-on-hover"
+                text={t("exportData")}
+                svg={SVGS.save}
+                onClick={handleExportData}
+              />
+              <Button
+                className="padding-10 justify-center active-on-hover"
+                text={t("importData")}
+                svg={SVGS.read}
+                onClick={() => importFileInputRef.current?.click()}
+              />
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept="application/json"
+                style={{ display: "none" }}
+                onChange={handleImportFileSelected}
+              />
+            </div>
+          </div>
+
+          <div className="flex-column gap-10">
+            <h3 className="text-left">{t("settingsCloud")}</h3>
+            <span className="settings-hint text-left text-sm">
+              {t("supabaseConfigDescription")}
+            </span>
+            {isSupabaseConfigured() ? (
+              <div className="flex-column gap-10">
+                {cloudUser ? (
+                  <>
+                    <span className="text-left text-sm">
+                      {t("signedInAs", {
+                        email: cloudUser.email ?? cloudUser.id,
+                      })}
                     </span>
-                    <pre
-                      className="text-left text-sm"
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        maxHeight: 160,
-                        overflowY: "auto",
-                        padding: 10,
-                      }}
-                    >
-                      {BACKUPS_TABLE_SETUP_SQL}
-                    </pre>
-                    <Button
-                      className="padding-10 justify-center active-on-hover"
-                      text={t("copySql")}
-                      svg={SVGS.copy}
-                      onClick={copySetupSql}
+                    <div className="flex-row gap-10 wrap">
+                      <Button
+                        className="padding-10 justify-center active-on-hover"
+                        text={t("uploadToCloud")}
+                        svg={SVGS.save}
+                        disabled={cloudBusy}
+                        onClick={handleUploadToCloud}
+                      />
+                      <Button
+                        className="padding-10 justify-center active-on-hover"
+                        text={t("downloadFromCloud")}
+                        svg={SVGS.read}
+                        disabled={cloudBusy}
+                        onClick={handleDownloadFromCloud}
+                      />
+                      <Button
+                        className="padding-10 justify-center active-on-hover"
+                        text={t("signOut")}
+                        onClick={handleSignOut}
+                      />
+                    </div>
+                    {tableMissing && (
+                      <div className="flex-column gap-5">
+                        <span className="text-left text-sm settings-hint">
+                          {t("tableMissingHint")}
+                        </span>
+                        <pre
+                          className="text-left text-sm"
+                          style={{
+                            whiteSpace: "pre-wrap",
+                            maxHeight: 160,
+                            overflowY: "auto",
+                            padding: 10,
+                          }}
+                        >
+                          {BACKUPS_TABLE_SETUP_SQL}
+                        </pre>
+                        <Button
+                          className="padding-10 justify-center active-on-hover"
+                          text={t("copySql")}
+                          svg={SVGS.copy}
+                          onClick={copySetupSql}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <LabeledInput
+                      label={t("email")}
+                      type="email"
+                      name="authEmail"
+                      className="w-100"
+                      value={authEmail}
+                      onChange={setAuthEmail}
                     />
-                  </div>
+                    <LabeledInput
+                      label={t("password")}
+                      type="password"
+                      name="authPassword"
+                      className="w-100"
+                      value={authPassword}
+                      onChange={setAuthPassword}
+                    />
+                    <div className="flex-row gap-10 wrap">
+                      <Button
+                        className="padding-10 justify-center active-on-hover"
+                        text={t("signIn")}
+                        disabled={authBusy}
+                        onClick={handleSignIn}
+                      />
+                      <Button
+                        className="padding-10 justify-center active-on-hover"
+                        text={t("signUp")}
+                        disabled={authBusy}
+                        onClick={handleSignUp}
+                      />
+                    </div>
+                  </>
                 )}
-              </>
+              </div>
             ) : (
-              <>
-                <LabeledInput
-                  label={t("email")}
-                  type="email"
-                  name="authEmail"
-                  className="w-100"
-                  value={authEmail}
-                  onChange={setAuthEmail}
-                />
-                <LabeledInput
-                  label={t("password")}
-                  type="password"
-                  name="authPassword"
-                  className="w-100"
-                  value={authPassword}
-                  onChange={setAuthPassword}
-                />
-                <div className="flex-row gap-10 wrap">
-                  <Button
-                    className="padding-10 justify-center active-on-hover"
-                    text={t("signIn")}
-                    disabled={authBusy}
-                    onClick={handleSignIn}
-                  />
-                  <Button
-                    className="padding-10 justify-center active-on-hover"
-                    text={t("signUp")}
-                    disabled={authBusy}
-                    onClick={handleSignUp}
-                  />
-                </div>
-              </>
+              <span className="text-left text-sm settings-hint">
+                {t("supabaseNotConfigured")}
+              </span>
             )}
           </div>
-        ) : (
-          <span className="text-left text-sm color-secondary">
-            {t("supabaseNotConfigured")}
-          </span>
-        )}
-      </div>
 
-      <Button
-        className="w-100  padding-10 justify-center active-on-hover"
-        text={t("saveAndApply")}
-        svg={SVGS.save}
-        onClick={async () => {
-          await ChromeStorageManager.add("colorPreferences", colors);
-          await ChromeStorageManager.add("openaiApiKey", apiKey);
-          await saveAiConfig({
-            notesAssistantModel,
-            formatterModel,
-            imagePromptModel,
-            imageModel,
-          });
-          setConfig({ auth: { openaiApiKey: apiKey } });
-          toast.success(t("settingsSaved"));
-        }}
-      />
+          <div className="flex-column gap-10">
+            <h3 className="text-left">{t("settingsMaintenance")}</h3>
+            <Button
+              className="padding-10 justify-center active-on-hover"
+              text={t("repairNotes")}
+              svg={SVGS.repair}
+              title={t("repairNotesConfirm")}
+              onClick={handleRepairNotes}
+              confirmations={[
+                {
+                  text: t("repairNotesConfirm"),
+                  className: "bg-danger",
+                },
+              ]}
+            />
+          </div>
+        </div>
+      )}
     </Section>
   );
 }

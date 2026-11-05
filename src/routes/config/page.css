@@ -1,0 +1,80 @@
+.settings-menu,
+.settings-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  color: var(--font-color);
+  font: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--font-color) 14%, transparent);
+  background: color-mix(in srgb, var(--bg-color) 72%, transparent);
+}
+
+.settings-row:hover,
+.settings-row:focus-visible {
+  border-color: var(--active-color);
+}
+
+.settings-hint,
+.settings-unsaved {
+  color: var(--font-color-secondary);
+}
+
+.settings-unsaved {
+  color: var(--active-color);
+}
+
+.settings-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.settings-swatch input[type="color"] {
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  overflow: hidden;
+}
+
+.settings-preview span {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.settings-theme {
+  margin-top: 14px;
+}
