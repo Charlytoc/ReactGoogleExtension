@@ -176,6 +176,8 @@
     "showArchived": "Show archived",
     "hideArchived": "Hide archived",
     "onlyArchived": "Only archived",
+    "newestFirst": "Newest first",
+    "oldestFirst": "Oldest first",
     "contains": "Contains",
     "taskSaved": "Task saved",
     "savingTask": "Saving task...",

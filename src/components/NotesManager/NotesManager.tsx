@@ -22,6 +22,19 @@ import {
   noteNeedsRepair,
   repairStoredNotes,
 } from "../../utils/tags";
+
+type TNoteOrder = "newest" | "oldest";
+
+type TNoteFilters = {
+  archived: "show" | "hide" | "only";
+  tags: string[];
+  contains: string;
+  order: TNoteOrder;
+};
+
+const orderedNotes = (notes: TNote[], order: TNoteOrder) =>
+  order === "oldest" ? notes : [...notes].reverse();
+
 // import { useStore } from "../../managers/store"
 
 // function hexToRgba(hex: string, alpha: number) {
@@ -50,14 +63,11 @@ import {
 export const NotesManager = () => {
   const [notes, setNotes] = useState<TNote[]>([]);
   const allNotesRef = useRef<TNote[]>([]);
-  const [filters, setFilters] = useState<{
-    archived: "show" | "hide" | "only";
-    tags: string[];
-    contains: string;
-  }>({
+  const [filters, setFilters] = useState<TNoteFilters>({
     archived: "hide",
     tags: [],
     contains: "",
+    order: "newest",
   });
   // const colorPreferences = useStore((state) => state.colorPreferences);
 
@@ -172,7 +182,7 @@ export const NotesManager = () => {
         filters.tags.some((tag) => note.tags?.includes(tag))
       );
     }
-    return notesToShow;
+    return orderedNotes(notesToShow, filters.order);
   };
 
   return (
@@ -241,16 +251,8 @@ const NoteFilters = ({
   setFilters,
   tags,
 }: {
-  filters: {
-    archived: "show" | "hide" | "only";
-    tags: string[];
-    contains: string;
-  };
-  setFilters: (filters: {
-    archived: "show" | "hide" | "only";
-    tags: string[];
-    contains: string;
-  }) => void;
+  filters: TNoteFilters;
+  setFilters: (filters: TNoteFilters) => void;
   tags: string[];
 }) => {
   const { t } = useTranslation();
@@ -272,6 +274,20 @@ const NoteFilters = ({
               })
             }
             name="archived"
+          />
+          <Select
+            options={[
+              { label: t("newestFirst"), value: "newest" },
+              { label: t("oldestFirst"), value: "oldest" },
+            ]}
+            defaultValue={filters.order}
+            onChange={(value) =>
+              setFilters({
+                ...filters,
+                order: value as TNoteOrder,
+              })
+            }
+            name="order"
           />
         </div>
       </section>

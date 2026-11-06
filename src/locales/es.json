@@ -176,6 +176,8 @@
     "showArchived": "Mostrar archivado",
     "hideArchived": "Ocultar archivado",
     "onlyArchived": "Solo archivado",
+    "newestFirst": "Últimas primero",
+    "oldestFirst": "Primeras primero",
     "contains": "Contiene",
     "taskSaved": "Tarea guardada",
     "savingTask": "Guardando tarea...",
