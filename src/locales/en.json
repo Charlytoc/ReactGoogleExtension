@@ -211,6 +211,8 @@
     "colorsPastedToClipboard": "Colors pasted to clipboard",
     "colorsPastedToClipboardSuccess": "Colors pasted to clipboard successfully",
     "tags": "Tags",
+    "updatedOn": "Updated %s",
+    "createdOn": "Created %s",
     "tags-comma-hint": "Separate with commas. Suggestions come from notes, tasks, bookmarks, and formatters.",
     "archived": "Archived",
     "continueWithAI": "Continue with AI",

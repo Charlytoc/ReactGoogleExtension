@@ -37,6 +37,7 @@ export type TNote = {
   font?: string;
   archived?: boolean;
   createdAt?: string;
+  updatedAt?: string;
   imageURL?: string;
   opacity?: number;
   coverImage?: string;

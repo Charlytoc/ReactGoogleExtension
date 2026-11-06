@@ -23,6 +23,7 @@ import {
   migrateTask,
   nodesToMarkdown,
   noteNeedsRepair,
+  noteWithFreshUpdate,
 } from "../../../utils/tags";
 import { NOTE_FONT_OPTIONS } from "../../../utils/noteTheme";
 import {
@@ -561,7 +562,7 @@ export default function NoteDetail() {
     } else {
       newNotes = newNotes.map((n: TNote) => {
         if (n.id === id) {
-          return { ...n, ...note };
+          return noteWithFreshUpdate(n, note);
         }
         return n;
       });

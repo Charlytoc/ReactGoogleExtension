@@ -211,6 +211,8 @@
     "colorsPastedToClipboard": "Colores pegados al portapapeles",
     "colorsPastedToClipboardSuccess": "Colores pegados al portapapeles correctamente",
     "tags": "Etiquetas",
+    "updatedOn": "Actualizado %s",
+    "createdOn": "Creado %s",
     "tags-comma-hint": "Separa con comas. Las sugerencias provienen de notas, tareas, marcadores y formateadores.",
     "archived": "Archivado",
     "continueWithAI": "Continuar con AI",

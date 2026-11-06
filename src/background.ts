@@ -707,6 +707,7 @@ TAG_CATALOG — reuse exact strings when possible (JSON): ${JSON.stringify(
         font: theme.font,
         tags: mergeNoteTags(n.tags, theme.tagsFromAi),
         imageURL: "",
+        updatedAt: new Date().toISOString(),
       };
     });
     await ChromeStorageManager.add("notes", updatedNotes);

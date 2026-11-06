@@ -45,7 +45,7 @@ const updateStoredNote = async (
   let updated: TNote | undefined;
   const next = notes.map((note) => {
     if (note.id !== noteId) return note;
-    updated = { ...note, ...patch };
+    updated = { ...note, ...patch, updatedAt: new Date().toISOString() };
     return updated;
   });
   if (!updated) return undefined;

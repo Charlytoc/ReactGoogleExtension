@@ -12,10 +12,26 @@ type TNoteProps = TNote & {
   deleteNote?: () => void;
 };
 
+const formatNoteWhen = (value?: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 export const Note = ({
   title,
   deleteNote,
   id,
+  tags,
+  createdAt,
+  updatedAt,
   color = "var(--bg-color)",
   color2 = "var(--bg-color2)",
   backgroundType = "gradient",
@@ -24,6 +40,14 @@ export const Note = ({
 }: TNoteProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const edited = formatNoteWhen(updatedAt);
+  const created = formatNoteWhen(createdAt);
+  const whenText = edited
+    ? t("updatedOn").replace("%s", edited)
+    : created
+      ? t("createdOn").replace("%s", created)
+      : "";
+  const visibleTags = (tags ?? []).filter(Boolean);
 
   return (
     <Card
@@ -47,60 +71,29 @@ export const Note = ({
       }}
       className="note-card"
     >
-      <div
-        style={{
-          position: "relative",
-          ...(coverImage ? { height: 100 } : { minHeight: 48 }),
-        }}
-      >
-        {coverImage ? (
-          <>
-            <div style={{ height: "100%", overflow: "hidden" }}>
-              <img
-                src={coverImage}
-                alt="cover"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  objectPosition: "center",
-                  display: "block",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)",
-                display: "flex",
-                alignItems: "flex-end",
-                padding: "8px 12px",
-                paddingRight: 72,
-                pointerEvents: "none",
-              }}
-            >
-              <Text fw={600} size="sm" c="white" truncate style={{ width: "100%" }}>
-                {title || t("untitled")}
-              </Text>
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              padding: "12px 72px 12px 12px",
-              minHeight: 48,
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <Text fw={600} size="sm" c="white" truncate style={{ width: "100%" }}>
-              {title || t("untitled")}
-            </Text>
+      {coverImage ? (
+        <img
+          src={coverImage}
+          alt=""
+          className="note-card-cover"
+        />
+      ) : null}
+      <div className="note-card-body">
+        <Text fw={600} size="sm" c="white" truncate>
+          {title || t("untitled")}
+        </Text>
+        {whenText || visibleTags.length > 0 ? (
+          <div className="note-card-meta">
+            {whenText ? <span className="note-card-when">{whenText}</span> : null}
+            {visibleTags.map((tag) => (
+              <span className="note-card-tag" key={tag}>
+                {tag}
+              </span>
+            ))}
           </div>
-        )}
-        <Group
+        ) : null}
+      </div>
+      <Group
           gap={4}
           wrap="nowrap"
           justify="flex-end"
@@ -138,7 +131,6 @@ export const Note = ({
             {SVGS.expand}
           </ActionIcon>
         </Group>
-      </div>
     </Card>
   );
 };

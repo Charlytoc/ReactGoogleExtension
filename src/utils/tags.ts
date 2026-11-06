@@ -152,10 +152,18 @@ export function migrateNote(raw: unknown): TNote {
     font: typeof o.font === "string" ? o.font : undefined,
     archived: o.archived === true,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : undefined,
+    updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : undefined,
     imageURL: typeof o.imageURL === "string" ? o.imageURL : undefined,
     opacity: typeof o.opacity === "number" ? o.opacity : undefined,
     coverImage: typeof o.coverImage === "string" ? o.coverImage : undefined,
   };
+}
+
+export function noteWithFreshUpdate(previous: TNote, next: TNote): TNote {
+  const prev = JSON.stringify({ ...previous, updatedAt: undefined });
+  const incoming = JSON.stringify({ ...next, updatedAt: undefined });
+  if (prev === incoming) return previous;
+  return { ...previous, ...next, updatedAt: new Date().toISOString() };
 }
 
 export async function repairStoredNotes(): Promise<{
