@@ -19,6 +19,7 @@ import {
   migrateSnaptie,
   migrateTask,
   noteMatchesTextFilter,
+  noteMissingUpdatedAt,
   noteNeedsRepair,
   repairStoredNotes,
 } from "../../utils/tags";
@@ -84,12 +85,14 @@ export const NotesManager = () => {
     const cssVariableValue = styles.getPropertyValue("--bg-color");
     const cssVariableValue2 = styles.getPropertyValue("--bg-color-secondary");
 
+    const now = new Date().toISOString();
     const defaultNote: TNote = {
       id: generateRandomId("note"),
       title: "",
       nodes: [],
       color: cssVariableValue,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       tags: [],
       archived: false,
       backgroundType: "solid",
@@ -127,7 +130,10 @@ export const NotesManager = () => {
 
     if (Array.isArray(notesRaw)) {
       const notes = notesRaw.map(migrateNote);
-      if (notesRaw.some(noteNeedsRepair)) {
+      if (
+        notesRaw.some(noteNeedsRepair) ||
+        notesRaw.some(noteMissingUpdatedAt)
+      ) {
         await ChromeStorageManager.add("notes", notes);
       }
       allNotesRef.current = notes;

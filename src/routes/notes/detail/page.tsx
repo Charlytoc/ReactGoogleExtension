@@ -22,6 +22,7 @@ import {
   migrateSnaptie,
   migrateTask,
   nodesToMarkdown,
+  noteMissingUpdatedAt,
   noteNeedsRepair,
   noteWithFreshUpdate,
 } from "../../../utils/tags";
@@ -524,7 +525,8 @@ export default function NoteDetail() {
       cacheLocation("/notes");
       navigate("/notes");
     } else {
-      const shouldRepair = notes.some(noteNeedsRepair);
+      const shouldRepair =
+        notes.some(noteNeedsRepair) || notes.some(noteMissingUpdatedAt);
       const migratedNotes = notes.map(migrateNote);
       const note = migratedNotes.find((n) => n.id === id) ?? migrateNote(found);
       if (shouldRepair) {

@@ -205,6 +205,7 @@ export const createChatTools = (deps: {
         const notes: TNote[] = Array.isArray(storedNotes)
           ? storedNotes.map(migrateNote)
           : [];
+        const now = new Date().toISOString();
         const note: TNote = {
           id: generateRandomId("note"),
           title: (args.title || "").trim() || "Untitled note",
@@ -222,7 +223,8 @@ export const createChatTools = (deps: {
           color2: "var(--bg-color-secondary)",
           tags: [],
           archived: false,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
+          updatedAt: now,
           imageURL: "",
         };
         await ChromeStorageManager.add("notes", [...notes, note]);
